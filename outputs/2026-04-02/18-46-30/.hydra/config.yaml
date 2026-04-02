@@ -1,0 +1,14 @@
+target_speaker: en_speaker_2
+pipeline:
+  _target_: quick_convert.pipelines.anonymization.AnonymizationPipeline
+  anonymizer:
+    _target_: quick_convert.pipelines.anonymization.NACAnonymizer
+    checkpoint_dir: checkpoints/nac_models
+    voice_dirs:
+    - checkpoints/nac_mappings/suno_voices/v2
+  target_speaker: ${target_speaker}
+  out_dir: anonymized/stutter
+  suffix: _nac_${target_speaker}
+  dataset:
+    _target_: quick_convert.data.base_dataset.BaseDataset
+    root: audio/stutter/

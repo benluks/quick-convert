@@ -1,0 +1,10 @@
+anonymizer: !new:quick_convert.anonymizer.KNNVC
+target_speaker_root: /cfs/collections/librispeech/LibriSpeech/train-clean-100/
+target_speaker: 1089
+
+run:
+  in_dir: audio/stutter/f
+  out_dir: anonymized/f
+  target_speaker: !ref <run[in_dir]>
+  suffix: !ref _knnvc_self
+  pattern: "*.wav"
