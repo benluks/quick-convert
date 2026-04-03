@@ -1,7 +1,8 @@
 from .nac import NACAnonymizer
+from .knnvc import KNNVCAnonymizer
 from .pipeline import AnonymizationPipeline
 
-__all__ = ["NACAnonymizer", "AnonymizationPipeline"]
+__all__ = ["NACAnonymizer", "KNNVCAnonymizer", "AnonymizationPipeline"]
 
 
 if __name__ == "__main__":

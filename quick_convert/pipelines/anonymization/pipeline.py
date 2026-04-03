@@ -35,11 +35,19 @@ class AnonymizationPipeline:
         if not target_speaker:
             target_speaker = self.target_speaker
 
-        self.anonymizer.set_target(target_speaker, **kwargs)
+        if kwargs.get("resynthesize", False):
+            anonymize_fn = self.anonymizer.resynthesize
+        else:
+            self.anonymizer.set_target(target_speaker, **kwargs)
+            anonymize_fn = self.anonymizer.convert
+
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        for fpath in tqdm(self.dataset, desc=f"Anonymizing data from {self.dataset.root} into {str(out_dir)}"):
+        for fpath in tqdm(
+            self.dataset,
+            desc=f"Anonymizing data from {self.dataset.root} into {str(out_dir)}",
+        ):
             out_path = Path(out_dir) / f"{Path(fpath).stem}{self.suffix}.wav"
-            wav_conv = self.anonymizer.convert(fpath)
+            wav_conv = anonymize_fn(fpath)
             torchaudio.save(str(out_path), wav_conv, self.anonymizer.sr)
