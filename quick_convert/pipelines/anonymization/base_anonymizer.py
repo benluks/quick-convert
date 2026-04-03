@@ -3,22 +3,25 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 import torch
+import torch.nn as nn
 
 from ...utils.audio import load_audio
-# from .nac import Anonymizer
 
 # anonymizer should take file as input and output [channel, T] audio
 from abc import ABC, abstractmethod
 
 
-class BaseAnonymizer(ABC, torch.nn.Module):
+class BaseAnonymizer(nn.Module, ABC):
     sr: int
     sample_rate: int
-    device: torch.device = torch.device(
-        "cuda"
-        if torch.cuda.is_available()
-        else ("mps" if torch.mps.is_available() else "cpu")
-    )
+
+    def __init__(self, device: torch.device | None = None):
+        super().__init__()
+        self.device = device or torch.device(
+            "cuda"
+            if torch.cuda.is_available()
+            else ("mps" if torch.backends.mps.is_available() else "cpu")
+        )
 
     def load(self, audio_path):
         return load_audio(audio_path, self.sr)

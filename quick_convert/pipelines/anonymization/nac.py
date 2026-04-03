@@ -32,7 +32,7 @@ class NACAnonymizer(BaseAnonymizer):
         config = BarkConfig()  # don't change the custom config for the love of god
         self.model = Bark.init_from_config(config)
         self.model.load_checkpoint(config, checkpoint_dir=checkpoint_dir, eval=True)
-        # self.model.to('cuda')
+        self.model.to(self.device)
 
         # 2. initialize the awesome, bark-distilled, unlikely-yet-functioning audio tokenizer
         hubert_manager = HubertManager()
@@ -41,7 +41,7 @@ class NACAnonymizer(BaseAnonymizer):
         )
         self.hubert_model = CustomHubert(
             checkpoint_path=self.model.config.LOCAL_MODEL_PATHS["hubert"]
-        )  # .to(self.model.device)
+        ).to(self.model.device)
         self.tokenizer = HubertTokenizer.load_from_checkpoint(
             self.model.config.LOCAL_MODEL_PATHS["hubert_tokenizer"],
             map_location=self.model.device,
@@ -108,7 +108,7 @@ class NACAnonymizer(BaseAnonymizer):
             audio_path,
             target_voice_id,
             coarse_temperature,
-        )
+        ).unsqueeze(0)
 
 
 if __name__ == "__main__":
