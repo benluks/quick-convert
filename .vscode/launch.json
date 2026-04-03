@@ -8,8 +8,11 @@
             "name": "Python Debugger: Current File",
             "type": "debugpy",
             "request": "launch",
-            "module": "scripts.anonymize",
-            "args": "configs/knnvc.yaml",
+            "module": "quick_convert.cli.anonymize",
+            "args": [
+                "--config-name",
+                "knnvc"
+            ],
             "console": "integratedTerminal",
             "python": ".venv/bin/python",
             "justMyCode": false,

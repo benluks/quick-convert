@@ -1,10 +1,22 @@
-anonymizer: !new:quick_convert.anonymizer.KNNVC
-target_speaker_root: /cfs/collections/librispeech/LibriSpeech/train-clean-100/
-target_speaker: 1089
+target_speaker_root: /cfs/collections/librispeech/LibriSpeech/train-clean-100
+target_speaker_id: 1069
+
+pipeline: 
+  _target_: quick_convert.pipelines.anonymization.AnonymizationPipeline
+  anonymizer:
+    _target_: quick_convert.pipelines.anonymization.KNNVCAnonymizer
+    # checkpoint_dir: checkpoints/nac_models
+    # voice_dirs:
+    #   - checkpoints/nac_mappings/suno_voices/v2
+  out_dir: anonymized/stutter/knnvc_${target_speaker_id}
+  target_speaker: ${target_speaker_root}/${target_speaker_id}
+  dataset:
+    _target_: quick_convert.data.base_dataset.BaseDataset
+    root: audio/stutter/
+    splits:
+      - m
+      - f
+      - interviewer
 
 run:
-  in_dir: audio/stutter/f
-  out_dir: anonymized/f
-  target_speaker: !ref <run[in_dir]>
-  suffix: !ref _knnvc_self
-  pattern: "*.wav"
+  pattern: "*/*.flac"

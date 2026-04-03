@@ -5,29 +5,25 @@ from torch.utils.data import Dataset
 
 from ..utils.audio import get_supported_formats
 
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class AudioSample:
+    path: Path
+    split: str | None = None
+
 
 class BaseDataset(Dataset):
-    """
-    A PyTorch Dataset that returns audio file paths.
-
-    Args:
-        root: Directory to search recursively for audio files.
-        paths: Optional explicit iterable of file paths. If provided, `root` is ignored.
-        file_format: Optional extension or iterable of extensions, e.g. "wav", ".wav",
-                     or ["wav", "flac"].
-
-    Returns:
-        str: The path to the audio file.
-    """
-
     VALID_FORMATS = get_supported_formats()
 
     def __init__(
         self,
         root: Optional[Union[str, Path]] = None,
-        paths: Optional[Iterable[Union[str, Path]]] = None,
+        splits: Optional[Iterable[str]] = None,
         file_format: Optional[Union[str, Iterable[str]]] = None,
-        load=False,
+        paths: Optional[Iterable[Union[str, Path]]] = None,
+        load: bool = False,
     ):
         if root is None and paths is None:
             raise ValueError("You must provide either `root` or `paths`.")
@@ -35,30 +31,54 @@ class BaseDataset(Dataset):
             raise ValueError("Provide only one of `root` or `paths`, not both.")
 
         self.file_formats = self._normalize_and_validate_format(file_format)
+        self.splits = list(splits) if splits is not None else None
+        self.root = Path(root) if root is not None else None
+
+        rows = []
 
         if paths is not None:
-            files = [Path(p) for p in paths]
-            files = [p for p in files if p.is_file()]
+            files = [Path(p) for p in paths if Path(p).is_file()]
+            for p in files:
+                rows.append(
+                    {
+                        "path": str(p),
+                        "split": None,
+                    }
+                )
         else:
-            root = Path(root)
-            if not root.exists():
-                raise FileNotFoundError(f"Directory does not exist: {root}")
-            if not root.is_dir():
-                raise NotADirectoryError(f"Expected a directory: {root}")
+            if not self.root.exists():
+                raise FileNotFoundError(f"Directory does not exist: {self.root}")
+            if not self.root.is_dir():
+                raise NotADirectoryError(f"Expected a directory: {self.root}")
 
-            files = [p for p in root.rglob("*") if p.is_file()]
+            if self.splits is None:
+                search_roots = [(None, self.root)]
+            else:
+                search_roots = []
+                for split in self.splits:
+                    split_root = self.root / split
+                    if not split_root.exists():
+                        raise FileNotFoundError(
+                            f"Split directory does not exist: {split_root}"
+                        )
+                    if not split_root.is_dir():
+                        raise NotADirectoryError(f"Expected a directory: {split_root}")
+                    search_roots.append((split, split_root))
+            file_formats = self.file_formats if self.file_formats is not None else self.VALID_FORMATS
+            for split, search_root in search_roots:
+                for p in search_root.rglob("*"):
+                    if not p.is_file():
+                        continue
+                    elif p.suffix.lower().lstrip(".") not in file_formats:
+                        continue
+                    rows.append(
+                        AudioSample(
+                            path=p,
+                            split=split,
+                        )
+                    )
 
-        self.root = root
-        if self.file_formats is not None:
-            files = [p for p in files if p.suffix.lower() in self.file_formats]
-        else:
-            files = [
-                p
-                for p in files
-                if p.suffix and p.suffix.lower().lstrip(".") in self.VALID_FORMATS
-            ]
-
-        self.files = sorted(files)
+        self.rows = sorted(rows, key=lambda row: str(row.path))
 
     @classmethod
     def _normalize_and_validate_format(
@@ -89,7 +109,7 @@ class BaseDataset(Dataset):
         return normalized
 
     def __len__(self) -> int:
-        return len(self.files)
+        return len(self.rows)
 
-    def __getitem__(self, idx: int) -> str:
-        return str(self.files[idx])
+    def __getitem__(self, idx: int) -> dict:
+        return self.rows[idx]

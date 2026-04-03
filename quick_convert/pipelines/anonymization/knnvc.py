@@ -3,16 +3,18 @@ from typing import List, Optional, Union
 
 import torch
 
+from .targets.knnvc import KNNVCTarget
 from .base_anonymizer import BaseAnonymizer
 
 
-class KNNVCAnonymizer(BaseAnonymizer):
+class KNNVCAnonymizer(BaseAnonymizer[KNNVCTarget]):
     def __init__(self):
         super().__init__()
         self.model = torch.hub.load(
             "bshall/knn-vc", "knn_vc", prematched=True, trust_repo=True, pretrained=True
         )
         self.sample_rate = self.sr = 16000
+        self.target = KNNVCTarget
 
     def _get_matching_set(self, ref_wav_paths: List):
         self.matching_set = self.model.get_matching_set(ref_wav_paths)

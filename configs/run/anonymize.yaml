@@ -1,0 +1,20 @@
+# @package _global_
+
+defaults:
+  # - /pipeline: anonymization
+  - /anonymizer: knnvc
+  - /dataset: stutter
+  - _self_
+
+target_speaker: 1069
+
+pipeline: 
+  _target_: quick_convert.pipelines.anonymization.AnonymizationPipeline
+  anonymizer: ${anonymizer.pipline.anonymizer}
+  dataset: ${dataset}
+  target_speaker: ${anonymizer.target_speaker_root}/${target_speaker}
+  out_dir: anonymized/stutter/knnvc_${target_speaker}
+  suffix: ""
+
+run:
+  pattern: "*/*.flac"

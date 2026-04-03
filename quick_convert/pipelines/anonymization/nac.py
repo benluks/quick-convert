@@ -2,9 +2,8 @@
 https://github.com/eurecom-asp/spk_anon_nac_lm/blob/dev/anonymizer.py
 """
 
-from ast import List
 import os
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from TTS.tts.configs.bark_config import BarkConfig
 from TTS.tts.models.bark import Bark
@@ -105,15 +104,12 @@ class NACAnonymizer(BaseAnonymizer[NACTarget]):
         if not target_voice_id:
             target_voice_id = self.target
 
-        return (
-            self(
-                audio_path,
-                target_voice_id,
-                coarse_temperature,
-            )
-            .reshape(1, -1)
-            .cpu()
+        wav_conv = self(
+            audio_path,
+            target_voice_id,
+            coarse_temperature,
         )
+        return torch.from_numpy(wav_conv).unsqueeze(0)
 
 
 if __name__ == "__main__":

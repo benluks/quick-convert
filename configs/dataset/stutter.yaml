@@ -1,0 +1,6 @@
+_target_: quick_convert.data.base_dataset.BaseDataset
+root: audio/stutter/
+splits:
+  - m
+  - f
+  - interviewer
