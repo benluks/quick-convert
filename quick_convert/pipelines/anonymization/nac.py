@@ -18,9 +18,10 @@ from TTS.tts.layers.bark.hubert.kmeans_hubert import CustomHubert
 from TTS.tts.layers.bark.hubert.tokenizer import HubertTokenizer
 
 from .base_anonymizer import BaseAnonymizer
+from .targets import NACTarget
 
 
-class NACAnonymizer(BaseAnonymizer):
+class NACAnonymizer(BaseAnonymizer[NACTarget]):
     def __init__(self, checkpoint_dir: str, voice_dirs: Union[list[str], None] = None):
         super().__init__()
 
@@ -97,18 +98,22 @@ class NACAnonymizer(BaseAnonymizer):
         )
         return audio_arr
 
-    def set_target(self, target: Union[str, List], pattern: Optional[str] = None):
+    def set_target(self, target: Union[str, List]):
         self.target = target
 
     def convert(self, audio_path, target_voice_id=None, coarse_temperature=0.7):
         if not target_voice_id:
             target_voice_id = self.target
 
-        return self(
-            audio_path,
-            target_voice_id,
-            coarse_temperature,
-        ).unsqueeze(0)
+        return (
+            self(
+                audio_path,
+                target_voice_id,
+                coarse_temperature,
+            )
+            .reshape(1, -1)
+            .cpu()
+        )
 
 
 if __name__ == "__main__":

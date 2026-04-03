@@ -1,17 +1,17 @@
 import os
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Generic, List, Optional, TypeVar, Union
 
 import torch
 import torch.nn as nn
-
 from ...utils.audio import load_audio
 
 # anonymizer should take file as input and output [channel, T] audio
 from abc import ABC, abstractmethod
+from .targets import T_Target
 
 
-class BaseAnonymizer(nn.Module, ABC):
+class BaseAnonymizer(nn.Module, ABC, Generic[T_Target]):
     sr: int
     sample_rate: int
 
@@ -51,4 +51,3 @@ class ASRBN(BaseAnonymizer):
     def convert(self, audio_path, target_speaker=None):
         x = self.load(audio_path)
         return self.model.convert(x, target=target_speaker)
-
