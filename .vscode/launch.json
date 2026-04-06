@@ -11,7 +11,7 @@
             "module": "quick_convert.cli.anonymize",
             "args": [
                 "--config-name",
-                "knnvc"
+                "asrbn"
             ],
             "console": "integratedTerminal",
             "python": ".venv/bin/python",

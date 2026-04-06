@@ -23,8 +23,15 @@ class BaseAnonymizer(nn.Module, ABC, Generic[T_Target]):
             else ("mps" if torch.backends.mps.is_available() else "cpu")
         )
 
-    def load(self, audio_path):
-        return load_audio(audio_path, self.sr)
+    def load(self, audio_path, convert_to_mono=True):
+        wav = load_audio(audio_path, self.sr)
+        # is stereo, but make sure it is in [channel, T] format.
+        # for now, I don't see how wav could be batched audio so there's
+        # no risk of averaging 2 audios
+        if wav.ndim >= 2 and wav.shape[-2] == 2 and convert_to_mono:
+            wav = wav.mean(dim=0, keepdim=True)
+
+        return wav
 
     @abstractmethod
     def set_target(self, **kwargs):
@@ -35,19 +42,3 @@ class BaseAnonymizer(nn.Module, ABC, Generic[T_Target]):
         self, audio_path: Union[torch.Tensor, os.PathLike], **kwargs
     ) -> torch.Tensor:
         raise NotImplementedError
-
-
-class ASRBN(BaseAnonymizer):
-    def __init__(self):
-
-        self.model = torch.hub.load(
-            "deep-privacy/SA-toolkit",
-            "anonymization",
-            tag_version="hifigan_bn_tdnnf_wav2vec2_vq_48_v1",
-            trust_repo=True,
-        )
-        self.sr = 16000
-
-    def convert(self, audio_path, target_speaker=None):
-        x = self.load(audio_path)
-        return self.model.convert(x, target=target_speaker)

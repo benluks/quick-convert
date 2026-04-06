@@ -1,5 +1,5 @@
 
-target_speaker: en_speaker_2
+target_speaker_id: en_speaker_2
 
 pipeline: 
   _target_: quick_convert.pipelines.anonymization.AnonymizationPipeline
@@ -10,7 +10,7 @@ pipeline:
       - checkpoints/nac_mappings/suno_voices/v2
   target_speaker: ${target_speaker}
   out_dir: anonymized/stutter
-  suffix: _nac_${target_speaker}
+  suffix: _nac_${target_speaker_id}
   dataset:
     _target_: quick_convert.data.base_dataset.BaseDataset
     root: audio/stutter/
