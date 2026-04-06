@@ -1,43 +1,44 @@
 from __future__ import annotations
 
-import argparse
-from pathlib import Path
-from typing import Sequence
+import hydra
+from hydra.utils import instantiate
+from omegaconf import DictConfig, OmegaConf
 
-from quick_convert.asv.train import train_asv
+from ..pipelines.asv.prepare_dataset import prepare_asv_csvs_from_dataset
+from ..pipelines.asv.train import train_asv
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Train an ASV model using the SpeechBrain-based recipe."
+@hydra.main(
+    version_base=None,
+    config_path="../../configs",
+    config_name="run/train_asv_clac",
+)
+def main(cfg: DictConfig) -> None:
+    print(OmegaConf.to_yaml(cfg, resolve=True))
+
+    dataset = instantiate(cfg.dataset)
+
+    train_csv, dev_csv, n_speakers = prepare_asv_csvs_from_dataset(
+        dataset=dataset,
+        save_folder=cfg.asv.prep.save_folder,
+        train_fraction=cfg.asv.prep.train_fraction,
+        seed=cfg.asv.prep.seed,
+        randomize_within_split=cfg.asv.prep.randomize_within_split,
     )
-    parser.add_argument(
-        "hparams",
-        type=Path,
-        help="Path to the hyperparameter YAML file.",
-    )
-    parser.add_argument(
-        "overrides",
-        nargs="*",
-        help=(
-            "Optional HyperPyYAML / SpeechBrain overrides, e.g. "
-            "data_folder=/path/to/data output_folder=exp/asv"
-        ),
-    )
-    return parser
 
-
-def main(argv: Sequence[str] | None = None) -> None:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-
-    hparams_path = args.hparams.expanduser().resolve()
-    if not hparams_path.exists():
-        parser.error(f"Hyperparameter file does not exist: {hparams_path}")
+    overrides = {
+    "output_folder": cfg.asv.overrides.output_folder,
+    "save_folder": cfg.asv.overrides.save_folder,
+    "data_folder": cfg.asv.overrides.data_folder,
+    "train_annotation": train_csv,
+    "valid_annotation": dev_csv,
+    "out_n_neurons": n_speakers,
+    "skip_prep": True,
+}
 
     train_asv(
-        hparams_file=hparams_path,
-        overrides=args.overrides,
+        hparams_file=cfg.asv.hparams_file,
+        overrides=overrides,
     )
 
 

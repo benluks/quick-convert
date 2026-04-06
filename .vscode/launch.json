@@ -8,7 +8,7 @@
             "name": "Python Debugger: Current File",
             "type": "debugpy",
             "request": "launch",
-            "module": "quick_convert.cli.anonymize",
+            "module": "quick_convert.cli.train_asv",
             // "args": [
             //     "--config-name",
             //     "asrbn"
