@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Iterable, Optional, Union
 
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 class AudioSample:
     path: Path
     split: str | None = None
+    spk_id: Optional[str] = None
 
 
 class BaseDataset(Dataset):
@@ -24,6 +26,7 @@ class BaseDataset(Dataset):
         file_format: Optional[Union[str, Iterable[str]]] = None,
         paths: Optional[Iterable[Union[str, Path]]] = None,
         load: bool = False,
+        return_spkid=False,
     ):
         if root is None and paths is None:
             raise ValueError("You must provide either `root` or `paths`.")
@@ -33,6 +36,7 @@ class BaseDataset(Dataset):
         self.file_formats = self._normalize_and_validate_format(file_format)
         self.splits = list(splits) if splits is not None else None
         self.root = Path(root) if root is not None else None
+        self.return_spkid = return_spkid
 
         rows = []
 
@@ -40,10 +44,10 @@ class BaseDataset(Dataset):
             files = [Path(p) for p in paths if Path(p).is_file()]
             for p in files:
                 rows.append(
-                    {
-                        "path": str(p),
-                        "split": None,
-                    }
+                    AudioSample(
+                        path=p,
+                        spk_id=self.get_spkid(p) if return_spkid else None,
+                    )
                 )
         else:
             if not self.root.exists():
@@ -64,7 +68,11 @@ class BaseDataset(Dataset):
                     if not split_root.is_dir():
                         raise NotADirectoryError(f"Expected a directory: {split_root}")
                     search_roots.append((split, split_root))
-            file_formats = self.file_formats if self.file_formats is not None else self.VALID_FORMATS
+            file_formats = (
+                self.file_formats
+                if self.file_formats is not None
+                else self.VALID_FORMATS
+            )
             for split, search_root in search_roots:
                 for p in search_root.rglob("*"):
                     if not p.is_file():
@@ -75,6 +83,7 @@ class BaseDataset(Dataset):
                         AudioSample(
                             path=p,
                             split=split,
+                            spk_id=self.get_spkid(p) if return_spkid else None,
                         )
                     )
 
@@ -111,5 +120,10 @@ class BaseDataset(Dataset):
     def __len__(self) -> int:
         return len(self.rows)
 
-    def __getitem__(self, idx: int) -> dict:
+    def __getitem__(self, idx: int) -> AudioSample:
         return self.rows[idx]
+
+    def get_spkid(self, file_path: Path):
+        raise NotImplementedError(
+            f"{type(self).__name__} must implement `get_spkid` when `return_spkid=True`."
+        )

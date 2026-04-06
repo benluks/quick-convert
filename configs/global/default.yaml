@@ -1,0 +1,4 @@
+# @package _global_
+
+out_root: anonymized
+out_dir_suffix: ""

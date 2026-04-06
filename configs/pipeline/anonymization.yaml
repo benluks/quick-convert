@@ -1,0 +1,5 @@
+_target_: quick_convert.pipelines.anonymization.AnonymizationPipeline
+anonymizer: null
+dataset: null
+target_speaker: null
+out_dir: ${out_root}/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.anonymizer}_${target_id}${out_dir_suffix}
