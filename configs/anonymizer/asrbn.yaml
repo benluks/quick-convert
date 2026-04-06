@@ -1,15 +1,1 @@
-target_speaker_id: "1069"
-
-pipeline: 
-  _target_: quick_convert.pipelines.anonymization.AnonymizationPipeline
-  anonymizer:
-    _target_: quick_convert.pipelines.anonymization.ASRBNAnonymizer
-  out_dir: anonymized/stutter/asrbn_${target_speaker_id}
-  target_speaker: ${target_speaker_id}
-  dataset:
-    _target_: quick_convert.data.base_dataset.BaseDataset
-    root: audio/stutter/
-    splits:
-      - m
-      - f
-      - interviewer
+_target_: quick_convert.pipelines.anonymization.ASRBNAnonymizer

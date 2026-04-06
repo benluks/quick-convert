@@ -5,11 +5,20 @@ from hydra.utils import instantiate
 
 @hydra.main(
     version_base=None,
-    config_path="../../configs/anonymizer",
+    config_path="../../configs",
+    config_name="run/anonymization_asrbn_stutter",
 )
 def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg, resolve=True))
-    pipeline = instantiate(cfg.pipeline)
+
+    anonymizer = instantiate(cfg.anonymizer)
+    dataset = instantiate(cfg.dataset)
+    pipeline = instantiate(
+        cfg.pipeline,
+        anonymizer=anonymizer,
+        dataset=dataset,
+    )
+
     pipeline.run(**cfg.get("run", {}))
 
 

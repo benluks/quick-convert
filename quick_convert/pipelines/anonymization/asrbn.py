@@ -13,9 +13,13 @@ class ASRBNAnonymizer(BaseAnonymizer[ASRBNTarget]):
             tag_version="hifigan_bn_tdnnf_wav2vec2_vq_48_v1",
             trust_repo=True,
         ).to(self.device)
+        self.model.eval()
+
         self.sample_rate = self.sr = 16000
 
     def set_target(self, target):
+        if isinstance(target, int):
+            target = str(target)
         self.target = target
 
     def convert(self, audio_path, target_speaker=None):

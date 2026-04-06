@@ -9,15 +9,15 @@
             "type": "debugpy",
             "request": "launch",
             "module": "quick_convert.cli.anonymize",
-            "args": [
-                "--config-name",
-                "asrbn"
-            ],
+            // "args": [
+            //     "--config-name",
+            //     "asrbn"
+            // ],
             "console": "integratedTerminal",
             "python": ".venv/bin/python",
             "justMyCode": false,
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0"
+                "CUDA_VISIBLE_DEVICES": "1"
             }
         }
     ]
