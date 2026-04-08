@@ -41,11 +41,11 @@ def train_asv(
         run_opts=run_opts,
         checkpointer=hparams["checkpointer"],
     )
-
-    speaker_brain.fit(
-        speaker_brain.hparams.epoch_counter,
-        train_data,
-        valid_data,
-        train_loader_kwargs=hparams["dataloader_options"],
-        valid_loader_kwargs=hparams["dataloader_options"],
-    )
+    with torch.autograd.detect_anomaly():
+        speaker_brain.fit(
+            speaker_brain.hparams.epoch_counter,
+            train_data,
+            valid_data,
+            train_loader_kwargs=hparams["dataloader_options"],
+            valid_loader_kwargs=hparams["dataloader_options"],
+        )

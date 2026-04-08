@@ -9,15 +9,14 @@
             "type": "debugpy",
             "request": "launch",
             "module": "quick_convert.cli.train_asv",
-            // "args": [
-            //     "--config-name",
-            //     "asrbn"
-            // ],
+            "args": [
+                "asv.prepared_data_path=results/asv/clac_csv",
+            ],
             "console": "integratedTerminal",
             "python": ".venv/bin/python",
             "justMyCode": false,
             "env": {
-                "CUDA_VISIBLE_DEVICES": "1"
+                "CUDA_VISIBLE_DEVICES": "4"
             }
         }
     ]

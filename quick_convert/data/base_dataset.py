@@ -103,9 +103,7 @@ class BaseDataset(Dataset):
 
         normalized = set()
         for fmt in formats:
-            fmt = fmt.lower().strip()
-            if fmt.startswith("."):
-                fmt = fmt[1:]
+            fmt = fmt.lower().strip().lstrip(".")
 
             if fmt not in cls.VALID_FORMATS:
                 valid = ", ".join(sorted(cls.VALID_FORMATS))
@@ -113,7 +111,7 @@ class BaseDataset(Dataset):
                     f"Invalid audio format: {fmt!r}. Valid formats are: {valid}"
                 )
 
-            normalized.add(f".{fmt}")
+            normalized.add(fmt)
 
         return normalized
 

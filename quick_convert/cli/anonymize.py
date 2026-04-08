@@ -6,7 +6,7 @@ from hydra.utils import instantiate
 @hydra.main(
     version_base=None,
     config_path="../../configs",
-    config_name="run/anonymization_asrbn_stutter",
+    config_name="run/anonymization_asrbn_clac",
 )
 def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg, resolve=True))

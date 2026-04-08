@@ -1,0 +1,29 @@
+hparams_file: quick_convert/pipelines/asv/hyperparams/train_ecapa_tdnn.yaml
+prepared_data_path: null
+
+prep:
+    save_folder: results/asv/clac_csv
+    train_fraction: 0.8
+    train_splits:
+        - cookie_theft
+        - grandfather
+        - picnic
+        - repeat_5_times
+        - repeat_5_times_impossibility
+        - counting_1_to_20
+        - max_phonation
+        - rainbow
+        - repeat_5_times_artillery
+        - smr
+        - days_of_the_week
+    dev_splits: []
+    randomize_within_split: false
+    seed: 1337
+    csv:
+
+overrides:
+    output_folder: results/asv/ecapa_clac
+    save_folder: results/asv/ecapa_clac/save
+    data_folder: /unused/by_custom_prep
+    skip_prep: true
+    random_chunk: false

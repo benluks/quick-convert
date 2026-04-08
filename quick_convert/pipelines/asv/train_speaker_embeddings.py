@@ -169,6 +169,7 @@ def dataio_prep(hparams):
         from_didatasets=[train_data],
         output_key="spk_id",
     )
+    label_encoder.expect_len(hparams["out_n_neurons"])
 
     # 4. Set output:
     sb.dataio.dataset.set_output_keys(datasets, ["id", "sig", "spk_id_encoded"])

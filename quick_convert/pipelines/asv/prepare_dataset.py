@@ -57,13 +57,13 @@ def prepare_asv_csvs_from_dataset(
             writer = csv.writer(f)
             writer.writerow(["ID", "duration", "wav", "start", "stop", "spk_id"])
 
-            for row in rows:
+            for idx, row in enumerate(rows):
                 info = torchaudio.info(str(row.path))
                 duration = info.num_frames / info.sample_rate
 
                 writer.writerow(
                     [
-                        row.path.stem,
+                        str(idx),
                         duration,
                         str(row.path),
                         0,

@@ -1,0 +1,13 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: anonymization
+  - /anonymizer: asrbn
+  - /dataset: clac
+  - _self_
+
+target_id: "1069"
+
+pipeline:
+  target_speaker: ${target_id}
