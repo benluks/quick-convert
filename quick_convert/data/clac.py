@@ -12,6 +12,7 @@ class ClacDataset(BaseDataset):
         paths=None,
         load=False,
         return_spkid=True,
+        sample_rate=48000,
     ):
         super().__init__(
             root=root,

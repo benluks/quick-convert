@@ -11,12 +11,13 @@
             "module": "quick_convert.cli.train_asv",
             "args": [
                 "asv.prepared_data_path=results/asv/clac_csv",
+                "+asv.overrides.batch_size=2"
             ],
             "console": "integratedTerminal",
             "python": ".venv/bin/python",
             "justMyCode": false,
             "env": {
-                "CUDA_VISIBLE_DEVICES": "4"
+                "CUDA_VISIBLE_DEVICES": "2"
             }
         }
     ]

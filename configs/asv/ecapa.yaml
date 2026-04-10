@@ -26,4 +26,5 @@ overrides:
     save_folder: results/asv/ecapa_clac/save
     data_folder: /unused/by_custom_prep
     skip_prep: true
-    random_chunk: false
+    sample_rate: ${dataset.sample_rate}
+    # random_chunk: false

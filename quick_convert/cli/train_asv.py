@@ -20,8 +20,11 @@ def count_unique_speakers(csv_path: str | Path) -> int:
 
 
 def resolve_prepared_data_path(
-    prepared_data_path: str | Path,
+    prepared_data_path: str | Path | None,
 ) -> tuple[Path, Path] | None:
+    if not prepared_data_path:
+        return None, None
+
     prepared_data_path = Path(prepared_data_path)
     if not prepared_data_path.is_dir():
         return None
@@ -30,7 +33,7 @@ def resolve_prepared_data_path(
     dev_csv = prepared_data_path / "dev.csv"
 
     if train_csv.is_file() and dev_csv.is_file():
-        return train_csv, dev_csv
+        return str(train_csv), str(dev_csv)
 
     return None, None
 

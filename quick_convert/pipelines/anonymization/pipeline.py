@@ -19,6 +19,7 @@ class AnonymizationPipeline(Generic[T_Target]):
         target_speaker=None,
         out_dir: PathLike = None,
         suffix="",
+        overwrite=False,
         **kwargs,
     ):
 
@@ -27,6 +28,7 @@ class AnonymizationPipeline(Generic[T_Target]):
         self.target_speaker = target_speaker
         self.out_dir = out_dir
         self.suffix = suffix
+        self.overwrite = overwrite
 
     def process_dir():
         pass
@@ -56,5 +58,8 @@ class AnonymizationPipeline(Generic[T_Target]):
         ):
             split = row.split or ""
             out_path = Path(out_dir) / split / f"{Path(row.path).stem}{self.suffix}.wav"
+            if out_path.exists() and not self.overwrite:
+                continue
+
             wav_conv = anonymize_fn(row.path)
             torchaudio.save(str(out_path), wav_conv, self.anonymizer.sr)

@@ -194,5 +194,5 @@ audio
 *.pt
 checkpoints/*
 hydralance/
-outputs
+outputs/
 results/

@@ -26,6 +26,9 @@ import speechbrain as sb
 from speechbrain.dataio import audio_io
 from speechbrain.utils.data_utils import download_file
 from speechbrain.utils.distributed import run_on_main
+import torchaudio
+
+ASV_SR = 16000
 
 
 class SpeakerBrain(sb.core.Brain):
@@ -131,6 +134,7 @@ def dataio_prep(hparams):
     datasets = [train_data, valid_data]
     label_encoder = sb.dataio.encoder.CategoricalEncoder()
 
+    target_sr = hparams['modules']['compute_features'].compute_STFT.sample_rate
     snt_len_sample = int(hparams["sample_rate"] * hparams["sentence_len"])
 
     # 2. Define audio pipeline:
@@ -146,6 +150,7 @@ def dataio_prep(hparams):
             stop = int(stop)
         num_frames = stop - start
         sig, fs = audio_io.load(wav, num_frames=num_frames, frame_offset=start)
+        sig = torchaudio.functional.resample(sig, fs, target_sr)
         sig = sig.transpose(0, 1).squeeze(1)
         return sig
 

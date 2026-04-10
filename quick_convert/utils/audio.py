@@ -1,14 +1,16 @@
 from functools import lru_cache
+from os import PathLike
 from typing import Set
 
 import soundfile as sf
 
+import torch
 import torchaudio
 import torchaudio.transforms as T
 
 
-def load_audio(audio_path, target_sr):
-    x, sr = torchaudio.load(audio_path)
+def load_audio(audio_path: PathLike, target_sr: int) -> torch.Tensor:
+    x, sr = torchaudio.load(str(audio_path))
     return T.Resample(sr, target_sr)(x)
 
 

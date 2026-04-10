@@ -14,3 +14,5 @@ splits:
   - days_of_the_week
 file_format: wav
 return_spkid: true
+
+sample_rate: 48000

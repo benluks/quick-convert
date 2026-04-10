@@ -6,6 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import torchaudio
+from tqdm import tqdm
 
 from quick_convert.data.base_dataset import AudioSample, BaseDataset
 
@@ -57,7 +58,7 @@ def prepare_asv_csvs_from_dataset(
             writer = csv.writer(f)
             writer.writerow(["ID", "duration", "wav", "start", "stop", "spk_id"])
 
-            for idx, row in enumerate(rows):
+            for idx, row in tqdm(enumerate(rows), total=len(rows), desc=f"Writing {str(path)}"):
                 info = torchaudio.info(str(row.path))
                 duration = info.num_frames / info.sample_rate
 

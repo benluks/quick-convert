@@ -1,40 +1,0 @@
-out_root: anonymized
-out_dir_suffix: ''
-pipeline:
-  _target_: quick_convert.pipelines.anonymization.AnonymizationPipeline
-  anonymizer: null
-  dataset: null
-  target_speaker: 6081
-  out_dir: anonymized/stutter/asrbn_6081
-anonymizer:
-  _target_: quick_convert.pipelines.anonymization.ASRBNAnonymizer
-dataset:
-  _target_: quick_convert.data.base_dataset.BaseDataset
-  root: audio/stutter/
-  splits:
-  - m
-  - f
-  - interviewer
-target_id: 6081
-
-[2026-04-06 15:02:27,918][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/bert-base-multilingual-cased/resolve/main/tokenizer_config.json "HTTP/1.1 200 OK"
-[2026-04-06 15:02:28,235][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/bert-base-multilingual-cased/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 307 Temporary Redirect"
-[2026-04-06 15:02:28,372][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/google-bert/bert-base-multilingual-cased/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
-[2026-04-06 15:02:28,505][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/bert-base-multilingual-cased/tree/main?recursive=true&expand=false "HTTP/1.1 307 Temporary Redirect"
-[2026-04-06 15:02:28,636][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/google-bert/bert-base-multilingual-cased/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
-[2026-04-06 15:02:28,903][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/bert-base-multilingual-cased "HTTP/1.1 307 Temporary Redirect"
-[2026-04-06 15:02:29,102][httpx][INFO] - HTTP Request: GET https://huggingface.co/api/models/google-bert/bert-base-multilingual-cased "HTTP/1.1 200 OK"
-Using cache found in /cfs/home/u036742/.cache/torch/hub/deep-privacy_SA-toolkit_master
-/cfs/home/u036742/.cache/torch/hub/deep-privacy_SA-toolkit_master/satools/satools/chain/objf.py:35: FutureWarning: `torch.cuda.amp.custom_fwd(args...)` is deprecated. Please use `torch.amp.custom_fwd(args..., device_type='cuda')` instead.
-  @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
-/cfs/home/u036742/.cache/torch/hub/deep-privacy_SA-toolkit_master/satools/satools/chain/objf.py:126: FutureWarning: `torch.cuda.amp.custom_bwd(args...)` is deprecated. Please use `torch.amp.custom_bwd(args..., device_type='cuda')` instead.
-  @torch.cuda.amp.custom_bwd
-/cfs/home/u036742/.cache/torch/hub/deep-privacy_SA-toolkit_master/satools/satools/chain/objf.py:157: FutureWarning: `torch.cuda.amp.custom_fwd(args...)` is deprecated. Please use `torch.amp.custom_fwd(args..., device_type='cuda')` instead.
-  @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
-/cfs/home/u036742/.cache/torch/hub/deep-privacy_SA-toolkit_master/satools/satools/chain/objf.py:180: FutureWarning: `torch.cuda.amp.custom_bwd(args...)` is deprecated. Please use `torch.amp.custom_bwd(args..., device_type='cuda')` instead.
-  @torch.cuda.amp.custom_bwd
-[2026-04-06 15:02:33,594][root][INFO] - Loading /cfs/home/u036742/.cache/torch/hub/deep-privacy_SA-toolkit_master//egs/vc/libritts/local/tuning/hifigan.py
-[2026-04-06 15:02:33,594][root][INFO] - Loading /cfs/home/u036742/.cache/torch/hub/deep-privacy_SA-toolkit_master//egs/asr/librispeech/local/chain/tuning/tdnnf_wav2vec2_vq.py
-/cfs/home/u036742/quick-convert/.venv/lib/python3.11/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
-  WeightNorm.apply(module, name, dim)
-Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:   0%|          | 0/36 [00:00<?, ?it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:   3%|▎         | 1/36 [00:02<01:16,  2.18s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:   6%|▌         | 2/36 [00:03<01:03,  1.87s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:   8%|▊         | 3/36 [00:06<01:06,  2.02s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  11%|█         | 4/36 [00:07<01:03,  1.99s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  14%|█▍        | 5/36 [00:09<00:52,  1.70s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  17%|█▋        | 6/36 [00:10<00:43,  1.46s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  19%|█▉        | 7/36 [00:12<00:46,  1.59s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  22%|██▏       | 8/36 [00:13<00:43,  1.56s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  25%|██▌       | 9/36 [00:14<00:36,  1.37s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  28%|██▊       | 10/36 [00:15<00:33,  1.28s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  31%|███       | 11/36 [00:17<00:39,  1.58s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  33%|███▎      | 12/36 [00:18<00:31,  1.29s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  36%|███▌      | 13/36 [00:19<00:25,  1.11s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  39%|███▉      | 14/36 [00:19<00:20,  1.06it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  42%|████▏     | 15/36 [00:20<00:16,  1.26it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  44%|████▍     | 16/36 [00:20<00:15,  1.25it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  47%|████▋     | 17/36 [00:22<00:17,  1.08it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  50%|█████     | 18/36 [00:22<00:13,  1.38it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  53%|█████▎    | 19/36 [00:23<00:13,  1.30it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  56%|█████▌    | 20/36 [00:24<00:12,  1.27it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  58%|█████▊    | 21/36 [00:24<00:10,  1.40it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  61%|██████    | 22/36 [00:24<00:08,  1.67it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  64%|██████▍   | 23/36 [00:25<00:07,  1.68it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  67%|██████▋   | 24/36 [00:26<00:08,  1.46it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  69%|██████▉   | 25/36 [00:27<00:09,  1.11it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  72%|███████▏  | 26/36 [00:28<00:09,  1.05it/s]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  75%|███████▌  | 27/36 [00:32<00:14,  1.59s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  78%|███████▊  | 28/36 [00:32<00:10,  1.36s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  81%|████████  | 29/36 [00:35<00:12,  1.78s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  83%|████████▎ | 30/36 [00:36<00:08,  1.46s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  86%|████████▌ | 31/36 [00:38<00:08,  1.77s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  89%|████████▉ | 32/36 [00:39<00:06,  1.58s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  92%|█████████▏| 33/36 [00:40<00:04,  1.34s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  94%|█████████▍| 34/36 [00:41<00:02,  1.12s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081:  97%|█████████▋| 35/36 [00:43<00:01,  1.34s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081: 100%|██████████| 36/36 [00:44<00:00,  1.20s/it]Anonymizing data from audio/stutter into anonymized/stutter/asrbn_6081: 100%|██████████| 36/36 [00:44<00:00,  1.22s/it]
