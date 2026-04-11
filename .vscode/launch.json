@@ -17,7 +17,7 @@
             "python": ".venv/bin/python",
             "justMyCode": false,
             "env": {
-                "CUDA_VISIBLE_DEVICES": "2"
+                "CUDA_VISIBLE_DEVICES": "1"
             }
         }
     ]

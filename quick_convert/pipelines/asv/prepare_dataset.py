@@ -56,16 +56,22 @@ def prepare_asv_csvs_from_dataset(
     def write_csv(path: Path, rows: list[AudioSample]) -> None:
         with open(path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(["ID", "duration", "wav", "start", "stop", "spk_id"])
+            writer.writerow(
+                ["ID", "duration", "sample_rate", "wav", "start", "stop", "spk_id"]
+            )
 
-            for idx, row in tqdm(enumerate(rows), total=len(rows), desc=f"Writing {str(path)}"):
+            for idx, row in tqdm(
+                enumerate(rows),
+                total=len(rows),
+                desc=f"Writing {str(path)}",
+            ):
                 info = torchaudio.info(str(row.path))
-                duration = info.num_frames / info.sample_rate
 
                 writer.writerow(
                     [
                         str(idx),
-                        duration,
+                        info.num_frames / info.sample_rate,
+                        info.sample_rate,
                         str(row.path),
                         0,
                         info.num_frames,

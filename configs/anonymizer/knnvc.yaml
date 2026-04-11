@@ -1,5 +1,5 @@
-target_speaker_root: /cfs/collections/librispeech/LibriSpeech/train-clean-100
-target_speaker_id: "1069"
+
+# target_speaker_id: "1069"
 anonymizer:
   _target_: quick_convert.pipelines.anonymization.KNNVCAnonymizer
 
