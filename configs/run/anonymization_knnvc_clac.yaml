@@ -1,0 +1,14 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: anonymization
+  - /anonymizer: knnvc
+  - /dataset: clac
+  - _self_
+
+target_id: "1069"
+
+pipeline:
+  target_speaker: ${target_id}
+  target_speaker_root: /cfs/collections/librispeech/LibriSpeech/train-clean-100
