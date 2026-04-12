@@ -134,16 +134,15 @@ def dataio_prep(hparams):
     datasets = [train_data, valid_data]
     label_encoder = sb.dataio.encoder.CategoricalEncoder()
 
-    target_sr = hparams['modules']['compute_features'].compute_STFT.sample_rate
-    snt_len_sample = int(hparams["sample_rate"] * hparams["sentence_len"])
+    target_sr = hparams["modules"]["compute_features"].compute_STFT.sample_rate
 
     # 2. Define audio pipeline:
     @sb.utils.data_pipeline.takes("wav", "start", "stop", "duration", "sample_rate")
     @sb.utils.data_pipeline.provides("sig")
     def audio_pipeline(wav, start, stop, duration, sample_rate):
-        print(torchaudio.info(wav).sample_rate)
         if hparams["random_chunk"]:
             duration_sample = int(duration * int(sample_rate))
+            snt_len_sample = int(int(sample_rate) * hparams["sentence_len"])
             start = random.randint(0, duration_sample - snt_len_sample)
             stop = start + snt_len_sample
         else:

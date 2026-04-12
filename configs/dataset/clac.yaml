@@ -2,17 +2,16 @@ _target_: quick_convert.data.clac.ClacDataset
 root: /cfs/collections/clac/CLAC-Dataset
 splits:
   - cookie_theft
-  - grandfather
-  - picnic
-  - repeat_5_times
-  - repeat_5_times_impossibility
   - counting_1_to_20
-  - max_phonation
-  - rainbow
-  - repeat_5_times_artillery
-  - smr
   - days_of_the_week
+  - grandfather
+  - max_phonation
+  - picnic
+  - rainbow
+  - repeat_5_times
+  - repeat_5_times_artillery
+  - repeat_5_times_catastrophe
+  - repeat_5_times_impossibility
+  - smr
 file_format: wav
 return_spkid: true
-
-sample_rate: 48000

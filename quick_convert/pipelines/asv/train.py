@@ -47,5 +47,5 @@ def train_asv(
             train_data,
             valid_data,
             train_loader_kwargs=hparams["dataloader_options"],
-            valid_loader_kwargs=hparams["dataloader_options"],
+            # valid_loader_kwargs=hparams["dataloader_options"],
         )

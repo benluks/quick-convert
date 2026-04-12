@@ -48,17 +48,14 @@ def main(cfg: DictConfig) -> None:
 
     # check if train and dev csvs exist in prepared data path
     train_csv, dev_csv = resolve_prepared_data_path(cfg.asv.prepared_data_path)
-    if train_csv and dev_csv:
+
+    if train_csv and dev_csv and not cfg.asv.overwrite_csv:
         n_speakers = count_unique_speakers(train_csv)
     else:
         dataset = instantiate(cfg.dataset)
 
         train_csv, dev_csv, n_speakers = prepare_asv_csvs_from_dataset(
-            dataset=dataset,
-            save_folder=cfg.asv.prep.save_folder,
-            train_fraction=cfg.asv.prep.train_fraction,
-            seed=cfg.asv.prep.seed,
-            randomize_within_split=cfg.asv.prep.randomize_within_split,
+            dataset=dataset, **cfg.asv.prep
         )
 
     overrides = {

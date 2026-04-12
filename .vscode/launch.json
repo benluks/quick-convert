@@ -10,8 +10,9 @@
             "request": "launch",
             "module": "quick_convert.cli.train_asv",
             "args": [
-                "asv.prepared_data_path=results/asv/clac_csv",
-                "+asv.overrides.batch_size=2"
+                "+asv.overrides.batch_size=2",
+                "asv.prep.overwrite=true"
+
             ],
             "console": "integratedTerminal",
             "python": ".venv/bin/python",
