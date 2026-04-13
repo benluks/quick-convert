@@ -4,3 +4,6 @@ defaults:
   - /dataset: clac
   - /asv: ecapa
   - _self_
+
+asv:
+  validate: false

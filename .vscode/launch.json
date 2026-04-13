@@ -10,8 +10,7 @@
             "request": "launch",
             "module": "quick_convert.cli.train_asv",
             "args": [
-                "+asv.overrides.batch_size=2",
-                "asv.prep.overwrite=true"
+                "+asv.overrides.batch_size=32",
 
             ],
             "console": "integratedTerminal",

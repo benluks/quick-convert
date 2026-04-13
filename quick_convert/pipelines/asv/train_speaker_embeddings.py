@@ -126,15 +126,17 @@ def dataio_prep(hparams):
         replacements={"data_root": data_folder},
     )
 
-    valid_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
-        csv_path=hparams["valid_annotation"],
-        replacements={"data_root": data_folder},
-    )
+    if hparams["valid_annotation"]:
+        valid_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
+            csv_path=hparams["valid_annotation"],
+            replacements={"data_root": data_folder},
+        )
+    else:
+        valid_data = None
 
-    datasets = [train_data, valid_data]
+    # Only keep datasets that aren't none
+    datasets = list(filter(bool, [train_data, valid_data]))
     label_encoder = sb.dataio.encoder.CategoricalEncoder()
-
-    target_sr = hparams["modules"]["compute_features"].compute_STFT.sample_rate
 
     # 2. Define audio pipeline:
     @sb.utils.data_pipeline.takes("wav", "start", "stop", "duration", "sample_rate")
@@ -150,7 +152,7 @@ def dataio_prep(hparams):
             stop = int(stop)
         num_frames = stop - start
         sig, fs = audio_io.load(wav, num_frames=num_frames, frame_offset=start)
-        sig = torchaudio.functional.resample(sig, fs, target_sr)
+        sig = torchaudio.functional.resample(sig, fs, hparams["sample_rate"])
         sig = sig.transpose(0, 1).squeeze(1)
         return sig
 

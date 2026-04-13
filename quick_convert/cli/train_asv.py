@@ -58,6 +58,9 @@ def main(cfg: DictConfig) -> None:
             dataset=dataset, **cfg.asv.prep
         )
 
+    if not cfg.asv.validate:
+        dev_csv = None
+
     overrides = {
         **cfg.asv.overrides,
         "train_annotation": train_csv,

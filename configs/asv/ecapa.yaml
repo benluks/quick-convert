@@ -16,3 +16,5 @@ overrides:
     save_folder: results/asv/ecapa_${asv.dataset_name}/save
     data_folder: /unused/by_custom_prep
     skip_prep: true
+    dataloader_options:
+        drop_last: true
