@@ -1,0 +1,20 @@
+# @package _global_
+
+defaults:
+  - /dataset: clac
+  - /asv: ecapa
+  - _self_
+
+prep:
+  input_csv: ${data.prepared_data_path}/dev.csv
+  output_dir: results/asv/unseen_speakers/verification
+  enrol_splits:
+    - cookie_theft
+    - grandfather
+  test_splits:
+    - picnic
+    - rainbow
+    - smr
+  negatives_per_enrol: 10
+  seed: 1337
+  overwrite: false

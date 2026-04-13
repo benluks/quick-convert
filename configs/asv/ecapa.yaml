@@ -18,3 +18,7 @@ overrides:
     skip_prep: true
     dataloader_options:
         drop_last: true
+    
+    # only used for verification
+    score_norm: null
+    
