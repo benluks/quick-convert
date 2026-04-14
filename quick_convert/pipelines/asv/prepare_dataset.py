@@ -45,6 +45,20 @@ def _collect_audio_metadata(
     return results
 
 
+def _assert_no_speaker_overlap(
+    train_rows: list[AudioSample],
+    dev_rows: list[AudioSample],
+) -> None:
+    train_speakers = {row.spk_id for row in train_rows}
+    dev_speakers = {row.spk_id for row in dev_rows}
+    overlap = train_speakers & dev_speakers
+    if overlap:
+        raise ValueError(
+            f"Speaker overlap detected between train and dev: "
+            f"{len(overlap)} speakers: {sorted(overlap)}"
+        )
+
+
 def _write_audio_sample_csv(
     path: Path,
     rows: list[AudioSample],
@@ -251,30 +265,47 @@ def prepare_asv_csvs_from_dataset(
             "Make sure return_spkid=True and get_spkid() is implemented."
         )
 
-    by_split: dict[str, list[AudioSample]] = defaultdict(list)
+    by_spk: dict[str, list[AudioSample]] = defaultdict(list)
     for row in rows:
-        split = row.split or ""
-        by_split[split].append(row)
+        by_spk[row.spk_id].append(row)
 
+    speakers = sorted(by_spk.keys())
     rng = random.Random(seed)
+    rng.shuffle(speakers)
+
+    n_train = int(len(speakers) * train_fraction)
+    train_speakers = set(speakers[:n_train])
+    dev_speakers = set(speakers[n_train:])
 
     train_rows: list[AudioSample] = []
     dev_rows: list[AudioSample] = []
 
-    for _, split_rows in by_split.items():
-        split_rows = sorted(split_rows, key=lambda r: r.spk_id)
+    for spk, spk_rows in by_spk.items():
+        spk_rows = list(spk_rows)
         if randomize_within_split:
-            split_rows = list(split_rows)
-            rng.shuffle(split_rows)
+            rng.shuffle(spk_rows)
 
-        n_train = int(len(split_rows) * train_fraction)
-        train_rows.extend(split_rows[:n_train])
-        dev_rows.extend(split_rows[n_train:])
+        if spk in train_speakers:
+            train_rows.extend(spk_rows)
+        elif spk in dev_speakers:
+            dev_rows.extend(spk_rows)
+        else:
+            raise RuntimeError(f"Speaker {spk} was assigned to neither train nor dev")
+
+    train_overlap = {row.spk_id for row in train_rows} & {
+        row.spk_id for row in dev_rows
+    }
+    if train_overlap:
+        raise ValueError(
+            f"Speaker overlap detected between train and dev: {sorted(train_overlap)}"
+        )
+
+    _assert_no_speaker_overlap(train_rows, dev_rows)
 
     _write_audio_sample_csv(train_csv, train_rows, num_workers=num_workers)
     _write_audio_sample_csv(dev_csv, dev_rows, num_workers=num_workers)
 
-    n_speakers = len({row.spk_id for row in train_rows})
+    n_speakers = len(train_speakers)
 
     return str(train_csv), str(dev_csv), n_speakers
 
