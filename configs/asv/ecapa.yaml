@@ -1,6 +1,5 @@
 hparams_file: quick_convert/pipelines/asv/hyperparams/train_ecapa_tdnn.yaml
-dataset_name: ${hydra:runtime.choices.dataset}
-prepared_data_path: results/asv/${asv.dataset_name}_csv
+prepared_data_path: ${output_base_folder}/${dataset_name}_csv
 overwrite_csv: false
 
 prep:
@@ -12,11 +11,7 @@ prep:
     seed: 1337
 
 overrides:
-    output_folder: results/asv/ecapa_${asv.dataset_name}
-    save_folder: results/asv/ecapa_${asv.dataset_name}/save
+    output_folder: ${output_base_folder}/${asv_name}_${dataset_name}
+    save_folder: ${output_base_folder}/${asv_name}_${dataset_name}/save
     data_folder: /unused/by_custom_prep
     skip_prep: true
-    dataloader_options:
-        drop_last: true
-
-    

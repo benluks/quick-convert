@@ -40,7 +40,7 @@ def resolve_prepared_verification_path(
 @hydra.main(
     version_base=None,
     config_path="../../configs",
-    config_name="run/verify_asv_clac",
+    config_name="run/eval_asv_clac",
 )
 def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg, resolve=True))
@@ -53,7 +53,7 @@ def main(cfg: DictConfig) -> None:
         enrol_csv, test_csv, trials_txt = prepare_asv_eval_data(**cfg.prep)
 
     overrides = {
-        **cfg.asv.verification_overrides,
+        **cfg.asv.overrides,
         "train_data": train_csv,
         "enrol_data": enrol_csv,
         "test_data": test_csv,

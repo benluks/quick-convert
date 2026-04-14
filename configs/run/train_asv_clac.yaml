@@ -5,5 +5,12 @@ defaults:
   - /asv: ecapa
   - _self_
 
+output_base_folder: results/asv/
+asv_name: ${hydra:runtime.choices.asv}
+dataset_name: ${hydra:runtime.choices.dataset}
+
 asv:
   validate: false
+  overrides:
+    dataloader_options:
+          drop_last: true
