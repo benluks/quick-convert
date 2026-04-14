@@ -49,3 +49,5 @@ def train_asv(
             train_loader_kwargs=hparams["dataloader_options"],
             # valid_loader_kwargs=hparams["dataloader_options"],
         )
+
+    speaker_brain.checkpointer.save_checkpoint()

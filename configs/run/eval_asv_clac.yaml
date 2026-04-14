@@ -5,16 +5,27 @@ defaults:
   - /asv: ecapa
   - _self_
 
+input_csv_name: dev.csv
+
 prep:
-  input_csv: ${data.prepared_data_path}/dev.csv
+  input_csv: ${data.prepared_data_path}/${input_csv_name}
   output_dir: results/asv/unseen_speakers/verification
-  enrol_splits:
-    - cookie_theft
-    - grandfather
-  test_splits:
-    - picnic
-    - rainbow
-    - smr
-  negatives_per_enrol: 10
+  
+  # only used if asv.mode is "random"
+  enrol_per_speaker: 8
+  # enrol_splits:
+  #   - cookie_theft
+  #   - grandfather
+  # test_splits:
+  #   - picnic
+  #   - rainbow
+  #   - smr
+  negatives_per_enrol: null
   seed: 1337
   overwrite: false
+
+asv:
+  # options: {random, by_split}
+  mode: random
+  overrides:
+    score_norm: null

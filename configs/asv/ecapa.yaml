@@ -5,7 +5,7 @@ overwrite_csv: false
 
 prep:
     save_folder: ${asv.prepared_data_path}
-    train_fraction: 0.8
+    train_fraction: 0.9
     # train_splits: ${dataset.splits}
     # dev_splits: []
     randomize_within_split: false
@@ -18,7 +18,5 @@ overrides:
     skip_prep: true
     dataloader_options:
         drop_last: true
-    
-    # only used for verification
-    score_norm: null
+
     
