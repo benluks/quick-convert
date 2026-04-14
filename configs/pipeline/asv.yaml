@@ -1,0 +1,3 @@
+output_base_folder: results/asv/
+asv_name: ${hydra:runtime.choices.asv}
+dataset_name: ${hydra:runtime.choices.dataset}

@@ -1,7 +1,3 @@
 
 # target_speaker_id: "1069"
-anonymizer:
-  _target_: quick_convert.pipelines.anonymization.KNNVCAnonymizer
-
-run:
-  pattern: "*/*.flac"
+_target_: quick_convert.pipelines.anonymization.KNNVCAnonymizer

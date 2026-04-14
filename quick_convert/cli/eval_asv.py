@@ -46,11 +46,13 @@ def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg, resolve=True))
 
     train_csv, enrol_csv, test_csv, trials_txt = resolve_prepared_verification_path(
-        cfg.asv.prepared_verification_path
+        cfg.asv.prepared_data_path
     )
 
     if not all([train_csv, enrol_csv, test_csv, trials_txt]) or cfg.asv.overwrite_csv:
-        enrol_csv, test_csv, trials_txt = prepare_asv_eval_data(**cfg.prep)
+        enrol_csv, test_csv, trials_txt = prepare_asv_eval_data(
+            cfg.asv.mode, **cfg.prep
+        )
 
     overrides = {
         **cfg.asv.overrides,

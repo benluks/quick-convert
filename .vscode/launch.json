@@ -5,13 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File",
+            "name": "asv training",
             "type": "debugpy",
             "request": "launch",
             "module": "quick_convert.cli.train_asv",
             "args": [
                 "+asv.overrides.batch_size=32",
-
+            ],
+            "console": "integratedTerminal",
+            "python": ".venv/bin/python",
+            "justMyCode": false,
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "1"
+            }
+        },
+        {
+            "name": "knnvc anonymize",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "quick_convert.cli.anonymize",
+            "args": [
+                "--config-name",
+                "run/anonymize_knnvc_clac",
             ],
             "console": "integratedTerminal",
             "python": ".venv/bin/python",

@@ -11,7 +11,7 @@ asv_name: ${hydra:runtime.choices.asv}
 dataset_name: ${hydra:runtime.choices.dataset}
 
 prep:
-  input_csv: ${data.prepared_data_path}/${input_csv_name}
+  input_csv: ${asv.prepared_data_path}/${input_csv_name}
   output_dir: results/asv/eval_${dataset_name}/
   
   # only used if asv.mode is "random"

@@ -8,7 +8,9 @@ defaults:
   - _self_
 
 target_id: "1069"
+run:
+  target_speaker_root: /cfs/collections/librispeech/LibriSpeech/train-clean-100
+  pattern: "*/*.flac"
 
 pipeline:
   target_speaker: ${target_id}
-  target_speaker_root: /cfs/collections/librispeech/LibriSpeech/train-clean-100

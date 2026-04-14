@@ -19,11 +19,18 @@ class KNNVCAnonymizer(BaseAnonymizer[KNNVCTarget]):
     def _get_matching_set(self, ref_wav_paths: List):
         self.matching_set = self.model.get_matching_set(ref_wav_paths)
 
-    def set_target(self, target: Union[str, List], pattern: Optional[str] = None):
+    def set_target(
+        self,
+        target: Union[str, List],
+        target_speaker_root: Optional[Path] = None,
+        pattern: Optional[str] = None,
+    ):
         if pattern is None:
             self._get_matching_set(target)
         else:
-            ref_wavs = sorted(map(str, Path(target).glob(pattern)))
+            ref_wavs = sorted(
+                map(str, (Path(target_speaker_root) / target).glob(pattern))
+            )
             self._get_matching_set(ref_wavs)
 
     def resynthesize(self, audio_path):
