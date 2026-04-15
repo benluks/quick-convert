@@ -54,7 +54,7 @@ def get_verification_scores(
     similarity = torch.nn.CosineSimilarity(dim=-1, eps=1e-6)
 
     train_cohort = None
-    if "score_norm" in params:
+    if params["score_norm"]:
         if train_dict is None:
             raise ValueError("score_norm requested but train_dict is None")
         train_cohort = torch.stack(list(train_dict.values()))
@@ -112,15 +112,17 @@ def get_verification_scores(
 
 def dataio_prep(params):
     data_folder = params["data_folder"]
-
-    train_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
-        csv_path=params["train_data"],
-        replacements={"data_root": data_folder},
-    )
-    train_data = train_data.filtered_sorted(
-        sort_key="duration",
-        select_n=params.get("n_train_snts"),
-    )
+    datasets = []
+    if params["score_norm"]:
+        train_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
+            csv_path=params["train_data"],
+            replacements={"data_root": data_folder},
+        )
+        train_data = train_data.filtered_sorted(
+            sort_key="duration",
+            select_n=params.get("n_train_snts"),
+        )
+        datasets.extend([train_data])
 
     enrol_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
         csv_path=params["enrol_data"],
@@ -134,7 +136,7 @@ def dataio_prep(params):
     )
     test_data = test_data.filtered_sorted(sort_key="duration")
 
-    datasets = [train_data, enrol_data, test_data]
+    datasets.extend([enrol_data, test_data])
 
     @sb.utils.data_pipeline.takes("wav", "start", "stop")
     @sb.utils.data_pipeline.provides("sig")
@@ -144,18 +146,19 @@ def dataio_prep(params):
         num_frames = stop - start
         sig, fs = audio_io.load(wav, num_frames=num_frames, frame_offset=start)
 
-        if fs != params["sample_rate"]:
-            sig = torchaudio.functional.resample(sig, fs, params["sample_rate"])
-
-        sig = sig.transpose(0, 1).squeeze(1)
+        sig = torchaudio.functional.resample(sig, fs, params["sample_rate"])
+        # trim it because samples longer than this can crash the process
+        sig = sig.transpose(0, 1).squeeze(1)[:800_000]
         return sig
 
     sb.dataio.dataset.add_dynamic_item(datasets, audio_pipeline)
     sb.dataio.dataset.set_output_keys(datasets, ["id", "sig"])
 
-    train_dataloader = sb.dataio.dataloader.make_dataloader(
-        train_data, **params["train_dataloader_opts"]
-    )
+    train_dataloader = None
+    if params["score_norm"]:
+        train_dataloader = sb.dataio.dataloader.make_dataloader(
+            train_data, **params["train_dataloader_opts"]
+        )
     enrol_dataloader = sb.dataio.dataloader.make_dataloader(
         enrol_data, **params["enrol_dataloader_opts"]
     )

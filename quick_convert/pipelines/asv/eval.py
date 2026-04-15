@@ -46,7 +46,7 @@ def eval_asv(
     test_dict = compute_embedding_loop(test_dataloader, hparams, run_opts)
 
     train_dict = None
-    if "score_norm" in hparams:
+    if hparams["score_norm"]:
         train_dict = compute_embedding_loop(train_dataloader, hparams, run_opts)
 
     with open(hparams["verification_file"], encoding="utf-8") as f:

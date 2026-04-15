@@ -34,6 +34,21 @@
             "env": {
                 "CUDA_VISIBLE_DEVICES": "1"
             }
+        },
+        {
+            "name": "eval asv",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "quick_convert.cli.eval_asv",
+            "args": [
+                "+asv.overrides.batch_size=32",
+            ],
+            "console": "integratedTerminal",
+            "python": ".venv/bin/python",
+            "justMyCode": false,
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            }
         }
     ]
 }

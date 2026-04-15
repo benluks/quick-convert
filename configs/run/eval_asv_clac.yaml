@@ -6,14 +6,15 @@ defaults:
   - _self_
 
 input_csv_name: dev.csv
-output_base_folder: results/asv/
+output_base_folder: results/asv
 asv_name: ${hydra:runtime.choices.asv}
 dataset_name: ${hydra:runtime.choices.dataset}
+suffix: ""
 
 prep:
-  input_csv: ${asv.prepared_data_path}/${input_csv_name}
-  output_dir: results/asv/eval_${dataset_name}/
-  
+  input_csv: ${asv.exp_folder}/data/${input_csv_name}
+  output_dir: ${asv.exp_folder}/eval
+
   # only used if asv.mode is "random"
   enrol_per_speaker: 8
   # enrol_splits:
@@ -31,5 +32,6 @@ asv:
   # options: {random, by_split}
   mode: random
   overrides:
-    score_norm: null
     pretrain_path: ${asv.overrides.save_folder}
+    train_data: ${asv.exp_folder}/data/train.csv
+    score_norm: null

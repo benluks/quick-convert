@@ -310,6 +310,52 @@ def prepare_asv_csvs_from_dataset(
     return str(train_csv), str(dev_csv), n_speakers
 
 
+def _filter_random_eval_speakers(
+    by_spk: dict[str, list[dict[str, str]]],
+    *,
+    enrol_per_speaker: int,
+) -> tuple[dict[str, list[dict[str, str]]], list[str]]:
+    kept: dict[str, list[dict[str, str]]] = {}
+    dropped: list[str] = []
+
+    min_required = enrol_per_speaker + 1  # need at least 1 test utt left over
+
+    for spk, spk_rows in by_spk.items():
+        if len(spk_rows) < min_required:
+            dropped.append(spk)
+        else:
+            kept[spk] = spk_rows
+
+    return kept, dropped
+
+
+def _filter_split_eval_speakers(
+    enrol_rows: list[dict[str, str]],
+    test_rows: list[dict[str, str]],
+) -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
+    enrol_counts: dict[str, int] = defaultdict(int)
+    test_counts: dict[str, int] = defaultdict(int)
+
+    for row in enrol_rows:
+        enrol_counts[row["spk_id"]] += 1
+    for row in test_rows:
+        test_counts[row["spk_id"]] += 1
+
+    valid_speakers = {
+        spk
+        for spk in enrol_counts
+        if enrol_counts[spk] >= 1 and test_counts.get(spk, 0) >= 1
+    }
+
+    all_speakers = set(enrol_counts) | set(test_counts)
+    dropped = sorted(all_speakers - valid_speakers)
+
+    enrol_rows = [row for row in enrol_rows if row["spk_id"] in valid_speakers]
+    test_rows = [row for row in test_rows if row["spk_id"] in valid_speakers]
+
+    return enrol_rows, test_rows, dropped
+
+
 def prepare_asv_eval_by_split(
     input_csv: str | Path,
     output_dir: str | Path,
@@ -319,6 +365,7 @@ def prepare_asv_eval_by_split(
     overwrite: bool = False,
     negatives_per_enrol: int | None = 10,
     seed: int = 1337,
+    drop_incompatible_speakers: bool = True,
 ) -> tuple[str, str, str]:
     enrol_csv, test_csv, trials_txt = _resolve_eval_paths(output_dir)
 
@@ -361,6 +408,17 @@ def prepare_asv_eval_by_split(
             f"{sorted(unassigned_splits)}"
         )
 
+    if drop_incompatible_speakers:
+        enrol_rows, test_rows, dropped = _filter_split_eval_speakers(
+            enrol_rows,
+            test_rows,
+        )
+        if dropped:
+            print(
+                f"Dropped {len(dropped)} speakers not present in both enrol and test: "
+                f"{dropped}"
+            )
+
     return _finalize_eval_data(
         fieldnames=fieldnames,
         enrol_rows=enrol_rows,
@@ -381,6 +439,7 @@ def prepare_asv_eval_random(
     negatives_per_enrol: int | None = 10,
     seed: int = 1337,
     overwrite: bool = False,
+    drop_too_small_speakers: bool = True,
 ) -> tuple[str, str, str]:
     rng = random.Random(seed)
 
@@ -399,6 +458,17 @@ def prepare_asv_eval_random(
     by_spk: dict[str, list[dict[str, str]]] = defaultdict(list)
     for row in rows:
         by_spk[row["spk_id"]].append(row)
+
+    if drop_too_small_speakers:
+        by_spk, dropped = _filter_random_eval_speakers(
+            by_spk,
+            enrol_per_speaker=enrol_per_speaker,
+        )
+        if dropped:
+            print(
+                f"Dropped {len(dropped)} speakers with fewer than "
+                f"{enrol_per_speaker + 1} utterances: {dropped}"
+            )
 
     enrol_rows: list[dict[str, str]] = []
     test_rows: list[dict[str, str]] = []
