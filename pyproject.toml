@@ -19,5 +19,6 @@ dependencies = [
     "tts>=0.22.0",
 ]
 [project.scripts]
-anonymize = "quick_convert.cli.anonymize:main"
-train-asv = "quick_convert.cli.train_asv:main"
+anonymize = "main:main"
+train_asv = "main:main"
+eval_asv = "main:main"
