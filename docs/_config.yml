@@ -1,4 +1,5 @@
 theme: jekyll-theme-cayman
 title: Quick Convert Docs
 description: Documentation for quick-convert
-markdown: kramdown
+# markdown: kramdown
+baseurl: /quick-convert
