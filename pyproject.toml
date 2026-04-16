@@ -1,9 +1,12 @@
-# [build-system]
-# requires = ["setuptools >= 61.0", "setuptools-scm>=8.0"]
-# build-backend = "setuptools.build_meta"
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
-# [tool.setuptools.packages.find]
-# include = ["quick_convert*"]
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+include = ["quick_convert*"]
 
 [project]
 name = "quick-convert"
@@ -25,15 +28,7 @@ dependencies = [
     "transformers>=5.3.0",
     "tts>=0.22.0",
 ]
-
-# [build-system]
-# requires = ["setuptools>=61.0"]
-# build-backend = "setuptools.build_meta"
-
-# [tool.setuptools.packages.find]
-# include = ["quick_convert*"]
-
-# [project.scripts]
-# anonymize = "quick_convert.cli.anonymize:main"
+[project.scripts]
+anonymize = "main:main"
 # train_asv = "main:main"
 # eval_asv = "main:main"
