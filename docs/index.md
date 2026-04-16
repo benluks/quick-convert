@@ -10,8 +10,8 @@ It provides a flexible, config-driven pipeline built around Hydra, allowing you 
 
 If you're new, start here:
 
-- [Installation](./installation.md)
-- [Quickstart](./quickstart.md)
+- [Installation](installation.md)
+- [Quickstart](quickstart.md)
 
 ---
 
