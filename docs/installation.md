@@ -1,7 +1,3 @@
---
-title: Installation
---
-
 ## Installation
 
 This project uses [uv](https://github.com/astral-sh/uv) for Python environment management. Make sure you have it installed before proceeding.

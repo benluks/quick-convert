@@ -1,7 +1,3 @@
---
-title: Home
---
-
 # Quick Convert
 
 Quick Convert is a toolkit for speech anonymization and ASV (automatic speaker verification) workflows.
@@ -14,8 +10,8 @@ It provides a flexible, config-driven pipeline built around Hydra, allowing you 
 
 If you're new, start here:
 
-- [Installation]({% link installation.md %})
-- [Quickstart](quickstart.md)
+- [Installation](./installation.md)
+- [Quickstart](./quickstart.md)
 
 ---
 
