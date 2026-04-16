@@ -1,3 +1,16 @@
+## Installation
+
+This project uses [uv](https://github.com/astral-sh/uv) for Python environment management. Make sure you have it installed before proceeding.
+
+### 1. Clone the repository
+
+```bash
+https://github.com/benluks/quick-convert
+cd quick-convert
+uv sync
+```
+
+
 ## CLI Usage
 
 This project provides simplified CLI entrypoints for running different pipelines (e.g., anonymization, ASV training, evaluation) using Hydra configs under `configs/run/`.
