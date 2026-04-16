@@ -1,8 +1,12 @@
+# Quick-Convert
+
+A (someday) comprehensive library for running, training, and evaluating speech privacy models.
+
 ## Quick Start
 
 This project provides command-line entrypoints for common workflows such as anonymization and ASV training.
 
-After installation, you can run commands with `uv run ...`.
+After installation (with `uv sync`), you can run commands with `uv run ...`.
 
 ### Check available commands
 
