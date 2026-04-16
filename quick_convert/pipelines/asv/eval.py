@@ -60,6 +60,12 @@ def eval_asv(
         train_dict=train_dict,
     )
 
+    positive_scores = torch.stack([s.detach().cpu() for s in positive_scores]).float()
+    negative_scores = torch.stack([s.detach().cpu() for s in negative_scores]).float()
+
+    print("positive_scores.shape:", positive_scores.shape)
+    print("negative_scores.shape:", negative_scores.shape)
+
     eer, eer_th = EER(torch.tensor(positive_scores), torch.tensor(negative_scores))
     min_dcf, min_dcf_th = minDCF(
         torch.tensor(positive_scores),
@@ -74,7 +80,7 @@ def eval_asv(
         "min_dcf_percent": float(min_dcf * 100),
         "min_dcf_threshold": float(min_dcf_th),
     }
-    
+
     # write results
     output_dir = Path(hparams["output_folder"])
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -84,5 +90,5 @@ def eval_asv(
         json.dump(results, f, indent=2)
 
     print(f"Saved metrics to {metrics_path}")
-    
+
     return results

@@ -1,0 +1,23 @@
+# @package _global_
+
+defaults:
+  - /dataset: clac
+  - /asv: ecapa
+  - _self_
+
+anon_id: asrbn_1069
+
+dataset:
+  root: anonymized/clac/${anon_id}
+
+output_base_folder: results/asv
+asv_name: ${hydra:runtime.choices.asv}
+dataset_name: ${hydra:runtime.choices.dataset}
+suffix: _${anon_id}
+
+
+asv:
+  validate: false
+  overrides:
+    dataloader_options:
+          drop_last: true
