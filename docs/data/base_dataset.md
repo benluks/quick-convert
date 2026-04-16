@@ -83,11 +83,11 @@ This assumes a structure such as:
 
 ```bash
 data/some_dataset/
-|-train/
-|--sample1.wav
-|--...
-|-dev/
-|-test/
+├──train/
+│   └── sample1.wav
+│   └── ...
+├──dev/
+├──test/
 ```
 
 
