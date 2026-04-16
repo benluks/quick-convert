@@ -30,10 +30,25 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install Jekyll and GitHub Pages
+        run: |
+          gem install bundler
+          bundle init
+          echo 'gem "github-pages", group: :jekyll_plugins' >> Gemfile
+          bundle install
+
+      - name: Build site
+        run: bundle exec jekyll build --source docs --destination _site
+
       - name: Upload docs artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./docs
+          path: ./_site
 
       - name: Deploy to GitHub Pages
         id: deployment
