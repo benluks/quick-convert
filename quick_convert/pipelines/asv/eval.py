@@ -68,8 +68,8 @@ def eval_asv(
 
     eer, eer_th = EER(torch.tensor(positive_scores), torch.tensor(negative_scores))
     min_dcf, min_dcf_th = minDCF(
-        torch.tensor(positive_scores),
-        torch.tensor(negative_scores),
+        positive_scores.clone().detach(),
+        negative_scores.clone().detach(),
     )
 
     results = {
