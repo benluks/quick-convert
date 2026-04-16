@@ -1,6 +1,7 @@
 # Quick-Convert
 
 A (someday) comprehensive library for running, training, and evaluating speech privacy models.
+Checkout the [docs](https://benluks.github.io/quick-convert/)
 
 ## Quick Start
 
