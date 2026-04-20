@@ -10,6 +10,7 @@ If you're new, start here:
 
 - [Installation](installation.md)
 - [Quickstart](quickstart.md)
+- [Design Philisophy] (design_philosophy.md)
 
 ---
 
