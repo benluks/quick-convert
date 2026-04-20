@@ -52,8 +52,21 @@ class AudioBatch(MetadataBatch):
     lengths: Optional[int["b"]] = None
     sample_rates: Optional[int["b"]] = None
 
-    def __iter__(self, idx):
-        yield {k: v[idx] for k, v in self.__dict__.items() if v is not None}
+    def __len__(self) -> int:
+        return len(self.paths)
+
+    def __getitem__(self, idx: int) -> AudioSample:
+        return AudioSample(
+            path=self.paths[idx],
+            split=self.splits[idx],
+            spk_id=self.spk_ids[idx],
+            waveform=self.waveforms[idx] if self.waveforms is not None else None,
+            sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
+        )
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
 
 
 class BaseDataset(Dataset):
