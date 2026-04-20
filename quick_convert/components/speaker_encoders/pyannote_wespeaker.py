@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pyannote.audio import Inference, Model
+import torch
 
 from .base import SpeakerEmbedding, SpeakerEncoder
 
@@ -25,7 +26,7 @@ class PyannoteWeSpeakerEncoder(SpeakerEncoder):
             embedding = embedding[0]
 
         return SpeakerEmbedding(
-            values=embedding,
+            values=torch.from_numpy(embedding),
             backend="pyannote.audio",
             model_name=self.model_name,
             dim=int(embedding.shape[-1]),

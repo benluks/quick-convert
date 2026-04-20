@@ -1,3 +1,8 @@
+"""
+ADAPTED FROM Matcha-TTS:
+https://github.com/shivammehta25/Matcha-TTS/blob/main/matcha/models/components/flow_matching.py
+"""
+
 from abc import ABC
 
 import torch
@@ -14,12 +19,12 @@ def expand_time_like(t: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
 class BASECFM(torch.nn.Module, ABC):
     def __init__(
         self,
-        solver,
+        # solver,
         sigma_min=1e-4,
         estimator=None,
     ):
         super().__init__()
-        self.solver = solver
+        # self.solver = solver
         self.sigma_min = sigma_min
         self.estimator = estimator
 
