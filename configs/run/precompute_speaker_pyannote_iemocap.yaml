@@ -1,0 +1,15 @@
+# configs/run/precompute_speaker_embeddings_clac.yaml
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: precompute_features
+  - /dataset: iemocap
+  - /components/feature_extractor@feature_extractor: speaker_embedding
+  - /components/speaker_encoder@speaker_encoder: pyannote_wespeaker_voxceleb_resnet34_LM
+  - _self_
+
+pipeline:
+  dataset: ${dataset}
+  extractor: ${feature_extractor}
+  out_root: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.feature_extractor}_${hydra:runtime.choices.speaker_encoder}

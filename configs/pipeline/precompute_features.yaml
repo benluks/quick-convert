@@ -1,0 +1,10 @@
+# configs/pipeline/precompute_features.yaml
+_target_: quick_convert.pipelines.precompute_features.PrecomputeFeaturesPipeline
+
+dataset: null
+extractor: null
+
+out_root: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.feature_extractor}
+batch_size: 8
+num_workers: 4
+skip_existing: true

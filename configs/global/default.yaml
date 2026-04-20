@@ -1,5 +1,5 @@
 # @package _global_
 
-out_root: anonymized
+out_root: outputs
 out_dir_suffix: ""
 # gpu: null
