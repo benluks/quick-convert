@@ -2,7 +2,7 @@
 
 defaults:
   - /speaker_encoder: pyannote_wespeaker
-  - /content_encoder: whisper
+  - /content_encoder: w2vbert
   - /tokenizer: rvq
   - _self_
 
