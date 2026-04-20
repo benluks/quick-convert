@@ -14,12 +14,14 @@ def expand_time_like(t: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
 class BASECFM(torch.nn.Module, ABC):
     def __init__(
         self,
-        cfm_params,
+        solver,
+        sigma_min=1e-4,
+        estimator=None,
     ):
         super().__init__()
-        self.solver = cfm_params.solver
-        self.sigma_min = getattr(cfm_params, "sigma_min", 1e-4)
-        self.estimator = None
+        self.solver = solver
+        self.sigma_min = sigma_min
+        self.estimator = estimator
 
     @torch.inference_mode()
     def forward(self, x_init, n_timesteps, *, mask=None, **conditions):

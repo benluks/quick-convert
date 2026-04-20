@@ -1,0 +1,11 @@
+_target_: quick_convert.components.speaker_generators.cfm_speaker_generator.CFMSpeakerGenerator
+
+embedding_dim: 256
+
+cfm:
+  defaults:
+    - components/flow_matching/estimators@estimator: residual_mlp
+    - _self_
+  _target_: quick_convert.components.flow_matching.base.BASECFM
+  solver: euler
+  estimator: ${components.flow_matching.estimators}
