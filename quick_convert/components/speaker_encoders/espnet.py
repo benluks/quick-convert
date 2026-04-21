@@ -7,6 +7,7 @@ import torch
 from espnet2.bin.spk_inference import Speech2Embedding
 
 from ...data import AudioBatch
+from ...utils.audio import load_audio
 
 from .base import SpeakerEmbedding, SpeakerEncoder
 
@@ -24,21 +25,17 @@ class ESPnetSpeakerEncoder(SpeakerEncoder):
             model_tag=model_tag,
             device=device,
         )
+        self.sample_rate = self.speech2spk_embed.spk_train_args.sample_rate
 
     def encode_file(self, path: str | Path) -> SpeakerEmbedding:
         """
-        Normally I'd prefer to do all the loading in the data module, but in 
-        the event that the user needs to pass a simple audio file, I'm exposing 
+        Normally I'd prefer to do all the loading in the data module, but in
+        the event that the user needs to pass a simple audio file, I'm exposing
         this method
         """
-        
-        waveform, _sample_rate = load_audio()
 
-        # soundfile gives [T, C] for multi-channel audio
-        if waveform.ndim == 2:
-            waveform = waveform.mean(dim=1)
-
-        return self.encode_waveform(waveform, sample_rate=_sample_rate)
+        waveform, _ = load_audio(path, target_sr=self.sample_rate, convert_to_mono=True)
+        return self.encode(waveform)
 
     def encode(
         self,
