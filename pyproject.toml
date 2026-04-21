@@ -8,12 +8,14 @@ py-modules = ["main"]
 [tool.setuptools.packages.find]
 include = ["quick_convert*"]
 
+[tool.uv]
+conflicts = [[{ extra = "nac" }, { extra = "espnet-wavlm-joint" }]]
+
 [project]
 dependencies = [
     "hydra-core>=1.3.2",
     "jaxtyping>=0.3.9",
     "omegaconf>=2.3.0",
-    # "openpyxl>=3.1.5",
     "soundfile>=0.13.1",
     "torch==2.6",
     "torchaudio==2.6",
@@ -31,6 +33,10 @@ nac = ["tts>=0.22.0", "transformers>=5.3.0"]
 web = ["flask>=3.1.3", "pandas>=1.5.3"]
 pyannote = ["pyannote-audio>=3.4.0"]
 w2vbert = ["transformers>=5.4.0"]
+espnet-wavlm-joint = [
+    "espnet==202511",
+    "s3prl>=0.4.18",
+]
 
 [project.scripts]
 anonymize = "main:main"

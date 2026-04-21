@@ -1,0 +1,19 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: precompute_features
+  - /dataset: iemocap
+  - /components/feature_extractor@feature_extractor: speaker_embedding
+  - /components/speaker_encoder@speaker_encoder: espnet
+  - _self_
+
+model_name: voxcelebs12_ecapa_wavlm_joint
+
+dataset:
+  load: true
+
+pipeline:
+  dataset: ${dataset}
+  extractor: ${feature_extractor}
+  out_root: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.feature_extractor}_${hydra:runtime.choices.speaker_encoder}_${model_name}

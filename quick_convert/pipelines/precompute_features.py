@@ -39,6 +39,7 @@ class PrecomputeFeaturesPipeline:
                 if len(outputs) != len(batch):
                     raise ValueError(f"Extractor returned {len(outputs)} outputs for batch of size {len(batch)}")
 
+                # write samples
                 for sample, output in zip(batch, outputs):
                     split = sample.split or ""
                     utt_id = sample.path.stem

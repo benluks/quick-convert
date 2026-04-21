@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import torch
 
 from ...data.base_dataset import AudioBatch
-
-from .base import BaseFeatureExtractor, Features
+from .base import BaseFeatureExtractor
 
 
 class SpeakerEmbeddingExtractor(BaseFeatureExtractor):

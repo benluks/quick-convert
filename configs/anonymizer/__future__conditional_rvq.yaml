@@ -6,7 +6,7 @@ defaults:
   - /tokenizer: rvq
   - _self_
 
-_target_: quick_convert.systems.anonymization.ConditionalRVQSystem
+# _target_: quick_convert.systems.anonymization.ConditionalRVQSystem
 
 speaker_encoder: ${speaker_encoder}
 content_encoder: ${content_encoder}

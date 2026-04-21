@@ -2,4 +2,5 @@
 
 out_root: outputs
 out_dir_suffix: ""
+device: cuda
 # gpu: null

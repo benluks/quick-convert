@@ -1,4 +1,0 @@
-speaker_encoder:
-  _target_: quick_convert.components.speaker_encoders.pyannote_wespeaker.PyannoteWeSpeakerEncoder
-  model_name: pyannote/wespeaker-voxceleb-resnet34-LM
-  window: whole

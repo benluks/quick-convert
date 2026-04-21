@@ -31,3 +31,6 @@ class PyannoteWeSpeakerEncoder(SpeakerEncoder):
             model_name=self.model_name,
             dim=int(embedding.shape[-1]),
         )
+
+    def encode(self):
+        raise NotImplementedError

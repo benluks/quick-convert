@@ -9,9 +9,13 @@ import torchaudio
 import torchaudio.transforms as T
 
 
-def load_audio(audio_path: PathLike, target_sr: int) -> torch.Tensor:
+def load_audio(audio_path: PathLike, target_sr: int = None, mono: bool = False) -> tuple[float["1 t"], int]:
     x, sr = torchaudio.load(str(audio_path))
-    return T.Resample(sr, target_sr)(x)
+    if target_sr:
+        x = T.Resample(sr, target_sr)(x)
+    if mono and x.shape[-2] == 2:
+        x = x.mean(dim=-2, keepdim=True)
+    return x, sr
 
 
 AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac"}
