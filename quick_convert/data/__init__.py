@@ -1,3 +1,6 @@
-from .types import AudioBatch, AudioSample
+from __future__ import annotations
 
-__all__ = ["AudioBatch", "AudioSample"]
+from .types import AudioBatch, AudioSample
+from .base_dataset import BaseDataset
+
+__all__ = ["AudioBatch", "AudioSample", "BaseDataset"]

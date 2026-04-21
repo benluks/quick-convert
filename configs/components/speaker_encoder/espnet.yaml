@@ -1,3 +1,3 @@
-_target_: quick_convert.components.speaker_encoders.espnet_wavlm_joint.ESPnetSpeakerEncoder
-model_name: espnet/${speaker_encoder_name}
+_target_: quick_convert.components.speaker_encoders.espnet.ESPnetSpeakerEncoder
+model_tag: espnet/${model_name}
 device: ${device}

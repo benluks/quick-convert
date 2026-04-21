@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Union, Any
@@ -9,6 +8,8 @@ import torch
 import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
+
+from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 
 from ..utils.audio import get_supported_formats
 

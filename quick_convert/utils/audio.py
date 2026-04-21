@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 from functools import lru_cache
 from os import PathLike
 from typing import Set
 
 import soundfile as sf
 
-import torch
 import torchaudio
 import torchaudio.transforms as T
 
