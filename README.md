@@ -3,6 +3,16 @@
 A (someday) comprehensive library for running, training, and evaluating speech privacy models.
 Checkout the [docs](https://benluks.github.io/quick-convert/)
 
+## TODO:
+
+I'm putting this near the top so you, the reader can understand 
+
+1. [] Refactor main modules into `pipelines`, `systems`, and `components`:
+
+`pipelines`: Top-level experiment class. This is concerned with 
+
+2. [] ...?
+
 ## Quick Start
 
 This project provides command-line entrypoints for common workflows such as anonymization and ASV training.

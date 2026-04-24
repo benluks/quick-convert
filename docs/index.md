@@ -24,6 +24,18 @@ These explain how the system is structured under the hood.
 
 Learn how configurations are composed, overridden, and used to drive pipelines.
 
+### The 3 module types: Piplines, Systems, Components (for the future)
+
+- [Systems] Where the task-specific logic is implemented. Examples of systems are:
+- - Anonymization
+- - Automatic Speaker Verification (ASV)
+- - Automatic Speech Recognition (ASR)
+- [Components](components/index.md) are the puzzle pieces that make up a system. For example, the same speaker encoder may extract a speaker embedding as part of an [anonymization system] as well as an [ASV system].
+- - [Donors](components/donors.md)
+- [Pipelines] Pipelines string the . This is the top-level wrapper, although I put it last in this list, because I feel it's easier to understand once **Systems** abd **Components** have been explained.
+
+Note: As of yet, you'll notice that there is non `systems` module. The implemented anonymization systems currently exist under `pipelines`, and need to be refactored.
+
 ---
 
 ### Data Handling

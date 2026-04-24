@@ -9,13 +9,23 @@ py-modules = ["main"]
 include = ["quick_convert*"]
 
 [tool.uv]
-conflicts = [[{ extra = "nac" }, { extra = "espnet-wavlm-joint" }]]
+conflicts = [
+    [
+        { extra = "asv" },
+        { extra = "emotion-compensation" },
+        { extra = "espnet-wavlm-joint" },
+        { extra = "nac" },
+        { extra = "pyannote" },
+        { extra = "w2vbert" },
+        { extra = "web" },
+    ],
+]
 
 [project]
 dependencies = [
-    "hydra-core>=1.3.2",
+    "hydra-core",
     "jaxtyping>=0.3.9",
-    "omegaconf>=2.3.0",
+    "omegaconf",
     "soundfile>=0.13.1",
     "torch==2.6",
     "torchaudio==2.6",
@@ -36,6 +46,10 @@ w2vbert = ["transformers>=5.4.0"]
 espnet-wavlm-joint = [
     "espnet==202511",
     "s3prl>=0.4.18",
+]
+emotion-compensation = [
+    "fairseq==0.12.2",
+    "speechbrain>=1.1.0",
 ]
 
 [project.scripts]

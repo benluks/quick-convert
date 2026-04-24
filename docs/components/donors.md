@@ -1,0 +1,1 @@
+Donors are components that are dedicated to a specific pipeline. It's code that's adapted with minimal (or possibly no) changes 
