@@ -13,6 +13,6 @@ a donor exists under `quick_convert/components/donors/<donor_name>`. It should i
 
 ## Existing Donors
 
-### `emotion-compensation`
+* ### `emotion-compensation`
 
 The only existing one (as of yet) is `emotion-compensation`. It exists solely for the purposes of instantiating the [`emotion_compensation`](https://github.com/benluks/quick-convert/blob/main/quick_convert/pipelines/anonymization/emotion_compensation.py) anonymization system.

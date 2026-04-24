@@ -10,7 +10,7 @@ If you're new, start here:
 
 - [Installation](installation.md)
 - [Quickstart](quickstart.md)
-- [Design Philisophy] (design_philosophy.md)
+- [Design Philisophy](design_philosophy.md)
 
 ---
 
@@ -26,11 +26,12 @@ Learn how configurations are composed, overridden, and used to drive pipelines.
 
 ### The 3 module types: Piplines, Systems, Components (for the future)
 
-- [Systems] Where the task-specific logic is implemented. Examples of systems are:
+- [Systems] are where the task-specific logic is implemented. Examples of systems are:
 - - Anonymization
 - - Automatic Speaker Verification (ASV)
 - - Automatic Speech Recognition (ASR)
-- [Components](components/index.md) are the puzzle pieces that make up a system. For example, the same speaker encoder may extract a speaker embedding as part of an [anonymization system] as well as an [ASV system].
+- [Components](components/index.md) are the puzzle pieces that make up a system. For example, the same speaker encoder may extract a speaker embedding as part of an [anonymization system] as well as an [ASV system]. An anonymizer might swap out a WavLM feature extractor for a WhisperEncoder one.
+Components are the broadest and richest of the 3 module types, and where I expect most of the 
 - - [Donors](components/donors.md)
 - [Pipelines] Pipelines string the . This is the top-level wrapper, although I put it last in this list, because I feel it's easier to understand once **Systems** abd **Components** have been explained.
 
