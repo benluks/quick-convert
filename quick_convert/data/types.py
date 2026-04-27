@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,7 @@ class LoadedSample(MetadataSample):
 class AudioSample(MetadataSample):
     waveform: Optional[float["1 t"]] = None
     sample_rate: Optional[int] = None
+    features: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,7 @@ class AudioBatch(MetadataBatch):
     waveforms: Optional[float["b t"]] = None
     lengths: Optional[int["b"]] = None
     sample_rates: Optional[int["b"]] = None
+    features: dict[str, Any] = field(default_factory=dict)
 
     def __len__(self) -> int:
         return len(self.paths)
@@ -54,6 +56,7 @@ class AudioBatch(MetadataBatch):
             spk_id=self.spk_ids[idx],
             waveform=self.waveforms[idx] if self.waveforms is not None else None,
             sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
+            features={key: value[idx] for key, value in self.features.items()},
         )
 
     def __iter__(self):

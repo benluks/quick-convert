@@ -47,7 +47,7 @@ class EmotionCompensationAnonymizer(BaseAnonymizer):
         self.model = latentGenerator(self.h).to(self.device)
 
         ckpt_path = self._resolve_checkpoint_path(self.checkpoint_file)
-        state = torch.load(ckpt_path, map_location="cpu")
+        state = torch.load(ckpt_path, map_location=self.device)
         self.model.load_state_dict(state["generator"])
         self.model.eval()
 
@@ -85,7 +85,7 @@ class EmotionCompensationAnonymizer(BaseAnonymizer):
         # it should include a precomputed feature class.
         sample: EmotionCompensationAudioSample,
     ) -> torch.Tensor:
-        if waveform.ndim == 1:
+        if sample.waveform.ndim == 1:
             waveform = waveform.unsqueeze(0).unsqueeze(0)  # [1,1,T]
         elif waveform.ndim == 2:
             waveform = waveform.unsqueeze(0)  # assume [1,T] -> [1,1,T]

@@ -6,7 +6,3 @@ Components are the broadest and richest of the 3 module types, and where I expec
 - [`speaker_encoders`] are models that extract information about the speaker. Think of an x-vector/speaker embedding extractor used in ASV or for anonymization systems.
 
 Components are the puzzle pieces that make up a system. For example, the same speaker encoder may extract a speaker embedding as part of an [anonymization system] as well as an [ASV system]. An anonymizer might swap out a WavLM feature extractor for a WhisperEncoder one. The components directory currently 
-
-
-
-
