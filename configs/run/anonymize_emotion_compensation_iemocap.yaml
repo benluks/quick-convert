@@ -1,0 +1,7 @@
+feature_resolvers:
+  - _target_: quick_convert.data.features.PatternSidecarFeatureResolver
+    key: xvector_path
+    root: /path/to/precomputed/xvectors
+    pattern: "{stem}_{step}.xvector"
+    step: 1
+    must_exist: true

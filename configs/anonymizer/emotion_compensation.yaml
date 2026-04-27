@@ -1,0 +1,5 @@
+_target_: quick_convert.pipelines.anonymization.emotion_compensation.EmotionCompensationAnonymizer
+
+checkpoint_file: quick_convert/components/donors/emotion_compensation/pretrained_models_anon_xv/HiFi-GAN/libri_tts_clean_100_fbank_xv_ssl_freeze
+device: cuda
+remove_weight_norm: true

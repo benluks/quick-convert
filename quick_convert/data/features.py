@@ -1,28 +1,39 @@
 from pathlib import Path
-from typing import Callable
 
-import torch
+from .types import AudioSample
 
 
-class SidecarFeatureLoader:
+class PatternSidecarFeatureResolver:
     def __init__(
         self,
+        key: str,
         root: str | Path,
         pattern: str,
-        key: str,
-        loader: Callable[[Path], torch.Tensor] | None = None,
+        load: bool = False,
+        loader=None,
+        **format_kwargs,
     ):
+        self.key = key
         self.root = Path(root)
         self.pattern = pattern
-        self.key = key
-        self.loader = loader or torch.load
+        self.load = load
+        self.loader = loader
+        self.format_kwargs = format_kwargs
 
-    def path_for(self, audio_path: Path) -> Path:
-        return self.root / self.pattern.format(
-            stem=audio_path.stem,
-            name=audio_path.name,
-            parent=audio_path.parent.name,
+    def resolve(self, sample):
+        path = self.root / self.pattern.format(
+            stem=sample.path.stem,
+            name=sample.path.name,
+            split=sample.split,
+            spk_id=sample.spk_id,
+            **self.format_kwargs,
         )
 
-    def load(self, audio_path: Path) -> torch.Tensor:
-        return self.loader(self.path_for(audio_path))
+        if self.load:
+            return {self.key: self.loader(path)}
+
+        return {self.key: path}
+
+
+def resolve_emotion_compensation_xvector_path(sample: AudioSample, root: Path, step: int) -> Path:
+    return root / f"{sample.path.stem}_{step}.xvector"
