@@ -42,7 +42,7 @@ Example:
 This project uses [uv](https://github.com/astral-sh/uv) for Python environment management. Make sure you have it installed before proceeding.
 
 ```bash
-https://github.com/benluks/quick-convert
+git clone https://github.com/benluks/quick-convert
 cd quick-convert
 uv sync
 ```
