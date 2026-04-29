@@ -100,7 +100,7 @@ class NACAnonymizer(BaseAnonymizer[NACTarget]):
     def set_target(self, target: Union[str, List]):
         self.target = target
 
-    def convert(self, audio_path, target_voice_id=None, coarse_temperature=0.7):
+    def anonymize(self, audio_path, target_voice_id=None, coarse_temperature=0.7):
         if not target_voice_id:
             target_voice_id = self.target
 

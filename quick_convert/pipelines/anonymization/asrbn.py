@@ -23,7 +23,7 @@ class ASRBNAnonymizer(BaseAnonymizer[ASRBNTarget]):
         self.target = target
 
     @torch.inference_mode()
-    def convert(self, audio_path, target_speaker=None):
+    def anonymize(self, audio_path, target_speaker=None):
         target = target_speaker or self.target
 
         x = self.load(audio_path)

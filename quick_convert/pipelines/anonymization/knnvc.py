@@ -37,7 +37,7 @@ class KNNVCAnonymizer(BaseAnonymizer[KNNVCTarget]):
         query_seq = self.model.get_features(audio_path)
         return self.model.vocode(query_seq.to(self.device)).cpu().squeeze()
 
-    def convert(self, audio_path):
+    def anonymize(self, audio_path):
         query_seq = self.model.get_features(str(audio_path))
         if query_seq.ndim == 3 and query_seq.shape[0] == 2:
             # query is stereo, reduce to mono

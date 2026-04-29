@@ -38,7 +38,7 @@ class BaseAnonymizer(nn.Module, ABC, Generic[T_Target]):
         raise NotImplementedError
 
     @abstractmethod
-    def convert(
+    def anonymize(
         self, audio_path: Union[torch.Tensor, os.PathLike], **kwargs
     ) -> torch.Tensor:
         raise NotImplementedError

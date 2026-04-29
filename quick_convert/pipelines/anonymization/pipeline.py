@@ -46,7 +46,7 @@ class AnonymizationPipeline(Generic[T_Target]):
             if not target_speaker:
                 target_speaker = self.target_speaker
             self.anonymizer.set_target(target_speaker, **kwargs)
-            anonymize_fn = self.anonymizer.convert
+            anonymize_fn = self.anonymizer.anonymize
 
         out_dir = Path(out_dir)
         for split in self.dataset.splits or [""]:

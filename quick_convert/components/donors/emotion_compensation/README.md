@@ -7,7 +7,7 @@ From the [emotion compensation](https://github.com/xiaoxiaomiao323/emotion-compe
 1. Install deps:
 
 ```bash
-uv add -e ".[emotion-compensation]"
+uv sync --extra emotion-compensation
 ```
 
 2. Download pre-trained models
