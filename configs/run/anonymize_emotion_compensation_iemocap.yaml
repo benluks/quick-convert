@@ -1,7 +1,21 @@
-feature_resolvers:
-  - _target_: quick_convert.data.features.PatternSidecarFeatureResolver
-    key: xvector_path
-    root: /path/to/precomputed/xvectors
-    pattern: "{stem}_{step}.xvector"
-    step: 1
-    must_exist: true
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: anonymization
+  - /anonymizer: emotion_compensation
+  - /dataset: iemocap
+  - _self_
+
+target_id: ""
+
+dataset:
+  feature_resolvers:
+    - _target_: quick_convert.data.features.PatternSidecarFeatureResolver
+      key: xvector_path
+      root: /cfs/home/u036742/emotion-compensation/results/IEMOCAP_dev_ohnn_pre_esd_msp_sad1
+      # the `stem` name is a built-in parameter that lets you use the filename of the input audio file, because
+      # it tends to be relevant
+      pattern: "{stem}_{step}.xvector"
+      step: 1
+

@@ -20,13 +20,13 @@
             }
         },
         {
-            "name": "knnvc anonymize",
+            "name": "anonymize",
             "type": "debugpy",
             "request": "launch",
             "module": "quick_convert.cli.anonymize",
             "args": [
                 "--config-name",
-                "run/anonymize_knnvc_clac",
+                "run/anonymize_emotion_compensation_iemocap",
             ],
             "console": "integratedTerminal",
             "python": ".venv/bin/python",

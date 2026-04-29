@@ -9,7 +9,7 @@ import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 
-from quick_convert.data.features import SidecarFeatureLoader
+from .features import PatternSidecarFeatureResolver
 
 from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 
@@ -31,7 +31,7 @@ class BaseDataset(Dataset):
         convert_to_mono: bool = True,
         # pass a spkid function to avoid subclassing just to implement get_spkid logic
         get_spkid_fn: Optional[Callable[[PathLike], str]] = None,
-        feature_resolvers: list[SidecarFeatureLoader] | None = None,
+        feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
     ):
         if root is None and paths is None:
             raise ValueError("You must provide either `root` or `paths`.")

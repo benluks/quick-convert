@@ -21,10 +21,12 @@ conflicts = [
     ],
 ]
 
+[tool.uv.sources]
+fairseq = { git = "https://github.com/liyaodev/fairseq.git" }
+
 [project]
 dependencies = [
     "hydra-core",
-    "jaxtyping>=0.3.9",
     "omegaconf",
     "soundfile>=0.13.1",
     "torch==2.6",
@@ -49,6 +51,7 @@ espnet-wavlm-joint = [
 ]
 emotion-compensation = [
     "fairseq==0.12.2",
+    "matplotlib>=3.10.9",
     "speechbrain>=1.1.0",
 ]
 

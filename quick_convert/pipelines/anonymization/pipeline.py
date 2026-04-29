@@ -53,7 +53,7 @@ class AnonymizationPipeline(Generic[T_Target]):
             (out_dir / split).mkdir(parents=True, exist_ok=True)
 
         for row in tqdm(
-            self.dataset.rows,
+            self.dataset,
             desc=f"Anonymizing data from {self.dataset.root} into {str(out_dir)}",
         ):
             split = row.split or ""

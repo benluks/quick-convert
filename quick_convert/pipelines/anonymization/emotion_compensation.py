@@ -26,15 +26,15 @@ class EmotionCompensationAnonymizer(BaseAnonymizer):
         checkpoint_file: str | Path,
         device: str | torch.device | None = None,
         sample_rate: int | None = None,
-        xvector_dir: str | Path | None = None,
-        xvector_step: str | int | None = None,
+        # xvector_dir: str | Path | None = None,
+        # xvector_step: str | int | None = None,
         remove_weight_norm: bool = True,
     ) -> None:
         super().__init__()
         self.checkpoint_file = Path(checkpoint_file)
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
-        self.xvector_dir = Path(xvector_dir) if xvector_dir is not None else None
-        self.xvector_step = str(xvector_step) if xvector_step is not None else None
+        # self.xvector_dir = Path(xvector_dir) if xvector_dir is not None else None
+        # self.xvector_step = str(xvector_step) if xvector_step is not None else None
 
         config_path = (
             self.checkpoint_file / "config.json"
