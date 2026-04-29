@@ -18,9 +18,7 @@ class BaseAnonymizer(nn.Module, ABC, Generic[T_Target]):
     def __init__(self, device: torch.device | None = None):
         super().__init__()
         self.device = device or torch.device(
-            "cuda"
-            if torch.cuda.is_available()
-            else ("mps" if torch.backends.mps.is_available() else "cpu")
+            "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
         )
 
     def load(self, audio_path, convert_to_mono=True):
@@ -38,7 +36,5 @@ class BaseAnonymizer(nn.Module, ABC, Generic[T_Target]):
         raise NotImplementedError
 
     @abstractmethod
-    def anonymize(
-        self, audio_path: Union[torch.Tensor, os.PathLike], **kwargs
-    ) -> torch.Tensor:
+    def anonymize(self, audio_path: Union[torch.Tensor, os.PathLike], **kwargs) -> torch.Tensor:
         raise NotImplementedError
