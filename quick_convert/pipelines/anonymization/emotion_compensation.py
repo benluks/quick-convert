@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
+from ...utils.donor_utils import resolve_donor_paths
 import torch
 
 from quick_convert.data import AudioSample
@@ -41,6 +42,19 @@ class EmotionCompensationAnonymizer(BaseAnonymizer):
         )
         with open(config_path) as f:
             self.h = AttrDict(json.load(f))
+
+        DONOR_ROOT = Path(__file__).parents[2] / "components" / "donors" / "emotion_compensation"
+
+        self.h = resolve_donor_paths(
+            self.h,
+            DONOR_ROOT,
+            [
+                "hubert_model_path",
+                "checkpoint_file",
+                "config_path",
+                "stats_path",
+            ],
+        )
 
         self.model = latentGenerator(self.h).to(self.device)
 
