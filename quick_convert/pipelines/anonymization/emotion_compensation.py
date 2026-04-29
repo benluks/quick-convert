@@ -29,6 +29,7 @@ class EmotionCompensationAnonymizer(BaseAnonymizer):
         # xvector_dir: str | Path | None = None,
         # xvector_step: str | int | None = None,
         remove_weight_norm: bool = True,
+        donor_root: Optional[Path] = Path(__file__).parents[2] / "components" / "donors" / "emotion_compensation",
     ) -> None:
         super().__init__()
         self.checkpoint_file = Path(checkpoint_file)
@@ -43,11 +44,11 @@ class EmotionCompensationAnonymizer(BaseAnonymizer):
         with open(config_path) as f:
             self.h = AttrDict(json.load(f))
 
-        DONOR_ROOT = Path(__file__).parents[2] / "components" / "donors" / "emotion_compensation"
+        self.donor_root = donor_root
 
         self.h = resolve_donor_paths(
             self.h,
-            DONOR_ROOT,
+            self.donor_root,
             [
                 "hubert_model_path",
                 "checkpoint_file",
