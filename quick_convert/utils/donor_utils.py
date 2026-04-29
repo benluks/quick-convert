@@ -1,16 +1,21 @@
 from pathlib import Path
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 
 def resolve_donor_paths(h, donor_root: Path, keys: list[str]):
-    h = OmegaConf.create(OmegaConf.to_container(h, resolve=True))
+    if isinstance(h, DictConfig):
+        h = OmegaConf.create(OmegaConf.to_container(h, resolve=True))
 
     for key in keys:
-        if key not in h or h[key] is None:
+        if not hasattr(h, key):
             continue
 
-        path = Path(h[key])
+        value = getattr(h, key)
+        if value is None:
+            continue
+
+        path = Path(value)
         if not path.is_absolute():
-            h[key] = str(donor_root / path)
+            setattr(h, key, str(donor_root / path))
 
     return h
