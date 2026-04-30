@@ -28,6 +28,8 @@ cd pretrained_models_anon_xv/
 wget https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960.pt
 ```
 
+Fairseq is deprecated and built against older versions of pytorch, so you'll have to add `weights_only=False` to wherever `torch.load` is called. It's a pain. I'm sorry.
+
 
 ```BibTex
 @article{10.1016/j.csl.2025.101810,
