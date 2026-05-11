@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -49,12 +50,14 @@ def main() -> None:
 
     module = importlib.import_module(module_name)
 
+    os.environ["HYDRA_FULL_ERROR"] = "1"
+
     sys.argv = [
         command,
         "--config-path",
         str(run_dir.parent),
         "--config-name",
-        f"run/{config_prefix}_{config_alias}",
+        config_name,
         *overrides,
     ]
 
