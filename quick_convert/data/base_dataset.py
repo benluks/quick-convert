@@ -137,7 +137,10 @@ class BaseDataset(Dataset):
         raise NotImplementedError(f"{type(self).__name__} must implement `get_spkid` when `return_spkid=True`.")
 
     def load_audio(self, path: Path, sample_rate: Optional[int] = None) -> tuple[torch.Tensor, int]:
-        waveform, sr = torchaudio.load(str(path))
+        try:
+            waveform, sr = torchaudio.load(str(path))
+        except Exception as e:
+            raise RuntimeError(f"Failed to load audio file: {path}") from e
         # Convert to mono if needed.
         if waveform.dim() == 2 and waveform.shape[0] > 1 and self.convert_to_mono:
             waveform = waveform.mean(dim=0, keepdim=True)

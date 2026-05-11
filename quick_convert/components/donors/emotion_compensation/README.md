@@ -31,8 +31,6 @@ cd pretrained_models_anon_xv/
 wget https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960.pt
 ```
 
-Fairseq is deprecated and built against older versions of pytorch, so you'll have to add `weights_only=False` to wherever `torch.load` is called. It's a pain. I'm sorry.
-
 3. Fix the `fairseq` code
 
 The repo relies on fairseq, which is deprecated. To avoid errors, we:
@@ -43,6 +41,8 @@ The repo relies on fairseq, which is deprecated. To avoid errors, we:
 ```bash
 bash scripts/fairseq_patch.sh
 ```
+
+This isn't ideal. That's what I mean when I say donors are meant to be a temporary solution.
 
 
 ```BibTex
