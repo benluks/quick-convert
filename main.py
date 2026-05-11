@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-def _available_aliases(config_prefix: str, run_dir: Path) -> list[str]:
+def _available_aliases(config_prefix: str, run_dir: Path = Path("configs/run")) -> list[str]:
     stem_prefix = f"{config_prefix}_"
     return sorted(
         path.stem[len(stem_prefix) :]
@@ -27,9 +27,7 @@ def main() -> None:
     argv = sys.argv[1:]
 
     if not argv or argv[0] in {"-h", "--help"}:
-        aliases = (
-            ", ".join(_available_aliases(config_prefix, run_dir)) or "(none found)"
-        )
+        aliases = ", ".join(_available_aliases(config_prefix, run_dir)) or "(none found)"
         raise SystemExit(
             f"Usage: {command} <config-alias> [hydra overrides...]\n"
             f"Resolved module: {module_name}\n"
@@ -42,7 +40,7 @@ def main() -> None:
 
     config_file = run_dir / f"{config_prefix}_{config_alias}.yaml"
     if not config_file.is_file():
-        aliases = ", ".join(_available_aliases(config_prefix)) or "(none found)"
+        aliases = ", ".join(_available_aliases(config_prefix, run_dir)) or "(none found)"
         raise SystemExit(
             f"No config found for alias {config_alias!r}.\n"
             f"Expected file: {config_file.name}\n"
@@ -53,8 +51,10 @@ def main() -> None:
 
     sys.argv = [
         command,
+        "--config-path",
+        str(run_dir.parent),
         "--config-name",
-        config_name,
+        f"run/{config_prefix}_{config_alias}",
         *overrides,
     ]
 
