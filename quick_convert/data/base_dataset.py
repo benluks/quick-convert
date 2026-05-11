@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from fnmatch import fnmatch
 from os import PathLike
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Union, Any
@@ -33,6 +34,7 @@ class BaseDataset(Dataset):
         # pass a spkid function to avoid subclassing just to implement get_spkid logic
         get_spkid_fn: Optional[Callable[[PathLike], str]] = None,
         feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
+        exclude_patterns: Optional[Iterable[str]] = None,
     ):
         if root is None and paths is None:
             raise ValueError("You must provide either `root` or `paths`.")
@@ -49,6 +51,7 @@ class BaseDataset(Dataset):
         if get_spkid_fn is not None:
             self.get_spkid = get_spkid_fn
         self.feature_resolvers = feature_resolvers or []
+        self.exclude_patterns = exclude_patterns or []
 
         rows: list[MetadataSample] = []
 
@@ -84,6 +87,8 @@ class BaseDataset(Dataset):
             for split, search_root in search_roots:
                 for p in search_root.rglob("*"):
                     if not p.is_file():
+                        continue
+                    if self._is_excluded(p):
                         continue
                     if p.suffix.lower().lstrip(".") not in file_formats:
                         continue
@@ -133,6 +138,9 @@ class BaseDataset(Dataset):
 
         return replace(sample, features=features)
 
+    def _is_excluded(self, path: Path) -> bool:
+        return any(fnmatch(path.name, pattern) or fnmatch(str(path), pattern) for pattern in self.exclude_patterns)
+
     def get_spkid(self, file_path: PathLike) -> str:
         raise NotImplementedError(f"{type(self).__name__} must implement `get_spkid` when `return_spkid=True`.")
 
@@ -145,7 +153,7 @@ class BaseDataset(Dataset):
         if waveform.dim() == 2 and waveform.shape[0] > 1 and self.convert_to_mono:
             waveform = waveform.mean(dim=0, keepdim=True)
         if sample_rate is not None:
-            torchaudio.functional.resample(waveform, orig_freq=sr, new_freq=sample_rate)
+            waveform = torchaudio.functional.resample(waveform, orig_freq=sr, new_freq=sample_rate)
             sr = sample_rate
         return waveform, sr
 

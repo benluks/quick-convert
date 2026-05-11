@@ -6,3 +6,5 @@ splits:
   - Session3
   - Session4
   - Session5
+exclude_patterns:
+  - ._*.wav
