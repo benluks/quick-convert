@@ -1,4 +1,9 @@
-from typing import TypeVar, TypeAlias
+try:
+    from typing import TypeVar, TypeAlias
+except ImportError:
+    # version resolution for python 3.9 vs 3.10+
+    from typing import TypeVar
+    from typing_extensions import TypeAlias
 
 from .nac import NACTarget
 from .knnvc import KNNVCTarget

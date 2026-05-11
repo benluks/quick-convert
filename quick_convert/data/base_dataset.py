@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from os import PathLike
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Union, Any
@@ -119,18 +120,18 @@ class BaseDataset(Dataset):
     def __len__(self) -> int:
         return len(self.rows)
 
-    def __getitem__(self, idx: int) -> AudioSample | dict[str, Any]:
+    def __getitem__(self, idx: int) -> AudioSample:
         sample = self.rows[idx]
+
         if self.load:
             sample = self.load_sample(sample)
 
-        # feature resolvers
-        features = {}
+        features = dict(getattr(sample, "features", {}) or {})
+
         for resolver in self.feature_resolvers:
             features.update(resolver.resolve(sample))
-        sample = AudioSample(**sample.__dict__, features=features)
 
-        return sample
+        return replace(sample, features=features)
 
     def get_spkid(self, file_path: PathLike) -> str:
         raise NotImplementedError(f"{type(self).__name__} must implement `get_spkid` when `return_spkid=True`.")

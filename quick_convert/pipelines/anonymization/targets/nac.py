@@ -1,9 +1,14 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal, Union
 
+try:
+    from typing import TypeAlias
+except ImportError:
+    from typing_extensions import TypeAlias
 
 NACRandomTarget: TypeAlias = Literal["random"]
+
 
 @dataclass(frozen=True)
 class NACVoiceTarget:
@@ -11,7 +16,7 @@ class NACVoiceTarget:
     voice_dirs: tuple[Path, ...]
 
 
-NACTarget = NACRandomTarget | NACVoiceTarget
+NACTarget: TypeAlias = Union[NACRandomTarget, NACVoiceTarget]
 
 
 def parse_target(self, raw_target: Any) -> NACTarget:
@@ -22,9 +27,7 @@ def parse_target(self, raw_target: Any) -> NACTarget:
         return NACRandomTarget()
 
     if not self.voice_dirs:
-        raise ValueError(
-            "NAC target is a speaker ID, but this anonymizer has no voice_dirs configured."
-        )
+        raise ValueError("NAC target is a speaker ID, but this anonymizer has no voice_dirs configured.")
 
     return NACVoiceTarget(
         speaker_id=str(raw_target),

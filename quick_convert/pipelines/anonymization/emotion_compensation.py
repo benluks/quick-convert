@@ -54,10 +54,12 @@ class EmotionCompensationAnonymizer(BaseAnonymizer):
                 "checkpoint_file",
                 "config_path",
                 "stats_path",
+                "soft_model_path",
+                "ecapa_fbank_model_path",
             ],
         )
 
-        self.model = latentGenerator(self.h).to(self.device)
+        self.model = latentGenerator(self.h, self.device).to(self.device)
 
         ckpt_path = self._resolve_checkpoint_path(self.checkpoint_file)
         state = torch.load(ckpt_path, map_location=self.device)
@@ -94,19 +96,15 @@ class EmotionCompensationAnonymizer(BaseAnonymizer):
     @torch.inference_mode()
     def anonymize(
         self,
-        # this shouldn't be an AudioSample, but something subclassing it that also includes a feature. Maybe a catch-all AudioSample-with-feature dataclass
-        # it should include a precomputed feature class.
-        sample: EmotionCompensationAudioSample,
+        sample: AudioSample,
     ) -> torch.Tensor:
-        if sample.waveform.ndim == 1:
-            waveform = waveform.unsqueeze(0).unsqueeze(0)  # [1,1,T]
-        elif waveform.ndim == 2:
-            waveform = waveform.unsqueeze(0)  # assume [1,T] -> [1,1,T]
-        elif waveform.ndim != 3:
-            raise ValueError(f"Unexpected waveform shape: {tuple(waveform.shape)}")
 
+        waveform = torch.atleast_2d(sample.waveform)
         waveform = waveform.to(self.device)
-        y = self.model.gen_vpc(**sample.__dict__)
+
+        xv_path = sample.features.pop("xvector_path")
+
+        y = self.model.gen_vpc(xv_path, audio=waveform, **sample.__dict__)
 
         if isinstance(y, tuple):
             y = y[0]

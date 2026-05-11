@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Union
 
 from .types import AudioSample
 
@@ -7,7 +10,7 @@ class PatternSidecarFeatureResolver:
     def __init__(
         self,
         key: str,
-        root: str | Path,
+        root: Union[str, Path],
         pattern: str,
         load: bool = False,
         loader=None,

@@ -279,14 +279,14 @@ class Generator(torch.nn.Module):
 
 
 class latentGenerator(Generator):
-    def __init__(self, h):
+    def __init__(self, h, device: torch.device):
         super().__init__(h)
         if h.get("soft_model_path", None) and h.get("hubert_model_path", None):
             feat_model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([str(h.hubert_model_path)])
             feat_model = feat_model[0]
             feat_model.remove_pretraining_modules()
             self.latent_encoder = SoftPredictor(feat_model)
-            self.latent_encoder.load_state_dict(torch.load(str(h.soft_model_path)))
+            self.latent_encoder.load_state_dict(torch.load(str(h.soft_model_path), map_location=device))
             set_parameter_requires_grad(
                 self.latent_encoder, h.get("ssl_freeze", None)
             )  # ssl_freeze=True not finetune ssl model

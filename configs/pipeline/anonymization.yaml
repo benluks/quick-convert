@@ -1,4 +1,4 @@
-_target_: quick_convert.pipelines.anonymization.AnonymizationPipeline
+_target_: quick_convert.pipelines.anonymization.pipeline.AnonymizationPipeline
 anonymizer: null
 dataset: null
 target_speaker: null

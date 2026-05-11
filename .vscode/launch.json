@@ -27,6 +27,7 @@
             "args": [
                 "--config-name",
                 "run/anonymize_emotion_compensation_iemocap",
+                "dataset=stutter",
             ],
             "console": "integratedTerminal",
             "python": ".venv/bin/python",

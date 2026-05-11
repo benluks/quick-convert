@@ -10,6 +10,7 @@ defaults:
 target_id: ""
 
 dataset:
+  load: true
   feature_resolvers:
     - _target_: quick_convert.data.features.PatternSidecarFeatureResolver
       key: xvector_path

@@ -33,9 +33,7 @@ class AnonymizationPipeline(Generic[T_Target]):
     def process_dir():
         pass
 
-    def run(
-        self, out_dir=None, target_speaker=None, suffix="", resynthesize=False, **kwargs
-    ):
+    def run(self, out_dir=None, target_speaker=None, suffix="", resynthesize=False, **kwargs):
 
         if not out_dir:
             out_dir = self.out_dir
@@ -45,21 +43,22 @@ class AnonymizationPipeline(Generic[T_Target]):
         else:
             if not target_speaker:
                 target_speaker = self.target_speaker
-            self.anonymizer.set_target(target_speaker, **kwargs)
+            if target_speaker is not None:
+                self.anonymizer.set_target(target_speaker, **kwargs)
             anonymize_fn = self.anonymizer.anonymize
 
         out_dir = Path(out_dir)
         for split in self.dataset.splits or [""]:
             (out_dir / split).mkdir(parents=True, exist_ok=True)
 
-        for row in tqdm(
+        for sample in tqdm(
             self.dataset,
             desc=f"Anonymizing data from {self.dataset.root} into {str(out_dir)}",
         ):
-            split = row.split or ""
-            out_path = Path(out_dir) / split / f"{Path(row.path).stem}{self.suffix}.wav"
+            split = sample.split or ""
+            out_path = Path(out_dir) / split / f"{Path(sample.path).stem}{self.suffix}.wav"
             if out_path.exists() and not self.overwrite:
                 continue
 
-            wav_conv = anonymize_fn(row.path)
+            wav_conv = anonymize_fn(sample)
             torchaudio.save(str(out_path), wav_conv, self.anonymizer.sr)
