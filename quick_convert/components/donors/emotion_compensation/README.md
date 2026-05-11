@@ -2,11 +2,14 @@
 
 From the [emotion compensation](https://github.com/xiaoxiaomiao323/emotion-compensation) pipeline, based on the paper by Miao et al. (2025).
 
+Running the emotion compensation anonymizer requires a bunch of concessions. The first of which is downgrading to Python 3.9, because of this, I'll imit running this anonymizer to its own branch.
+
 ## Steps
 
 1. Install deps:
 
 ```bash
+git checkout emocomp
 uv sync --extra emotion-compensation
 ```
 
@@ -29,6 +32,17 @@ wget https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960.pt
 ```
 
 Fairseq is deprecated and built against older versions of pytorch, so you'll have to add `weights_only=False` to wherever `torch.load` is called. It's a pain. I'm sorry.
+
+3. Fix the `fairseq` code
+
+The repo relies on fairseq, which is deprecated. To avoid errors, we:
+
+(1) Install it from the latest commit (you don't have to worry about this; it's done under the hood)
+(2) Patching the fairseq code:
+
+```bash
+bash scripts/fairseq_patch.sh
+```
 
 
 ```BibTex
