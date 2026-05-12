@@ -12,15 +12,19 @@ import os
 import shutil
 from collections import OrderedDict
 import matplotlib
+import amfm_decompy.basic_tools as basic
+import amfm_decompy.pYAAPT as pYAAPT
+import numpy as np
 import torch
 from torch.nn.utils import weight_norm
+
 matplotlib.use("Agg")
 import matplotlib.pylab as plt
 
+
 def plot_spectrogram(spectrogram):
     fig, ax = plt.subplots(figsize=(10, 2))
-    im = ax.imshow(spectrogram, aspect="auto", origin="lower",
-                   interpolation='none')
+    im = ax.imshow(spectrogram, aspect="auto", origin="lower", interpolation="none")
     plt.colorbar(im, ax=ax)
 
     fig.canvas.draw()
@@ -42,7 +46,7 @@ def apply_weight_norm(m):
 
 
 def get_padding(kernel_size, dilation=1):
-    return int((kernel_size*dilation - dilation)/2)
+    return int((kernel_size * dilation - dilation) / 2)
 
 
 def load_checkpoint(filepath, device):
@@ -60,7 +64,7 @@ def save_checkpoint(filepath, obj):
 
 
 def scan_checkpoint(cp_dir, prefix):
-    pattern = os.path.join(cp_dir, prefix + '????????')
+    pattern = os.path.join(cp_dir, prefix + "????????")
     cp_list = glob.glob(pattern)
     if len(cp_list) == 0:
         return None
@@ -79,3 +83,24 @@ class AttrDict(dict):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
 
+
+# derived from
+def get_yaapt_f0(audio, rate=16000, interp=False):
+    frame_length = 20.0
+    to_pad = int(frame_length / 1000 * rate) // 2
+
+    f0s = []
+    for y in audio.astype(np.float64):
+        y_pad = np.pad(y.squeeze(), (to_pad, to_pad), "constant", constant_values=0)
+        signal = basic.SignalObj(y_pad, rate)
+        pitch = pYAAPT.yaapt(
+            signal,
+            **{"frame_length": frame_length, "frame_space": 10.0, "nccf_thresh1": 0.25, "tda_frame_length": 25.0},
+        )
+        if interp:
+            f0s += [pitch.samp_interp[None, None, :]]
+        else:
+            f0s += [pitch.samp_values[None, None, :]]
+
+    f0 = np.vstack(f0s)
+    return f0
