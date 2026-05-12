@@ -121,7 +121,6 @@ class EmotionCompensationAnonymizer(BaseAnonymizer):
         f0 = features["f0"].to(self.device)
 
         y = self.model.gen_vpc(xv_path, audio=waveform, f0=f0, **sample.__dict__)
-        print(y.shape)
 
         if isinstance(y, tuple):
             y = y[0]
