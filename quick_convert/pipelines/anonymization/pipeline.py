@@ -1,3 +1,4 @@
+from dataclasses import replace
 from os import PathLike
 from pathlib import Path
 from typing import Generic
@@ -30,6 +31,21 @@ class AnonymizationPipeline(Generic[T_Target]):
         self.suffix = suffix
         self.overwrite = overwrite
 
+    def get_feature_providers(self):
+        return [
+            *getattr(self.anonymizer, "feature_providers", []),
+        ]
+
+    def provide_sample_features(self, sample):
+        features = dict(getattr(sample, "features", {}) or {})
+
+        for provider in self.get_feature_providers():
+            if provider.key in features:
+                continue
+            features.update(provider.provide_sample(sample))
+
+        return replace(sample, features=features)
+
     def process_dir():
         pass
 
@@ -55,6 +71,7 @@ class AnonymizationPipeline(Generic[T_Target]):
             self.dataset,
             desc=f"Anonymizing data from {self.dataset.root} into {str(out_dir)}",
         ):
+            sample = self.provide_sample_features(sample)
             split = sample.split or ""
             out_path = Path(out_dir) / split / f"{Path(sample.path).stem}{self.suffix}.wav"
             if out_path.exists() and not self.overwrite:

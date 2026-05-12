@@ -100,9 +100,12 @@ class EmotionCompensationAnonymizer(BaseAnonymizer):
         waveform = torch.atleast_2d(sample.waveform)
         waveform = waveform.to(self.device)
 
-        xv_path = sample.features.pop("xvector_path")
+        # xv_path = sample.features.pop("xvector_path")
 
-        y = self.model.gen_vpc(xv_path, audio=waveform, **sample.__dict__)
+        xv_path = sample.features["speaker_embedding"]
+        f0 = sample.features["f0"]
+
+        y = self.model.gen_vpc(xv_path, audio=waveform, f0=f0, **sample.__dict__)
 
         if isinstance(y, tuple):
             y = y[0]

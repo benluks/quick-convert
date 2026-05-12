@@ -1,0 +1,36 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: anonymization
+  - /anonymizer: emotion_compensation
+  - /dataset: iemocap
+  - _self_
+
+target_id: ""
+
+anonymizer:
+  feature_providers:
+    - _target_: quick_convert.components.feature_providers.sidecar.PatternSidecarFeatureProvider
+      key: speaker_embedding
+      root: /cfs/home/u036742/emotion-compensation/results/IEMOCAP_dev_ohnn_pre_esd_msp_sad1
+      pattern: "{stem}_{step}.xvector"
+      step: 1
+    - _target_: quick_convert.components.feature_providers.online.OnlineFeatureProvider
+      extractor:
+        _target_: quick_convert.components.feature_extractors.F0Extractor
+        extract_fn: quick_convert.components.donors.emotion_compensation.utils.get_yaapt_f0
+
+
+dataset:
+  load: true
+  # limit to sentences, because original emotion-compensation does that
+  pattern: sentences/**/*.wav
+  feature_resolvers:
+    - _target_: quick_convert.data.features.PatternSidecarFeatureResolver
+      key: xvector_path
+      root: /cfs/home/u036742/emotion-compensation/results/IEMOCAP_dev_ohnn_pre_esd_msp_sad1
+      # the `stem` name is a built-in parameter that lets you use the filename of the input audio file, because
+      # it tends to be relevant
+      pattern: "{stem}_{step}.xvector"
+      step: 1
