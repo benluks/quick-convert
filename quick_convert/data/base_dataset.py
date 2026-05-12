@@ -33,7 +33,7 @@ class BaseDataset(Dataset):
         convert_to_mono: bool = True,
         # pass a spkid function to avoid subclassing just to implement get_spkid logic
         get_spkid_fn: Optional[Callable[[PathLike], str]] = None,
-        feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
+        # feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
         pattern: Optional[str] = None,
         exclude_patterns: Optional[Iterable[str]] = None,
     ):
@@ -51,7 +51,7 @@ class BaseDataset(Dataset):
         self.return_spkid = return_spkid
         if get_spkid_fn is not None:
             self.get_spkid = get_spkid_fn
-        self.feature_resolvers = feature_resolvers or []
+        # self.feature_resolvers = feature_resolvers or []
 
         self.pattern = pattern or "*"
         self.exclude_patterns = exclude_patterns or []
@@ -136,8 +136,8 @@ class BaseDataset(Dataset):
 
         features = dict(getattr(sample, "features", {}) or {})
 
-        for resolver in self.feature_resolvers:
-            features.update(resolver.resolve(sample))
+        # for resolver in self.feature_resolvers:
+        #     features.update(resolver.resolve(sample))
 
         return replace(sample, features=features)
 

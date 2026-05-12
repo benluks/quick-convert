@@ -18,14 +18,18 @@ class BaseAnonymizer(nn.Module, ABC, Generic[T_Target]):
     sample_rate: int
     feature_providers: list = []
 
-    def __init__(self, device: torch.device | None = None):
+    def __init__(
+        self,
+        device: torch.device | None = None,
+    ):
         super().__init__()
         self.device = device or torch.device(
             "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
         )
+        # self.feature_providers = list(feature_providers or [])
 
-    def get_feature_providers(self):
-        return self.feature_providers
+    # def get_feature_providers(self):
+    #     return self.feature_providers
 
     def load(self, audio_path, convert_to_mono=True):
         wav = load_audio(audio_path, self.sr)

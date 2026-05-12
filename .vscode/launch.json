@@ -52,13 +52,13 @@
             }
         },
         {
-            "name": "precompute f0",
+            "name": "anonymize emocomp test",
             "type": "debugpy",
             "request": "launch",
-            "module": "quick_convert.cli.precompute",
+            "module": "quick_convert.cli.anonymize",
             "args": [
                 "--config-name",
-                "run/precompute_f0_stutter",
+                "run/anonymize_emocomp_clac",
             ],
             "console": "integratedTerminal",
             "python": ".venv/bin/python",

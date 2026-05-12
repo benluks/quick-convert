@@ -82,25 +82,3 @@ class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
-
-
-# derived from
-def get_yaapt_f0(audio, rate=16000, interp=False):
-    frame_length = 20.0
-    to_pad = int(frame_length / 1000 * rate) // 2
-
-    f0s = []
-    for y in audio.astype(np.float64):
-        y_pad = np.pad(y.squeeze(), (to_pad, to_pad), "constant", constant_values=0)
-        signal = basic.SignalObj(y_pad, rate)
-        pitch = pYAAPT.yaapt(
-            signal,
-            **{"frame_length": frame_length, "frame_space": 10.0, "nccf_thresh1": 0.25, "tda_frame_length": 25.0},
-        )
-        if interp:
-            f0s += [pitch.samp_interp[None, None, :]]
-        else:
-            f0s += [pitch.samp_values[None, None, :]]
-
-    f0 = np.vstack(f0s)
-    return f0

@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Optional
 
+from quick_convert.data.types import AudioBatch
+
 from ...utils.donor_utils import resolve_donor_paths
 import torch
 
@@ -100,12 +102,32 @@ class EmotionCompensationAnonymizer(BaseAnonymizer):
         waveform = torch.atleast_2d(sample.waveform)
         waveform = waveform.to(self.device)
 
-        # xv_path = sample.features.pop("xvector_path")
-
         xv_path = sample.features["speaker_embedding"]
         f0 = sample.features["f0"]
 
         y = self.model.gen_vpc(xv_path, audio=waveform, f0=f0, **sample.__dict__)
+
+        if isinstance(y, tuple):
+            y = y[0]
+
+        return y.squeeze(0).detach().cpu()
+
+    @torch.inference_mode()
+    def anonymize_batch(
+        self,
+        batch: AudioBatch,
+    ) -> torch.Tensor:
+
+        waveform = torch.atleast_2d(batch.waveform)
+        waveform = waveform.to(self.device)
+
+        # xv_path = sample.features.pop("xvector_path")
+
+        xv_path = batch.features["speaker_embedding"]
+        f0 = batch.features["f0"]
+
+        # the code expects audio to be of shape [B 1 T]
+        y = self.model.gen_vpc(xv_path, audio=waveform.unsqueeze(-2), f0=f0, **batch.__dict__)
 
         if isinstance(y, tuple):
             y = y[0]

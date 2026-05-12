@@ -1,9 +1,10 @@
 from __future__ import annotations
+from typing import Union
 
 import torch
 
 from .base import BaseFeatureExtractor
-from ...data.types import AudioBatch
+from ...data.types import AudioBatch, AudioSample
 
 
 class F0Extractor(BaseFeatureExtractor):
@@ -20,3 +21,7 @@ class F0Extractor(BaseFeatureExtractor):
     @torch.inference_mode()
     def extract_batch(self, batch: AudioBatch) -> list[dict[str, torch.Tensor]]:
         return self.extract_fn(batch.waveforms.to(self.device), **self.extract_kwargs)
+
+    @torch.inference_mode()
+    def extract_sample(self, sample: AudioSample) -> list[dict[str, torch.Tensor]]:
+        return self.extract_fn(sample.waveform.to(self.device), **self.extract_kwargs)
