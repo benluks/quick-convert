@@ -5,7 +5,7 @@ from __future__ import annotations
 import torch
 
 from ...data.base_dataset import AudioBatch
-from .extractors.base import BaseFeatureExtractor
+from .base import BaseFeatureExtractor
 
 
 class SpeakerEmbeddingExtractor(BaseFeatureExtractor):
