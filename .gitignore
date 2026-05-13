@@ -199,3 +199,6 @@ checkpoints/*
 hydralance/
 outputs/
 results/
+
+# codebase-specific
+SHH
