@@ -1,0 +1,24 @@
+_target_: quick_convert.components.spectrogram_generator.chatterbox.ChatterboxSpectrogramGenerator
+backbone:
+  _target_: components.donors.chatterbox.s3gen.flow.CausalMaskedDiffWithXvec
+  encoder: # some linear layer, don't need it for now
+  decoder: 
+    _target_: components.donors.chatterbox.s3gen.flow_matching.CausalConditionalCFM
+    spk_emb_dim: 80
+    cfm_params:
+      _target_: hydra.utils.get_object
+      path: components.donors.chatterbox.s3gen.configs.CFM_PARAMS
+    estimator:
+      _target_: components.donors.chatterbox.s3gen.decoder.ConditionalDecoder
+      in_channels: 320
+      out_channels: 80
+      causal: true
+      channels:
+        - 256
+      dropout: 0.
+      attention_head_dim: 64
+      n_blocks: 4
+      num_mid_blocks: 12
+      num_heads: 8
+      act_fn: "gelu"
+      meanflow: ${meanflow}
