@@ -11,8 +11,8 @@ from jaxtyping import Float, Int
 
 @dataclass
 class ContentFeatures:
-    values: Float[torch.Tensor, "b n d"]
-    lengths: Int[torch.Tensor, "b"]
+    values: torch.FloatTensor
+    lengths: torch.LongTensor
     frame_hz: Optional[float]
     feature_dim: int
     representation_type: str
@@ -30,9 +30,9 @@ class ContentEncoder(ABC):
     @abstractmethod
     def encode_waveforms(
         self,
-        wavs: Int[torch.Tensor, "b t"],
-        lengths: Int[torch.Tensor, "b"] | None = None,
+        wavs: torch.FloatTensor,
+        lengths: torch.LongTensor | None = None,
         # input sample rates of wavs
-        sample_rates: Int[torch.Tensor, "b"] | None = None,
+        sample_rates: torch.LongTensor | None = None,
     ) -> ContentFeatures:
         raise NotImplementedError
