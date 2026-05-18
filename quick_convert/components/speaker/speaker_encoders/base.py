@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import torch
 
-from ...data.base_dataset import AudioBatch
+from ....data.base_dataset import AudioBatch
 
 
 @dataclass
