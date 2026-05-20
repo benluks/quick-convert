@@ -1,0 +1,20 @@
+# @package _global_
+
+defaults:
+  - /components/spectrogram_generator@component: chatterbox
+  - _self_
+
+spectrogram_generator_encoder_input_size: 512
+
+batch_size: 2
+content_length: 100
+content_dim: 768
+speaker_dim: 256
+mel_length: 200
+
+device: mps
+n_timesteps: 2
+
+component:
+  content_dim: ${content_dim}
+  speaker_dim: ${speaker_dim}
