@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ..donors.chatterbox.s3gen.flow import CausalMaskedDiffWithXvec
+from ...external.chatterbox.s3gen.flow import CausalMaskedDiffWithXvec
 
 
 class ChatterboxSpectrogramGenerator(nn.Module):

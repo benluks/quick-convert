@@ -1,21 +1,21 @@
 _target_: quick_convert.components.spectrogram_generator.chatterbox.ChatterboxSpectrogramGenerator
 backbone:
-  _target_: quick_convert.components.donors.chatterbox.s3gen.flow.CausalMaskedDiffWithXvec
+  _target_: quick_convert.external.chatterbox.s3gen.flow.CausalMaskedDiffWithXvec
   
   # encoder has to accept `tokens` and `token_sizes` in the forward method and have a property accessible by a function `output_size()`
   encoder:
     # this is a placeholder because the upsampling conformer is not necessary
-    _target_: quick_convert.components.donors.chatterbox.bridges.linear_encoder.LinearEncoder
+    _target_: quick_convert.external.chatterbox.bridges.linear_encoder.LinearEncoder
     input_size: ${spectrogram_generator_encoder_input_size}
     output_size: 512
   decoder: 
-    _target_: quick_convert.components.donors.chatterbox.s3gen.flow_matching.CausalConditionalCFM
+    _target_: quick_convert.external.chatterbox.s3gen.flow_matching.CausalConditionalCFM
     spk_emb_dim: 80
     cfm_params:
       _target_: hydra.utils.get_object
-      path: quick_convert.components.donors.chatterbox.s3gen.configs.CFM_PARAMS
+      path: quick_convert.external.chatterbox.s3gen.configs.CFM_PARAMS
     estimator:
-      _target_: quick_convert.components.donors.chatterbox.s3gen.decoder.ConditionalDecoder
+      _target_: quick_convert.external.chatterbox.s3gen.decoder.ConditionalDecoder
       in_channels: 320
       out_channels: 80
       causal: true
