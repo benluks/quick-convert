@@ -13,8 +13,8 @@ anonymizer:
   feature_providers:
     - _target_: quick_convert.components.feature_providers.sidecar.PatternSidecarFeatureProvider
       key: speaker_embedding
-      root: /cfs/home/u036742/emotion-compensation/results/IEMOCAP_dev_ohnn_pre_esd_msp_sad1
-      pattern: "{stem}_{step}.xvector"
+      root: quick_convert/external/emotion_compensation/theo_xv/results
+      pattern: "/**/{stem}.xvector"
       step: 1
     - _target_: quick_convert.components.feature_providers.online.OnlineFeatureProvider
       extractor:
