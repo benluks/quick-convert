@@ -137,16 +137,9 @@ class W2VBertContentEncoder(ContentEncoder):
                 torch.long
             )
 
-        # frame_hz = None
-        # if selected.shape[1] > 0 and wavs.shape[1] > 0:
-        #     duration_sec = wavs.shape[1] / sample_rate
-        #     if duration_sec > 0:
-        #         frame_hz = selected.shape[1] / duration_sec
-
         return ContentFeatures(
             values=selected,
             lengths=output_lengths,
-            # frame_hz=frame_hz,
             feature_dim=selected.shape[-1],
             representation_type="continuous",
             temporal_granularity="frame",

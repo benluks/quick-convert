@@ -45,10 +45,10 @@ class ConformerBlock(nn.Module):
         x = self.ffn1(x)
 
         # Multi-head self-attention
-        x = self.self_attn(x, padding_mask=padding_mask)
+        x = self.mha(x, padding_mask=padding_mask)
 
         # Convolution module
-        x = self.conv_module(x)
+        x = self.conv(x)
 
         # Second FFN
         x = self.ffn2(x)

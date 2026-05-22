@@ -13,7 +13,7 @@ import torch
 from quick_convert.data import AudioSample
 
 from .base_anonymizer import BaseAnonymizer
-from ...components.donors.emotion_compensation import latentGenerator, AttrDict
+from ...external.emotion_compensation import latentGenerator, AttrDict
 
 
 @dataclass(frozen=True)
