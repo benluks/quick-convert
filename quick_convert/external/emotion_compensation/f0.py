@@ -4,7 +4,7 @@ import amfm_decompy.basic_tools as basic
 import amfm_decompy.pYAAPT as pYAAPT
 import torch
 
-from quick_convert.components.feature_extractors.f0 import F0Extractor
+from quick_convert.components.low_level_features.f0 import F0Extractor
 from quick_convert.data.types import AudioBatch, AudioSample
 
 
