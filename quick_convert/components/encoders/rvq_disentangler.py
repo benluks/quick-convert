@@ -1,11 +1,15 @@
 import math
-from typing import Callable, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
+from quick_convert.components.encoders.linguistic_head import LinguisticCTCHead
+from quick_convert.components.encoders.pros_head import ProsodyHead
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
+from quick_convert.components.encoders import ParallelConformerEncoder, SpeakerASPHead, LinguisticCTCHead, ProsodyHead
+from quick_convert.components.layers import ResidualVectorQuantizer, GradientReversalLayer
 from quick_convert.components.ssl.w2vbert import W2VBertContentEncoder
-from quick_convert.components.layers import ParallelConformerEncoder, ResidualVectorQuantizer
 
 class RVQDisentangler(nn.Module):
     """
@@ -33,30 +37,27 @@ class RVQDisentangler(nn.Module):
         feature_extractor: W2VBertContentEncoder, # TODO - ideally this would be an interface that could support multiple SSL models
         content_encoder: ParallelConformerEncoder,
         rvq: ResidualVectorQuantizer,
-        rvq_spk_idx: int = 1,
-        rvq_pros_idx: int = 2,
-        prosody_output_dim: int = 0,
-        emotion_output_dim: int = 0,
-        speaker_output_dim: int = 0,
-        linguistic_output_dim: int = 0,
+        linguistic_head: LinguisticCTCHead,
+        speaker_head: SpeakerASPHead,
+        prosody_head: ProsodyHead | None,
+        emotion_head: ProsodyHead | None,
+        rvq_idx : Dict[str, int] = {'content': 0, 'speaker': 1, 'prosody': 2, 'emotion': 2},
+        *kwargs,
     ):
         super().__init__()
 
-        self.rvq_spk_idx = rvq_spk_idx
-        self.rvq_pros_idx = rvq_pros_idx
         self.feature_extractor = feature_extractor
         self.content_encoder = content_encoder
         self.rvq = rvq
 
-        # For KL losses
-        self.prosody_head = nn.Linear(content_encoder.output_dim, prosody_output_dim)
-        self.emotion_head = nn.Linear(content_encoder.output_dim, emotion_output_dim)
+        self.speaker_head = speaker_head
+        self.linguistic_head = linguistic_head
+        self.prosody_head = prosody_head
+        self.emotion_head = emotion_head
 
-        # We could use Massa's model here
-        self.speaker_head = nn.Linear(content_encoder.output_dim, speaker_output_dim)
+        self.rvq_idx = rvq_idx
 
-        # For CTC loss on the linguistic content
-        self.linguistic_head = nn.Linear(content_encoder.output_dim, linguistic_output_dim)
+        self.grl = GradientReversalLayer()  # For adversarial loss on speaker features
 
     # ------------------------------------------------------------------
     # Helpers
@@ -76,6 +77,14 @@ class RVQDisentangler(nn.Module):
     # ------------------------------------------------------------------
 
     def forward(
+            self,
+            waveform: torch.Tensor, 
+            lengths: torch.Tensor
+            ) -> List[torch.Tensor]:
+        with torch.no_grad():
+            return self.encode(waveform, lengths)[0:5]  # Return z_q, text_q, spk_q, pros_q, emo_q
+
+    def encode(
         self,
         waveform: torch.Tensor,   # (B, T_samples)
         lengths: torch.Tensor,    # (B,)  — number of valid samples per item
@@ -85,7 +94,8 @@ class RVQDisentangler(nn.Module):
         List[float],              # perplexity_list
         List[torch.Tensor],       # remainder_list (flat, length = num_codebooks + 1)
         torch.Tensor,             # spk_remainder  (B, T, F)
-        torch.Tensor,             # pros_remainder (B, T, F)
+        torch.Tensor | None,      # pros_remainder (B, T, F)
+        torch.Tensor | None,      # emo_remainder  (B, T, F)
     ]:
         """
         Args:
@@ -94,14 +104,15 @@ class RVQDisentangler(nn.Module):
 
         Returns:
             z_q:             Differentiable RVQ reconstruction, shape (B, T, F).
-            indices_list:    Per-codebook discrete indices.
-            perplexity_list: Per-codebook perplexity values.
-            remainder_list:  Raw (flattened B·T) remainder tensors from the RVQ.
-                             Index 0 is the original content vector; index k is the
-                             residual after the k-th codebook.
-            spk_remainder:   remainder_list[rvq_spk_idx] reshaped to (B, T, F).
-            pros_remainder:  remainder_list[rvq_pros_idx] reshaped to (B, T, F).
+            text_quantized:  Disentangled linguistic features, shape (B, T, F).
+            spk_quantized:   Disentangled speaker features, shape (B, T, F).
+            pros_quantized:  Disentangled prosody features, shape (B, T, F) or None if no prosody head.
+            emo_quantized:   Disentangled emotion features, shape (B, T, F) or None if no emotion head.
+            commitment_loss: Commitment loss from the RVQ, scalar tensor.
+            codebook_loss:   Codebook loss from the RVQ, scalar tensor.
+            lengths:         Updated lengths after feature extraction, shape (B,).
         """
+
         B, T_samples = waveform.shape
 
         # 1. Build sample-level padding mask for the SSL model
@@ -132,8 +143,76 @@ class RVQDisentangler(nn.Module):
         z_q = z_q_flat.transpose(1,2) # (B, T, F)
 
         # 8. Select the disentangled representations
-        spk_quantized = z_quantized[self.rvq_spk_idx].transpose(1,2) # (B, T, F)
-        pros_quantized = z_quantized[self.rvq_pros_idx].transpose(1,2) # (B, T, F)
-        text_quantized = z_quantized[-1].transpose(1,2) # (B, T, F)
+        text_quantized = z_quantized[self.rvq_idx['content']].transpose(1,2) # (B, T, F)
+        spk_quantized = z_quantized[self.rvq_idx['speaker']].transpose(1,2) # (B, T, F)
+        emo_pros_quantized = z_quantized[self.rvq_idx['prosody']].transpose(1,2) # (B, T, F)
+        
+        text_quantized = self.linguistic_head(text_quantized)
+        spk_quantized = self.speaker_head(spk_quantized)
+        
+        pros_quantized = self.prosody_head(emo_pros_quantized) if self.prosody_head is not None else None
+        emo_quantized = self.emotion_head(emo_pros_quantized) if self.emotion_head is not None else None
 
-        return z_q, spk_quantized, pros_quantized, text_quantized, commitment_loss, codebook_loss
+        # TODO - update lengths
+        lengths = lengths
+
+        return (
+            z_q, 
+            text_quantized, 
+            spk_quantized, 
+            pros_quantized, 
+            emo_quantized, 
+            commitment_loss, 
+            codebook_loss, 
+            lengths
+        )
+    
+    def compute_loss(
+            self, 
+            waveform: torch.FloatTensor, 
+            lengths: torch.LongTensor,
+            linguistic_targets: torch.LongTensor,
+            speaker_emb: torch.FloatTensor,
+            emotion_seq: torch.FloatTensor | None,
+            prosody_seq: torch.FloatTensor | None,
+        ) -> List[torch.Tensor]:
+        
+        z_q, text_q, spk_q, pros_q, emo_q, commitment_loss, codebook_loss, lengths = self.encode(waveform, lengths)
+
+        # Speaker loss: encourage spk_q to match the target speaker embedding
+        spk_loss = self.speaker_head.compute_loss(spk_q, speaker_emb)
+
+        # Prosody loss: encourage pros_q to match the target prosody features (if provided)
+        if self.prosody_head is not None and prosody_seq is not None:
+            pros_loss = self.prosody_head.compute_loss(pros_q, prosody_seq)
+        else:
+            pros_loss = 0.0
+
+        # Emotion loss: encourage emo_q to match the target emotion features (if provided)
+        if self.emotion_head is not None and emotion_seq is not None:
+            emo_loss = self.emotion_head.compute_loss(emo_q, emotion_seq)
+        else:            
+            emo_loss = 0.0
+
+        # CTC loss: encourage text_q to predict the target linguistic sequence
+        ctc_loss = self.linguistic_head.compute_loss(
+            text_q,
+            padding_mask=self._make_padding_mask(lengths, text_q.shape[1]),
+            linguistic_targets=linguistic_targets,
+            input_lengths=lengths,
+            target_lengths=torch.tensor([len(linguistic_targets[0])] * len(lengths), device=lengths.device),
+        )
+
+        return [
+            z_q, 
+            text_q, 
+            spk_q, 
+            pros_q, 
+            emo_q, 
+            commitment_loss, 
+            codebook_loss, 
+            ctc_loss, 
+            spk_loss, 
+            pros_loss, 
+            emo_loss
+        ]
