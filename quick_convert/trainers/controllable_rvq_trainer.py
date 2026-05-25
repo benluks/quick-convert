@@ -204,6 +204,7 @@ class ControllableRVQTrainer(AbsAnonymizerTrainer):
         waveform = batch.waveforms  # (B, T)
         lengths = batch.lengths     # (B,)
         targets = batch.targets     # transcript token ids, shape (B, T_text) or None
+        target_lengths = batch.target_lengths  # (B,) or None
 
         with torch.no_grad():
             spk_targets = self.spk_encoder(waveform).values
@@ -212,13 +213,14 @@ class ControllableRVQTrainer(AbsAnonymizerTrainer):
 
         ling_targets = self.tokenizer(targets)
 
-        z_q, text_q, spk_q, pros_q, emo_q, loss_dict = self.encoder.compute_loss(
+        z_q, spk_q, text_q, pros_emo_q, loss_dict = self.encoder.compute_loss(
             waveform, 
             lengths, 
             ling_targets,
+            target_lengths,
             spk_targets, 
-            pros_targets, 
             emo_targets, 
+            pros_targets,
         )
 
         # Weighted sum of VQ commitment and codebook losses
@@ -246,7 +248,7 @@ class ControllableRVQTrainer(AbsAnonymizerTrainer):
         # Decoder reconstruction loss: z_q is used as both the flow target (x1)
         # and the conditioning signal; detach x1 so gradients flow only through mu
         # TODO
-        decoder_loss = self.decoder.compute_loss()
+        decoder_loss = self.decoder.compute_loss(waveform, lengths, text_q, pros_emo_q, spk_q)
 
         loss = rvq_loss + distil_loss + adv_loss + self.hparams.decoder_loss_weight * decoder_loss
         log_dict = {

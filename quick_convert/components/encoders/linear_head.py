@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 
-class ProsodyHead(nn.Module):
+class LinearHead(nn.Module):
     """
-    Simple prosody head that applies a linear layer to the content encoder output.
+    Simple linear head that applies a linear layer to the content encoder output.
     """
 
     def __init__(
@@ -13,7 +13,7 @@ class ProsodyHead(nn.Module):
     ):
         super().__init__()
         self.ln = nn.LayerNorm(input_dim)
-        self.prosody_head = nn.Linear(input_dim, output_dim)
+        self.linear_head = nn.Linear(input_dim, output_dim)
 
     def forward(
             self, 
@@ -30,8 +30,9 @@ class ProsodyHead(nn.Module):
     
     def compute_loss(
             self, 
-            prosody_features: torch.FloatTensor, 
+            x: torch.FloatTensor, 
             prosody_targets: torch.FloatTensor
         ) -> torch.Tensor:
         """ Compute MSE loss between predicted prosody features and target prosody features. """
-        return nn.functional.mse_loss(prosody_features, prosody_targets)
+        x = self.forward(x)
+        return nn.functional.mse_loss(x, prosody_targets)
