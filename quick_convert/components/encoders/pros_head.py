@@ -12,6 +12,7 @@ class ProsodyHead(nn.Module):
         output_dim: int = 128,
     ):
         super().__init__()
+        self.ln = nn.LayerNorm(input_dim)
         self.prosody_head = nn.Linear(input_dim, output_dim)
 
     def forward(
@@ -25,7 +26,7 @@ class ProsodyHead(nn.Module):
         Returns:
             prosody_features: (B, T, output_dim)
         """
-        return self.prosody_head(content_features)
+        return self.prosody_head(self.ln(content_features))
     
     def compute_loss(
             self, 

@@ -3,9 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from quick_convert.components.layers import ConformerBlock
+from quick_convert.components.layers.grl import GradientReversalLayer
 
 class LinguisticCTCHead(nn.Module):
-    def __init__(self, hidden_dim: int, output_dim: int):
+    def __init__(
+            self, 
+            hidden_dim: int, 
+            output_dim: int
+        ):
         super().__init__()
         """
         self.linear_1 = nn.Linear(hidden_dim, hidden_dim)
@@ -18,27 +23,26 @@ class LinguisticCTCHead(nn.Module):
             bias=True,
         )
         """
+        self.ln = nn.LayerNorm(hidden_dim)
         self.linear_ctc = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x: torch.Tensor, *kwargs) -> torch.Tensor:
+        x = self.ln(x)
         x = self.linear_ctc(x)
         return x
     
     def compute_loss(
         self,
         x: torch.FloatTensor,
-        padding_mask: torch.LongTensor | None,
         linguistic_targets: torch.LongTensor,
         input_lengths: torch.LongTensor,
         target_lengths: torch.LongTensor,
     ) -> torch.Tensor:
         
         """
-        Implementation assumes tokenization happens outside the model, and that 0 is reserved for the CTC blank token. 
-        If padding_mask is provided, it should be a bool tensor of shape (B, T) where True indicates padding positions.
-        """
-        
-        x = self.forward(x, padding_mask)  # (B, T, output_dim)
+        Implementation assumes tokenization happens outside the model, 
+        and that 0 is reserved for the CTC blank token. 
+        """        
         x = x.transpose(0, 1)  # (T, B, output_dim) for CTC loss
         x = x.log_softmax(dim=-1)  # Log probabilities for CTC loss
         ctc_loss = F.ctc_loss(
@@ -77,6 +81,7 @@ class LinguisticConformerCTCHead(nn.Module):
             bias=bias,
         )
         """
+        self.ln = nn.LayerNorm(hidden_dim)
         self.linear_1 = nn.Linear(hidden_dim, hidden_dim)
         self.conformer_block = ConformerBlock(
             embed_dim=hidden_dim,
@@ -89,6 +94,7 @@ class LinguisticConformerCTCHead(nn.Module):
         self.linear_ctc = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x: torch.Tensor, padding_mask: torch.Tensor | None) -> torch.Tensor:
+        x = self.ln(x)
         x = self.linear_1(x)
         x = self.conformer_block(x, padding_mask)
         x = self.linear_ctc(x)
@@ -97,18 +103,16 @@ class LinguisticConformerCTCHead(nn.Module):
     def compute_loss(
         self,
         x: torch.FloatTensor,
-        padding_mask: torch.LongTensor | None,
         linguistic_targets: torch.LongTensor,
         input_lengths: torch.LongTensor,
         target_lengths: torch.LongTensor,
     ) -> torch.Tensor:
         
         """
-        Implementation assumes tokenization happens outside the model, and that 0 is reserved for the CTC blank token. 
-        If padding_mask is provided, it should be a bool tensor of shape (B, T) where True indicates padding positions.
+        Implementation assumes tokenization happens outside the model, 
+        and that 0 is reserved for the CTC blank token. 
         """
         
-        x = self.forward(x, padding_mask)  # (B, T, output_dim)
         x = x.transpose(0, 1)  # (T, B, output_dim) for CTC loss
         x = x.log_softmax(dim=-1)  # Log probabilities for CTC loss
         ctc_loss = F.ctc_loss(
