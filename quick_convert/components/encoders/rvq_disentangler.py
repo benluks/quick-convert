@@ -1,13 +1,17 @@
 import math
 from typing import Dict, List, Tuple
 
-from quick_convert.components.encoders.linguistic_head import LinguisticCTCHead
-from quick_convert.components.encoders.pros_head import ProsodyHead
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from quick_convert.components.encoders import ParallelConformerEncoder, SpeakerASPHead, LinguisticCTCHead, ProsodyHead
+from quick_convert.components.encoders import (
+    ParallelConformerEncoder, 
+    SpeakerASPHead, 
+    LinguisticCTCHead, 
+    LinearHead,
+)
+
 from quick_convert.components.layers import ResidualVectorQuantizer, GradientReversalLayer
 from quick_convert.components.ssl.w2vbert import W2VBertContentEncoder
 
@@ -39,8 +43,8 @@ class RVQDisentangler(nn.Module):
         rvq: ResidualVectorQuantizer,
         linguistic_head: LinguisticCTCHead,
         speaker_head: SpeakerASPHead,
-        prosody_head: ProsodyHead | None,
-        emotion_head: ProsodyHead | None,
+        emotion_head: LinearHead,
+        prosody_head: LinearHead | None,
         rvq_idx : Dict[str, int] = {'content': 0, 'speaker': 1, 'prosody': 2, 'emotion': 2},
         *kwargs,
     ):
@@ -52,11 +56,17 @@ class RVQDisentangler(nn.Module):
 
         self.speaker_head = speaker_head
         self.linguistic_head = linguistic_head
-        self.prosody_head = prosody_head
         self.emotion_head = emotion_head
+        self.prosody_head = prosody_head
 
         self.rvq_idx = rvq_idx
+        self._create_adversarial_heads()
 
+    def _create_adversarial_heads(self):
+        self.adv_speaker_head_ling = self.speaker_head.copy()  # For adversarial loss on speaker features
+        self.adv_speaker_head_pros = self.speaker_head.copy()  # For adversarial loss on speaker features
+        self.adv_linguistic_head_spk = self.linguistic_head.copy()   # For adversarial loss on linguistic features
+        self.adv_linguistic_head_pros = self.linguistic_head.copy()  # For adversarial loss on linguistic features
         self.grl = GradientReversalLayer()  # For adversarial loss on speaker features
 
     # ------------------------------------------------------------------
@@ -143,28 +153,28 @@ class RVQDisentangler(nn.Module):
         z_q = z_q_flat.transpose(1,2) # (B, T, F)
 
         # 8. Select the disentangled representations
-        text_quantized = z_quantized[self.rvq_idx['content']].transpose(1,2) # (B, T, F)
         spk_quantized = z_quantized[self.rvq_idx['speaker']].transpose(1,2) # (B, T, F)
-        emo_pros_quantized = z_quantized[self.rvq_idx['prosody']].transpose(1,2) # (B, T, F)
-        
-        text_quantized = self.linguistic_head(text_quantized)
-        spk_quantized = self.speaker_head(spk_quantized)
-        
-        pros_quantized = self.prosody_head(emo_pros_quantized) if self.prosody_head is not None else None
-        emo_quantized = self.emotion_head(emo_pros_quantized) if self.emotion_head is not None else None
+        text_quantized = z_quantized[self.rvq_idx['content']].transpose(1,2) # (B, T, F)
 
+        # For prosody and emotion we sum the remaining quantized vectors, giving the RVQ 
+        # the flexibility to decide how to allocate information across codebooks
+        emo_pros_quantized = torch.stack(z_quantized[self.rvq_idx['emo_pros']:], 
+                                         dim=3).sum(dim=3).transpose(1,2) # (B, T, F)
+        
         # TODO - update lengths
-        lengths = lengths
+        # frame rate of feature extractor is 50hz, so each frame corresponds to 20ms of audio,
+        # which is 320 samples at 16kHz. 
+        lengths = (lengths / 320).ceil().long()
 
         return (
             z_q, 
+            z_quantized,
+            spk_quantized,  
             text_quantized, 
-            spk_quantized, 
-            pros_quantized, 
-            emo_quantized, 
+            emo_pros_quantized, 
             commitment_loss, 
             codebook_loss, 
-            lengths
+            lengths,
         )
     
     def compute_loss(
@@ -172,47 +182,92 @@ class RVQDisentangler(nn.Module):
             waveform: torch.FloatTensor, 
             lengths: torch.LongTensor,
             linguistic_targets: torch.LongTensor,
-            speaker_emb: torch.FloatTensor,
+            target_lengths: torch.LongTensor,
+            speaker_seq: torch.FloatTensor,
             emotion_seq: torch.FloatTensor | None,
             prosody_seq: torch.FloatTensor | None,
-        ) -> List[torch.Tensor]:
-        
-        z_q, text_q, spk_q, pros_q, emo_q, commitment_loss, codebook_loss, lengths = self.encode(waveform, lengths)
+        ) -> List:
+
+        z_q, z_quantized, spk_q, text_q, emo_pros_q, commitment_loss, codebook_loss, lengths = self.encode(waveform, lengths)
+
+        rvq_losses = {
+            'commitment_loss': commitment_loss,
+            'codebook_loss': codebook_loss,
+        }
 
         # Speaker loss: encourage spk_q to match the target speaker embedding
-        spk_loss = self.speaker_head.compute_loss(spk_q, speaker_emb)
-
+        spk_loss = self.speaker_head.compute_loss(spk_q, speaker_seq)
+        
+        # Emotion loss: encourage emo_q to match the target emotion features (if provided)
+        emo_loss = self.emotion_head.compute_loss(emo_pros_q, emotion_seq)
+        
         # Prosody loss: encourage pros_q to match the target prosody features (if provided)
         if self.prosody_head is not None and prosody_seq is not None:
-            pros_loss = self.prosody_head.compute_loss(pros_q, prosody_seq)
+            pros_loss = self.prosody_head.compute_loss(emo_pros_q, prosody_seq)
         else:
             pros_loss = 0.0
-
-        # Emotion loss: encourage emo_q to match the target emotion features (if provided)
-        if self.emotion_head is not None and emotion_seq is not None:
-            emo_loss = self.emotion_head.compute_loss(emo_q, emotion_seq)
-        else:            
-            emo_loss = 0.0
 
         # CTC loss: encourage text_q to predict the target linguistic sequence
         ctc_loss = self.linguistic_head.compute_loss(
             text_q,
+            linguistic_targets,
             padding_mask=self._make_padding_mask(lengths, text_q.shape[1]),
-            linguistic_targets=linguistic_targets,
             input_lengths=lengths,
-            target_lengths=torch.tensor([len(linguistic_targets[0])] * len(lengths), device=lengths.device),
+            target_lengths=target_lengths,
         )
 
+        distill_losses = {
+            'ctc_loss': ctc_loss,
+            'spk_loss': spk_loss,
+            'pros_loss': pros_loss,
+            'emo_loss': emo_loss,
+        }    
+
+        # Adversarial speaker loss over linguistic features: encourage spk_q to be uninformative about speaker identity
+        adv_spk_loss_ling = self.adv_speaker_head_ling.compute_loss(
+            self.grl(text_q), 
+            speaker_seq
+        )
+
+        # Adversarial speaker loss over prosody features: encourage pros_q to be uninformative about speaker identity
+        adv_spk_loss_pros = self.adv_speaker_head_pros.compute_loss(
+            self.grl(emo_pros_q), 
+            speaker_seq
+        )
+
+        # Adversarial linguistic loss over speaker features: encourage text_q to be uninformative about linguistic content
+        adv_ling_loss_spk = self.adv_linguistic_head_spk.compute_loss(
+            self.grl(spk_q), 
+            linguistic_targets,
+            input_lengths=lengths,
+            target_lengths=target_lengths,
+        )
+
+        # Adversarial linguistic loss over prosody features: encourage text_q to be uninformative about linguistic content
+        adv_ling_loss_pros = self.adv_linguistic_head_pros.compute_loss(
+            self.grl(emo_pros_q), 
+            linguistic_targets,
+            input_lengths=lengths,
+            target_lengths=target_lengths,
+        )
+
+        adv_losses = {
+            'adv_spk_loss_ling': adv_spk_loss_ling,
+            'adv_spk_loss_pros': adv_spk_loss_pros,
+            'adv_ling_loss_spk': adv_ling_loss_spk,
+            'adv_ling_loss_pros': adv_ling_loss_pros,
+        }
+
+        loss_dict = {
+            'rvq_losses': rvq_losses,
+            'distill_losses': distill_losses,
+            'adv_losses': adv_losses,
+        }
+        
         return [
-            z_q, 
-            text_q, 
+            z_quantized, 
             spk_q, 
-            pros_q, 
-            emo_q, 
-            commitment_loss, 
-            codebook_loss, 
-            ctc_loss, 
-            spk_loss, 
-            pros_loss, 
-            emo_loss
+            text_q,
+            emo_pros_q,  
+            loss_dict,
         ]

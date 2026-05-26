@@ -22,16 +22,20 @@ class SpeakerASPHead(nn.Module):
             nn.BatchNorm1d(input_dim * 2),
             nn.Linear(input_dim * 2, output_dim),
         )
+        self.ln = nn.LayerNorm(input_dim)
 
-    def forward(self, content_features: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            content_features: (B, T, output_dim) output of the content encoder
+            x: (B, T, output_dim) output of the content encoder
         Returns:
             speaker_features: (B, output_dim)
         """
-        return self.speaker_head(content_features)
+        x = self.ln(x)
+        x = self.speaker_head(x)
+        return x
     
     def compute_loss(self, speaker_features: torch.FloatTensor, speaker_embs: torch.FloatTensor) -> torch.Tensor:
         """ Compute cosine distance loss between predicted speaker features and target speaker embeddings. """
-        return 1 - torch.cosine_similarity(speaker_features, speaker_embs, dim=1).mean()
+        x = self.forward(speaker_features)
+        return 1 - torch.cosine_similarity(x, speaker_embs, dim=1).mean()
