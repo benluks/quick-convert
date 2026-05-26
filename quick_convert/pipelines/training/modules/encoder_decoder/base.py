@@ -9,7 +9,7 @@ import lightning as L
 from quick_convert.data.types import AudioBatch
 
 
-class AbsAnonymizerTrainer(L.LightningModule):
+class BaseEncoderDecoderTrainingModule(L.LightningModule):
     """
     Model-agnostic PyTorch Lightning base trainer for end-to-end 
     encoder-decoder type anonymization models.

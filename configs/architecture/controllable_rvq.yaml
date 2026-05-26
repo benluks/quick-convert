@@ -1,0 +1,18 @@
+# configs/architecture/controllable_rvq.yaml
+
+sample_rate: 16000
+
+ssl_dim: 1024
+content_dim: 512
+hidden_dim: 512
+rvq_dim: 512
+
+num_quantizers: 8
+codebook_size: 1024
+
+linguistic_dim: 512
+speaker_dim: 192
+emotion_dim: 768
+prosody_dim: 128
+
+mel_dim: 80

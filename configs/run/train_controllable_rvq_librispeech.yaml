@@ -1,0 +1,20 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: controllable_rvq
+  - /dataset@train_dataset: librispeech
+  - /dataset@val_dataset: librispeech
+  - _self_
+
+train_dataset:
+  splits:
+    - train-clean-100
+    - train-clean-360
+    - train-other-500
+
+val_dataset:
+  splits:
+    - dev-clean
+    - dev-other

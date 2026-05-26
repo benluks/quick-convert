@@ -13,7 +13,7 @@ class ConformerBlock(nn.Module):
                  conv_kernel_size: int = 31, 
                  dropout: float = 0.1, 
                  bias: bool = True,
-                 pos_emb_base: float = 10000.0) -> nn.Module:
+                 pos_emb_base: float = 10000.0):
         
         super(ConformerBlock, self).__init__()
         

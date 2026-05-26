@@ -58,6 +58,10 @@ chatterbox = [
     "conformer==0.3.2",
     "diffusers==0.29.0",
 ]
+module-training = [
+    "lightning>=2.6.1",
+    "sentencepiece>=0.2.0",
+]
 
 [project.scripts]
 anonymize = "main:main"

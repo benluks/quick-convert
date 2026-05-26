@@ -23,6 +23,10 @@ class ContentFeatures:
 
 
 class ContentEncoder(ABC):
+    def __init__(self, device):
+
+        self.device = torch.device(device)
+
     @abstractmethod
     def encode_file(self, path: str | Path) -> ContentFeatures:
         raise NotImplementedError

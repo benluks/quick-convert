@@ -1,3 +1,5 @@
+encoder_layers: 6
+
 # values are taken from instantiation at https://github.com/resemble-ai/chatterbox/blob/master/src/chatterbox/models/s3gen/s3gen.py
 _target_: quick_convert.components.spectrogram_generator.chatterbox.ChatterboxSpectrogramGenerator
 backbone:
@@ -6,8 +8,9 @@ backbone:
   # encoder has to accept `tokens` and `token_sizes` in the forward method and have a property accessible by a function `output_size()`
   encoder:
     # this is a placeholder because the upsampling conformer is not necessary. Subject to change, replaced by something in `quick_convert.components.layers`
-    _target_: quick_convert.external.chatterbox.bridges.linear_encoder.LinearEncoder
-    input_size: ${spectrogram_generator_encoder_input_size}
+    _target_: quick_convert.external.chatterbox.bridges.conformer.ConformerEncoder
+    input_dim: ${spectrogram_generator_encoder_input_size}
+    size: ${components.spectrogram_generator.encoder_layers}
     output_size: 512
   decoder:
     _target_: quick_convert.external.chatterbox.s3gen.flow_matching.CausalConditionalCFM

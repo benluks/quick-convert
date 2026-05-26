@@ -1,0 +1,3 @@
+_target_: quick_convert.components.encoders.LinguisticCTCHead
+hidden_dim: ???
+output_dim: ???

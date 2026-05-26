@@ -1,0 +1,3 @@
+_target_: quick_convert.components.encoders.linear_head
+input_dim: ???
+output_dim: ???

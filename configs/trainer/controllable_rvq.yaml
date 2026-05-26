@@ -1,0 +1,45 @@
+# this is the one system where the target is an abstraction, i.e. it takes a base trainer type (e.g. `lightning_trainer`)
+# and then passes the specific class. It's because these types are redundant, i.e. `controllable_rvq` is always a lightning trainer.
+
+defaults:
+  - /components/encoders@encoder: rvq_disentangler
+  - /components/spectrogram_generator@decoder: chatterbox
+  - _self_
+
+_target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
+module:
+  _target_: quick_convert.pipelines.training.modules.encoder_decoder.controllable_rvq.ControllableRVQTrainingModule
+  encoder: ${encoder}
+  decoder: ${decoder}
+  spk_encoder:
+    _target_: quick_convert.components.speaker.ESPnetSpeakerEncoder
+  emo_encoder:
+    _target_: quick_convert.components.ssl.EmotionEncoder
+    model_name: iic/emotion2vec_plus_large
+  tokenizer:
+    _target_: sentencepiece.SentencePieceProcessor
+    model_file: ${tokenizer_model_path}
+  decoder_loss_weight: 1.0
+  rvq_loss_weights:
+    commitment_loss: 1.0
+    codebook_loss: 1.0
+  distillation_loss_weights:
+    ling: 1.0
+    spk: 1.0
+    emo: 1.0
+    pros: 1.0
+
+  adv_loss_weights:
+    spk_ling: 1.0
+    spk_pros: 1.0
+    ling_spk: 1.0
+    ling_pros: 1.0
+  pros_encoder:
+    _target_: quick_convert.components.ssl.ProsodyEncoder
+  lr_scheduler_cls: null
+  lr_scheduler_kwargs: null
+  optimizer_cls: torch.optim.AdamW # class target situation
+  optimizer_kwargs:
+    - weight_decay: 1e-2
+train_dataloader_kwargs: null
+val_dataloader_kwargs: null

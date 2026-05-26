@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from os import PathLike
 from pathlib import Path
 
 import torch
@@ -13,24 +14,15 @@ class W2VBertContentEncoder(ContentEncoder):
     def __init__(
         self,
         model_name: str = "facebook/w2v-bert-2.0",
-        sample_rate: int = 16000,
         layer: int = -1,
         device: str | None = None,
         local_files_only: bool = False,
     ) -> None:
+        super().__init__(device=device)
         self.model_name = model_name
-        self.sample_rate = sample_rate
+        self.sample_rate = 16000
         self.layer = layer
         self.local_files_only = local_files_only
-
-        if device is None:
-            if torch.cuda.is_available():
-                device = "cuda"
-            elif torch.backends.mps.is_available():
-                device = "mps"
-            else:
-                device = "cpu"
-        self.device = torch.device(device)
 
         self.processor = AutoProcessor.from_pretrained(
             model_name,
@@ -42,7 +34,7 @@ class W2VBertContentEncoder(ContentEncoder):
         ).to(self.device)
         self.model.eval()
 
-    def encode_file(self, path: str | Path) -> ContentFeatures:
+    def encode_file(self, path: PathLike) -> ContentFeatures:
         path = Path(path)
         wav, sr = torchaudio.load(path)
 
@@ -51,9 +43,7 @@ class W2VBertContentEncoder(ContentEncoder):
             wav = wav.mean(dim=0, keepdim=True)
 
         if wav.dim() != 2:
-            raise ValueError(
-                f"Expected waveform of shape (channels, time), got {tuple(wav.shape)}"
-            )
+            raise ValueError(f"Expected waveform of shape (channels, time), got {tuple(wav.shape)}")
 
         # Convert from (1, time) -> (batch=1, time)
         wav = wav.squeeze(0).unsqueeze(0)
@@ -81,9 +71,7 @@ class W2VBertContentEncoder(ContentEncoder):
             ContentFeatures with values of shape (batch, frames, dim).
         """
         if wavs.dim() != 2:
-            raise ValueError(
-                f"Expected wavs with shape (batch, time), got {tuple(wavs.shape)}"
-            )
+            raise ValueError(f"Expected wavs with shape (batch, time), got {tuple(wavs.shape)}")
 
         sample_rate = sample_rate or self.sample_rate
 
@@ -127,15 +115,11 @@ class W2VBertContentEncoder(ContentEncoder):
             n_input = attention_mask.shape[1]
             n_frames = selected.shape[1]
 
-            output_lengths = torch.floor(
-                input_lengths.to(torch.float32) * n_frames / n_input
-            ).to(torch.long)
+            output_lengths = torch.floor(input_lengths.to(torch.float32) * n_frames / n_input).to(torch.long)
 
         elif lengths is not None:
             n_frames = selected.shape[1]
-            output_lengths = torch.floor(lengths.to(torch.float32) * n_frames).to(
-                torch.long
-            )
+            output_lengths = torch.floor(lengths.to(torch.float32) * n_frames).to(torch.long)
 
         return ContentFeatures(
             values=selected,
