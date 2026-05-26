@@ -11,16 +11,31 @@ module:
   _target_: quick_convert.pipelines.training.modules.encoder_decoder.controllable_rvq.ControllableRVQTrainingModule
   encoder: ${encoder}
   decoder: ${decoder}
-  spk_encoder: SpeakerEncoder # espnet wavlm+ecapa
-  emo_encoder: #emo2vec
+  spk_encoder:
+    _target_: quick_convert.components.speaker.ESPnetSpeakerEncoder
+  emo_encoder:
+    _target_: quick_convert.components.ssl.EmotionEncoder
+    model_name: iic/emotion2vec_plus_large
   tokenizer:
-    _target_: sentencepiece.SentencePieceProcessor, # load processor from output training file
-  decoder_loss_weight:
-  rvq_loss_weights: dict[str, float],
+    _target_: sentencepiece.SentencePieceProcessor
+    model_file: ${tokenizer_model_path}
+  decoder_loss_weight: 1.0
+  rvq_loss_weights:
+    commitment_loss: 1.0
+    codebook_loss: 1.0
   distillation_loss_weights:
-    - 
-  adv_loss_weights: dict[str, float],
-  pros_encoder: # pros2vec
+    ling: 1.0
+    spk: 1.0
+    emo: 1.0
+    pros: 1.0
+
+  adv_loss_weights:
+    spk_ling: 1.0
+    spk_pros: 1.0
+    ling_spk: 1.0
+    ling_pros: 1.0
+  pros_encoder:
+    _target_: quick_convert.components.ssl.ProsodyEncoder
   lr_scheduler_cls: null
   lr_scheduler_kwargs: null
   optimizer_cls: torch.optim.AdamW # class target situation

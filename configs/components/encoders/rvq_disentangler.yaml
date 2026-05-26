@@ -1,14 +1,15 @@
 defaults:
-  /components/ssl@feature_extractor: w2vbert
-  /components/encoders@content_encoder: parallel_conformer
-  /components/layers@rvq: rvq
-  /components/encoders@linguistic_head: linguistic_head
-  /components/encoders@speaker_head: speaker_head
-  /components/encoders@linear_head: linear_head
+  - /components/ssl@feature_extractor: w2vbert
+  - /components/encoders@content_encoder: parallel_conformer
+  - /components/layers@rvq: rvq
+  - /components/encoders@linguistic_head: linguistic_head
+  - /components/encoders@speaker_head: speaker_head
+  - /components/encoders@linear_head: linear_head
+  - _self_
 
 _target_: quick_convert.components.encoders.RVQDisentangler
-feature_extractor: ${content_encoder}
-content_encoder: ${feature_extractor}
+feature_extractor: ${feature_extractor}
+content_encoder: ${content_encoder}
 rvq: ${rvq}
 linguistic_head: ${linguistic_head}
 emotion_head: ${linear_head}
