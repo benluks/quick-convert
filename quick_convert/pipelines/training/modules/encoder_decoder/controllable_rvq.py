@@ -6,8 +6,8 @@ import torch
 import sentencepiece as spm
 
 from quick_convert.components.encoders import RVQDisentangler
-from quick_convert.components.speaker import SpeakerEncoder, SpeakerEmbedding
-from quick_convert.components.ssl.base import ContentEncoder, ContentFeatures
+from quick_convert.components.speaker import SpeakerEncoder
+from quick_convert.components.ssl.base import ContentEncoder
 from quick_convert.components.spectrogram_generator import ChatterboxSpectrogramGenerator as CSG
 
 from quick_convert.data.types import AudioBatch
@@ -228,6 +228,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         rvq_loss = (
             self.hparams.rvq_loss_weights["commitment_loss"] * loss_dict["rvq_losses"]["commitment_loss"]
             + self.hparams.rvq_loss_weights["codebook_loss"] * loss_dict["rvq_losses"]["codebook_loss"]
+            + self.hparams.rvq_loss_weights["mse_loss"] * loss_dict["rvq_losses"]["mse_loss"]
         )
 
         # Weighted sum of per-attribute distillation losses from frozen teacher encoders
