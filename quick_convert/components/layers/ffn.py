@@ -36,12 +36,11 @@ class PositionwiseFeedForward(nn.Module):
 
 
     def forward(self, x):
-        res = x
         x = self.ln(x)
         x = self.ffn1(x)
         x = self.swish(x)
         x = self.dropout1(x)
         x = self.ffn2(x)
         x = self.dropout2(x)
-        return res + 0.5 * x
+        return 0.5 * x
     
