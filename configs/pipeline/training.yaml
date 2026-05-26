@@ -37,7 +37,7 @@ trainer_kwargs:
   devices: auto
   precision: 32
   log_every_n_steps: 10
-  default_root_dir: ${out_dir}
+  default_root_dir: ${pipeline.out_dir}
   enable_checkpointing: true
   enable_progress_bar: true
   enable_model_summary: true
