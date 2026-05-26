@@ -60,6 +60,7 @@ chatterbox = [
 ]
 module-training = [
     "lightning>=2.6.1",
+    "sentencepiece>=0.2.0",
 ]
 
 [project.scripts]

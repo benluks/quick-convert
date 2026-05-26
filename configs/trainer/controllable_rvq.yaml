@@ -1,21 +1,29 @@
 # this is the one system where the target is an abstraction, i.e. it takes a base trainer type (e.g. `lightning_trainer`)
 # and then passes the specific class. It's because these types are redundant, i.e. `controllable_rvq` is always a lightning trainer.
-_target_: quick_convert.piplines.training.lightning_trainer.LightningTrainer
+
+defaults:
+  - /components/encoders@encoder: rvq_disentangler
+  - /components/spectrogram_generator@decoder: chatterbox
+  - _self_
+
+_target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
 module:
-  _target_: quick_convert.trainers.encoder_decoder.controllable_rvq.ControllableRVQTrainingModule
-  encoder: ...
-  decoder: ...
+  _target_: quick_convert.pipelines.training.modules.encoder_decoder.controllable_rvq.ControllableRVQTrainingModule
+  encoder: ${encoder}
+  decoder: ${decoder}
   spk_encoder: SpeakerEncoder,
   emo_encoder: ContentEncoder,
-  tokenizer: spm.SentencePieceProcessor,
+  tokenizer:
+    _target_: sentencepiece.SentencePieceProcessor,
   decoder_loss_weight: float,
   rvq_loss_weights: dict[str, float],
   distillation_loss_weights: dict[str, float],
   adv_loss_weights: dict[str, float],
-  pros_encoder: ContentEncoder = None,
-  lr_scheduler_cls: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
-  lr_scheduler_kwargs: Optional[dict[str, Any]] = None,
-  optimizer_cls: type[torch.optim.Optimizer] = torch.optim.AdamW,
-  optimizer_kwargs
+  pros_encoder:
+  lr_scheduler_cls: null
+  lr_scheduler_kwargs: null
+  optimizer_cls: torch.optim.AdamW
+  optimizer_kwargs:
+    weight_ddecay: 1e-2
 train_dataloader_kwargs: null
 val_dataloader_kwargs: null
