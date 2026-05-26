@@ -63,9 +63,7 @@ class VectorQuantize(nn.Module):
         commitment_loss = F.mse_loss(z_e, z_q.detach(), reduction="none").mean([1, 2])
         codebook_loss = F.mse_loss(z_q, z_e.detach(), reduction="none").mean([1, 2])
 
-        z_q = (
-            z_e + (z_q - z_e).detach()
-        )  # noop in forward pass, straight-through gradient estimator in backward pass
+        z_q = z_e + (z_q - z_e).detach()  # noop in forward pass, straight-through gradient estimator in backward pass
 
         z_q = self.out_proj(z_q)
 
@@ -119,10 +117,7 @@ class ResidualVectorQuantizer(nn.Module):
         self.codebook_size = codebook_size
 
         self.quantizers = nn.ModuleList(
-            [
-                VectorQuantize(input_dim, codebook_size, codebook_dim[i])
-                for i in range(n_codebooks)
-            ]
+            [VectorQuantize(input_dim, codebook_size, codebook_dim[i]) for i in range(n_codebooks)]
         )
         self.quantizer_dropout = quantizer_dropout
 
@@ -177,14 +172,10 @@ class ResidualVectorQuantizer(nn.Module):
             if self.training is False and i >= n_quantizers:
                 break
 
-            z_q_i, commitment_loss_i, codebook_loss_i, indices_i, z_e_i = quantizer(
-                residual
-            )
+            z_q_i, commitment_loss_i, codebook_loss_i, indices_i, z_e_i = quantizer(residual)
 
             # Create mask to apply quantizer dropout
-            mask = (
-                torch.full((z.shape[0],), fill_value=i, device=z.device) < n_quantizers
-            )
+            mask = torch.full((z.shape[0],), fill_value=i, device=z.device) < n_quantizers
             z_q = z_q + z_q_i * mask[:, None, None]
             residual = residual - z_q_i
 
@@ -245,9 +236,7 @@ class ResidualVectorQuantizer(nn.Module):
         codes = []
         dims = np.cumsum([0] + [q.codebook_dim for q in self.quantizers])
 
-        n_codebooks = np.where(dims <= latents.shape[1])[0].max(axis=0, keepdims=True)[
-            0
-        ]
+        n_codebooks = np.where(dims <= latents.shape[1])[0].max(axis=0, keepdims=True)[0]
         for i in range(n_codebooks):
             j, k = dims[i], dims[i + 1]
             z_p_i, codes_i = self.quantizers[i].decode_latents(latents[:, j:k, :])
