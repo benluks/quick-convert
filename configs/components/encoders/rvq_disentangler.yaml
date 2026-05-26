@@ -1,19 +1,23 @@
 defaults:
-  - /components/ssl@feature_extractor: w2vbert
-  - /components/encoders@content_encoder: parallel_conformer
-  - /components/layers@rvq: rvq
-  - /components/encoders@linguistic_head: linguistic_head
-  - /components/encoders@speaker_head: speaker_head
-  - /components/encoders@linear_head: linear_head
+  - /components/ssl@feature_extractor_cfg: w2vbert
+  - /components/encoders@content_encoder_cfg: parallel_conformer
+  - /components/layers@rvq_cfg: rvq
+  - /components/encoders@linguistic_head_cfg: linguistic_head
+  - /components/encoders@speaker_head_cfg: speaker_head
+  - /components/encoders@linear_head_cfg: linear_head
   - _self_
 
 _target_: quick_convert.components.encoders.RVQDisentangler
-feature_extractor: ${feature_extractor}
-content_encoder: ${content_encoder}
-rvq: ${rvq}
-linguistic_head: ${linguistic_head}
-emotion_head: ${linear_head}
-prosody_head: ${linear_head}
+feature_extractor:
+  <<: ${feature_extractor_cfg}
+content_encoder:
+  <<: ${content_encoder_cfg}
+  input_dim: ${architecture.content_input_dim}
+rvq: ${rvq_cfg}
+speaker_head: ${speaker_head_config}
+linguistic_head: ${linguistic_head_cfg}
+emotion_head: ${linear_head_cfg}
+prosody_head: ${linear_head_cfg}
 rvq_idx:
   content: 0
   speaker: 1
