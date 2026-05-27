@@ -1,0 +1,21 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /trainer: tokenizer
+  - /pipeline: training
+  - /dataset@train_dataset: librispeech
+  - /annotation_providers@transcript_provider: transcript
+  - _self_
+
+dataset: ${train_dataset}
+out_dir_suffix: _${trainer.module.vocab_size}_tokens
+
+train_dataset:
+  splits:
+    - test-other
+  load: false
+  annotation_providers:
+    - ${transcript_provider}
+
+val_dataset: null

@@ -17,6 +17,7 @@ class TrainingPipeline:
         test_dataset: Any | None = None,
         output_dir: str | Path | None = None,
         train_kwargs: Optional[dict] = None,
+        **kwargs,
     ) -> None:
         self.trainer = trainer
         self.train_dataset = train_dataset
@@ -31,5 +32,5 @@ class TrainingPipeline:
             val_dataset=self.val_dataset,
             test_dataset=self.test_dataset,
             output_dir=self.output_dir,
-            kwargs=self.train_kwargs,
+            **self.train_kwargs,
         )

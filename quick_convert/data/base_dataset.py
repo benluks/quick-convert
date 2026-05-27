@@ -11,7 +11,9 @@ import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 
-from .features import PatternSidecarFeatureResolver
+from .annotations.base import BaseAnnotationProvider
+
+# from .features import PatternSidecarFeatureResolver
 
 from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 
@@ -36,6 +38,8 @@ class BaseDataset(Dataset):
         # feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
         pattern: Optional[str] = None,
         exclude_patterns: Optional[Iterable[str]] = None,
+        annotation_providers: Optional[Iterable[BaseAnnotationProvider]] = None,
+        **kwargs,
     ):
         if root is None and paths is None:
             raise ValueError("You must provide either `root` or `paths`.")
@@ -55,6 +59,7 @@ class BaseDataset(Dataset):
 
         self.pattern = pattern or "*"
         self.exclude_patterns = exclude_patterns or []
+        self.annotation_providers = annotation_providers
 
         rows: list[MetadataSample] = []
 
@@ -134,12 +139,17 @@ class BaseDataset(Dataset):
         if self.load:
             sample = self.load_sample(sample)
 
-        features = dict(getattr(sample, "features", {}) or {})
+        # features = dict(getattr(sample, "features", {}) or {})
 
         # for resolver in self.feature_resolvers:
         #     features.update(resolver.resolve(sample))
 
-        return replace(sample, features=features)
+        annotations = {}
+
+        for provider in self.annotation_providers:
+            annotations[provider.name] = provider(sample)
+
+        return replace(sample, annotations=annotations)
 
     def _is_excluded(self, path: Path) -> bool:
         return any(fnmatch(path.name, pattern) or fnmatch(str(path), pattern) for pattern in self.exclude_patterns)

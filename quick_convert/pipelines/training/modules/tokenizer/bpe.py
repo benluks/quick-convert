@@ -99,7 +99,7 @@ class SentencePieceBPETrainer:
         logger.info(
             "Training SentencePiece BPE tokenizer from iterator → %s", model_path
         )
-        self._run_trainer(
+        self._train(
             sentence_iterator=iter(sentences),
             model_prefix=str(output_dir / model_prefix),
         )
