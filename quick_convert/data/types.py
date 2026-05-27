@@ -23,6 +23,7 @@ class AudioSample(MetadataSample):
     waveform: Optional[float["1 t"]] = None
     sample_rate: Optional[int] = None
     features: dict[str, Any] = field(default_factory=dict)
+    annotations: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class AudioBatch(MetadataBatch):
     lengths: Optional[int["b"]] = None
     sample_rates: Optional[int["b"]] = None
     features: dict[str, Any] = field(default_factory=dict)
+    annotations: dict[str, Any]
 
     def __len__(self) -> int:
         return len(self.paths)
@@ -57,6 +59,7 @@ class AudioBatch(MetadataBatch):
             waveform=self.waveforms[idx] if self.waveforms is not None else None,
             sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
             features={key: value[idx] for key, value in self.features.items()},
+            annotations={key: value[idx] for key, value in self.annotations.items()},
         )
 
     def __iter__(self):
