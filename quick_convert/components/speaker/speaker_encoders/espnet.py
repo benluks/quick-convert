@@ -13,19 +13,22 @@ from .base import SpeakerEmbedding, SpeakerEncoder
 
 
 class ESPnetSpeakerEncoder(SpeakerEncoder):
+    FEATURE_DIM = 192
+
     def __init__(
         self,
         model_tag: str = "espnet/voxcelebs12_ecapa_wavlm_joint",
-        device: str = "cuda" if torch.cuda.is_available() else "cpu",
+        device: str = None,
+        sample_rate: int = 16000,
     ) -> None:
-        super().__init__()
+        super().__init__(device=device)
         self.model_tag = model_tag
         self.device = device
-        self.speech2spk_embed = Speech2Embedding.from_pretrained(
+        self.model = Speech2Embedding.from_pretrained(
             model_tag=model_tag,
             device=device,
         )
-        self.sample_rate = self.speech2spk_embed.spk_train_args.sample_rate
+        self.sample_rate = self.model.spk_train_args.sample_rate
 
     def encode_file(self, path: str | Path) -> SpeakerEmbedding:
         """
@@ -51,9 +54,13 @@ class ESPnetSpeakerEncoder(SpeakerEncoder):
             embedding_dim=int(embedding.shape[-1]),
         )
 
+    def forward(self, batch: AudioBatch):
+        return self.encode_batch(batch)
+
+    @torch.inference_mode()
     def encode_batch(
         self,
-        samples: AudioBatch,
+        batch: AudioBatch,
     ) -> list[SpeakerEmbedding]:
         """
         Batched inference using the underlying speaker model.
@@ -62,23 +69,9 @@ class ESPnetSpeakerEncoder(SpeakerEncoder):
         - waveforms: [B, T] or [B, 1, T]
         - lengths:   [B] with true sample lengths before padding
         """
-        if waveforms.ndim == 3:
-            if waveforms.shape[1] != 1:
-                raise ValueError(f"Expected mono batch [B, 1, T], got {tuple(waveforms.shape)}")
-            waveforms = waveforms.squeeze(1)
-
-        if waveforms.ndim != 2:
-            raise ValueError(f"Expected batched waveforms [B, T] or [B, 1, T], got {tuple(waveforms.shape)}")
-
-        if samples.lengths is None and samples.waveforms.shape[0] > 1:
-            raise ValueError("Batch is missing lengths information for multiple samples")
-
-        # Move to target device. The underlying model expects tensors here.
-        waveforms = waveforms.to(self.device)
-
-        embeddings = self.speech2spk_embed.spk_model(
-            samples.waveforms,
-            speech_lengths=samples.lengths,
+        embeddings = self.model.spk_model(
+            batch.waveforms.to(self.device),
+            speech_lengths=batch.lengths.to(self.device),
             extract_embd=True,
         )
 

@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import torch
+import torch.nn as nn
 
 from ....data.base_dataset import AudioBatch
 
@@ -16,12 +17,22 @@ class SpeakerEmbedding:
     model_name: str
 
 
-class SpeakerEncoder(ABC):
+class SpeakerEncoder(nn.Module, ABC):
+    FEATURE_DIM = None
+
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+
     @abstractmethod
     def encode(self, wav: torch.Tensor, sr: int) -> SpeakerEmbedding: ...
 
     @abstractmethod
     def encode_batch(self, samples: AudioBatch) -> SpeakerEmbedding: ...
+
+    @property
+    def feature_dim(self) -> int:
+        return self.FEATURE_DIM
 
     def to(self, device: str | torch.device):
         self.device = str(device)
