@@ -10,6 +10,7 @@ class MetadataSample:
     path: Path
     split: Optional[str] = None
     spk_id: Optional[str] = None
+    annotations: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -22,8 +23,6 @@ class LoadedSample(MetadataSample):
 class AudioSample(MetadataSample):
     waveform: Optional[float["1 t"]] = None
     sample_rate: Optional[int] = None
-    features: dict[str, Any] = field(default_factory=dict)
-    annotations: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -31,6 +30,7 @@ class MetadataBatch:
     paths: list[Path]
     splits: list[str | None]
     spk_ids: list[str | None]
+    annotations: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -45,8 +45,6 @@ class AudioBatch(MetadataBatch):
     waveforms: Optional[float["b t"]] = None
     lengths: Optional[int["b"]] = None
     sample_rates: Optional[int["b"]] = None
-    features: dict[str, Any] = field(default_factory=dict)
-    annotations: dict[str, Any]
 
     def __len__(self) -> int:
         return len(self.paths)

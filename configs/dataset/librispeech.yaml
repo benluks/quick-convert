@@ -1,0 +1,26 @@
+# configs/dataset/librispeech.yaml
+
+_target_: quick_convert.data.BaseDataset
+root: /Users/ben/LibriSpeech
+
+splits:
+  - train-clean-100
+  - train-clean-360
+  - train-other-500
+  - dev-clean
+  - dev-other
+  - test-clean
+  - test-other
+
+file_format: flac
+
+# i put **kwargs into the base_dataset constructor so this wouldn't throw an error but I'm
+# not in love with that resolution
+transcript:
+  cls: quick_convert.data.annotations.transcript.CSVTranscriptProvider
+  path_template: "{path.parent}/{path.parent.parent.name}-{path.parent.name}.trans.txt"
+  utterance_key: path.stem
+  key_column: 0
+  text_column: 1
+  delimiter: " "
+  join_text_columns: true

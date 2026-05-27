@@ -15,11 +15,12 @@ class CSVTranscriptProvider(BaseAnnotationProvider):
         name: str = "transcript",
         path_template: str | None = None,
         transcript_path_key: str | None = "transcript_path",
-        utterance_key: str = "stem",
-        key_column: int = 1,
-        text_column: int = 2,
+        utterance_key: str = "path.stem",
+        key_column: int = 0,
+        text_column: int = 1,
         delimiter: str | None = None,
         encoding: str = "utf-8",
+        join_text_columns: bool = False,
     ) -> None:
         super().__init__(name=name)
 
@@ -30,6 +31,7 @@ class CSVTranscriptProvider(BaseAnnotationProvider):
         self.text_column = text_column
         self.delimiter = delimiter
         self.encoding = encoding
+        self.join_text_columns = join_text_columns
 
         self._cache: dict[Path, dict[str, str]] = {}
 
@@ -77,7 +79,10 @@ class CSVTranscriptProvider(BaseAnnotationProvider):
                     )
 
                 key = row[self.key_column].strip()
-                text = row[self.text_column].strip()
+                if self.join_text_columns:
+                    text = " ".join(row[self.text_column :]).strip()
+                else:
+                    text = row[self.text_column].strip()
 
                 if key in index:
                     raise ValueError(f"Duplicate transcript key {key!r} in {path}")
