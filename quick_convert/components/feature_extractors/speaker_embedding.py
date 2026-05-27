@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import torch
 
+from quick_convert.components.speaker.speaker_encoders.base import SpeakerEmbedding
+
 from ...data.base_dataset import AudioBatch
 from .base import BaseFeatureExtractor
 
 
 class SpeakerEmbeddingExtractor(BaseFeatureExtractor):
-    def __init__(self, speaker_encoder: torch.nn.Module, device: str = "cpu"):
-        self.encoder = speaker_encoder.eval()
+    def __init__(self, encoder: torch.nn.Module, device: str = "cpu"):
+        self.encoder = encoder.eval()
         self.device = device
         self.encoder.to(device)
 
@@ -20,17 +22,8 @@ class SpeakerEmbeddingExtractor(BaseFeatureExtractor):
 
     @torch.inference_mode()
     def extract_batch(self, batch: AudioBatch) -> list[dict[str, torch.Tensor]]:
-        outputs: list[dict] = []
-        for path in batch.paths:
-            embedding = self.speaker_encoder(path)
+        embeddings: SpeakerEmbedding = self.encoder(batch)
 
-            outputs.append(
-                {
-                    "values": embedding.values.cpu(),
-                    "embedding_dim": embedding.embedding_dim,
-                    "backend": embedding.backend,
-                    "model_name": embedding.model_name,
-                }
-            )
+        outputs = [val.cpu() for val in embeddings.values]
 
         return outputs

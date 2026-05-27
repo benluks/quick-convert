@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pyannote.audio import Inference, Model
+
 import torch
 
 from .base import SpeakerEmbedding, SpeakerEncoder
@@ -15,6 +15,9 @@ class PyannoteWeSpeakerEncoder(SpeakerEncoder):
         model_name: str = "pyannote/wespeaker-voxceleb-resnet34-LM",
         window: str = "whole",
     ) -> None:
+
+        from pyannote.audio import Inference, Model
+
         self.model_name = model_name
         self.model = Model.from_pretrained(model_name)
         self.inference = Inference(self.model, window=window)

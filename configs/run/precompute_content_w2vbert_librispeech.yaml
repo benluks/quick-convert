@@ -4,8 +4,8 @@ defaults:
   - /global: default
   - /pipeline: precompute_features
   - /dataset: librispeech
-  - /components/feature_extractor@feature_extractor: content
-  - /components/ssl@encoder: w2vbert
+  - /components/feature_extractor@feature_extractor: speaker_embedding
+  - /components/speaker_encoder@encoder: espnet
   - _self_
 
 dataset:
@@ -15,4 +15,4 @@ dataset:
   target_sr: ${encoder.sample_rate}
 
 pipeline:
-  out_root: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/ssl@encoder}
+  out_root: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/speaker_encoder@encoder}_{feature_extractor}

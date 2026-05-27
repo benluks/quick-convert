@@ -1,17 +1,22 @@
 from __future__ import annotations
 from pathlib import Path
+from typing import Literal
 
 import torch
 import torchaudio
 
 
 from funasr import AutoModel
+
+from quick_convert.data.types import AudioBatch
 from .base import ContentEncoder, ContentFeatures
- 
+
 
 # Source: https://github.com/ddlBoJack/emotion2vec/tree/main
 
+
 class EmotionEncoder(ContentEncoder):
+    FEATURE_DIM = 1024
     """Content encoder backed by emotion2vec (iic/emotion2vec_plus_large).
 
     Extracts frame-level emotional representations from raw waveforms using
@@ -22,9 +27,12 @@ class EmotionEncoder(ContentEncoder):
         self,
         model_name: str = "iic/emotion2vec_plus_large",
         sample_rate: int = 16000,
+        layer: int = -1,
+        granularity: Literal["frame", "utterance"] = "frame",
         device: str | None = None,
         local_files_only: bool = False,
     ) -> None:
+        super().__init__(device=device)
         """Initialise the encoder and load the pretrained model.
 
         Args:
@@ -38,18 +46,12 @@ class EmotionEncoder(ContentEncoder):
         self.model_name = model_name
         self.sample_rate = sample_rate
         self.local_files_only = local_files_only
+        self.granularity = granularity
+        self.layer = layer
 
-        if device is None:
-            if torch.cuda.is_available():
-                device = "cuda"
-            elif torch.backends.mps.is_available():
-                device = "mps"
-            else:
-                device = "cpu"
-        self.device = torch.device(device)
-
-        self.model = AutoModel(model=model_name).to(self.device)
-        self.model.eval()
+        self.model = AutoModel(model=model_name, device=str(self.device))
+        # technically unneessary, funasr does this under the hood
+        self.model.model.eval()
 
     def encode_file(self, path: str | Path) -> ContentFeatures:
         """Load an audio file from *path* and return its encoded features."""
@@ -57,9 +59,7 @@ class EmotionEncoder(ContentEncoder):
         wav, sr = torchaudio.load(path)
 
         if wav.dim() > 2:
-            raise ValueError(
-                f"Expected waveform of shape (channels, time), got {tuple(wav.shape)}"
-            )
+            raise ValueError(f"Expected waveform of shape (channels, time), got {tuple(wav.shape)}")
 
         if wav.dim() == 2 and wav.shape[0] > 1:  # Convert to mono if needed
             wav = wav.mean(dim=0, keepdim=True)
@@ -77,10 +77,26 @@ class EmotionEncoder(ContentEncoder):
         mask = torch.arange(max_length).expand(batch_size, max_length) >= lengths
         return mask.to(self.device)
 
+    def forward(self, batch: AudioBatch):
+        if getattr(batch, "waveforms", None) is None:
+            raise RuntimeError(
+                f"{self.__class__.__name__} only works with loaded audio for now. Please set `load: true` in your dataset config"
+            )
+        if not (batch.sample_rates == self.sample_rate).all():
+            raise RuntimeError(
+                f"""Expected sample rates of input audio to be {self.sample_rate}, but got {batch.sample_rates}. 
+                Batch resampling within {self.__class__.__name__} is not currently supported. 
+                Please set `target_sr={self.sample_rate}` (with `load=True`) in the dataset section of your 
+                config to perform resampling at the dataset level."""
+            )
+
+        content = self.encode_waveforms(batch.waveforms.to(self.device), batch.lengths.to(self.device))
+        return content
+
     @torch.inference_mode()
     def encode_waveforms(
         self,
-        wavs: torch.Tensor,
+        waveforms: torch.Tensor,
         lengths: torch.Tensor | None = None,
         sample_rate: int | None = None,
     ) -> ContentFeatures:
@@ -97,39 +113,20 @@ class EmotionEncoder(ContentEncoder):
             :class:`ContentFeatures` with ``values`` of shape
             ``(batch, frames, dim)``.
         """
-        if wavs.dim() != 2:
-            raise ValueError(
-                f"Expected wavs with shape (batch, time), got {tuple(wavs.shape)}"
-            )
 
-        sample_rate = sample_rate or self.sample_rate
+        # padding_mask = self._create_padding_mask(lengths)
+        waveforms_list = [waveforms[i, : lengths[i]] for i in range(waveforms.shape[0])]
 
-        if sample_rate != self.sample_rate:
-            wavs = torchaudio.functional.resample(
-                wavs,
-                orig_freq=sample_rate,
-                new_freq=self.sample_rate,
-            )
-            sample_rate = self.sample_rate
-
-        wavs = wavs.detach().cpu()
-
-        padding_mask = self._create_padding_mask(lengths)
-        outputs = self.model.extract_features(
-            x=wavs,
-            padding_mask=padding_mask,
-            remove_extra_tokens=True,
-        )
-        outputs = outputs['x']
-        output_mask = outputs['padding_mask']
-        output_lengths = (1 - output_mask).sum(dim=1)
+        outputs = self.model.generate(input=waveforms_list, input_len=lengths, granularity=self.granularity)
+        features = [torch.from_numpy(item["feats"]) for item in outputs]
+        feature_lens = [len(feat) for feat in features]
 
         return ContentFeatures(
-            values=outputs,
-            lengths=output_lengths,
-            feature_dim=outputs.shape[-1],
+            values=features,
+            lengths=feature_lens,
+            feature_dim=self.feature_dim,
             representation_type="continuous",
-            temporal_granularity="frame",
+            temporal_granularity=self.granularity,
             backend="funasr",
             model_name=self.model_name,
             layer=self.layer,
