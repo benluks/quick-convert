@@ -1,0 +1,16 @@
+# configs/run/train_bpe_librispeech.yaml
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: bpe_tokenizer
+  - /dataset@train_dataset: librispeech
+  - _self_
+
+train_dataset:
+  splits:
+    - train-clean-100
+  load: false
+
+val_dataset: null
