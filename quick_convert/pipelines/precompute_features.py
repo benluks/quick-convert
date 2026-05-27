@@ -29,7 +29,7 @@ class PrecomputeFeaturesPipeline:
     def run(self) -> None:
         loader = self.dataset.make_dataloader(batch_size=self.batch_size, num_workers=self.num_workers)
 
-        feature_dir = self.out_root / self.extractor.feature_name
+        feature_dir = self.out_root
         feature_dir.mkdir(parents=True, exist_ok=True)
 
         manifest_path = feature_dir / "manifest.jsonl"

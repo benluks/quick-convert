@@ -56,7 +56,7 @@ class AudioBatch(MetadataBatch):
             spk_id=self.spk_ids[idx],
             waveform=self.waveforms[idx] if self.waveforms is not None else None,
             sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
-            features={key: value[idx] for key, value in self.features.items()},
+            # features={key: value[idx] for key, value in self.features.items()},
             annotations={key: value[idx] for key, value in self.annotations.items()},
         )
 

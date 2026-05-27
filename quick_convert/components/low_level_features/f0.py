@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .base import BaseFeatureExtractor
+from ..feature_extractors.base import BaseFeatureExtractor
 
 
 class F0Extractor(BaseFeatureExtractor):

@@ -5,18 +5,24 @@ from pathlib import Path
 
 import torch
 import torchaudio
-from transformers import AutoProcessor, AutoModel
+from transformers import AutoFeatureExtractor, AutoModel
+
+from quick_convert.data.types import AudioBatch
 
 from .base import ContentEncoder, ContentFeatures
 
 
 class W2VBertContentEncoder(ContentEncoder):
+    FEATURE_DIM = 1024
+
     def __init__(
         self,
         model_name: str = "facebook/w2v-bert-2.0",
+        sample_rate: int = 16000,
         layer: int = -1,
         device: str | None = None,
         local_files_only: bool = False,
+        **kwargs,
     ) -> None:
         super().__init__(device=device)
         self.model_name = model_name
@@ -24,7 +30,7 @@ class W2VBertContentEncoder(ContentEncoder):
         self.layer = layer
         self.local_files_only = local_files_only
 
-        self.processor = AutoProcessor.from_pretrained(
+        self.processor = AutoFeatureExtractor.from_pretrained(
             model_name,
             local_files_only=local_files_only,
         )
@@ -50,10 +56,30 @@ class W2VBertContentEncoder(ContentEncoder):
 
         return self.encode_waveforms(wav, sample_rate=sr)
 
+    # def forward(self, batch: AudioBatch):
+    #     self.extract_batch(batch)
+
+    # @torch.inference_mode()
+    def forward(self, batch: AudioBatch):
+        if getattr(batch, "waveforms", None) is None:
+            raise RuntimeError(
+                f"{self.__class__.__name__} only works with loaded audio for now. Please set `load: true` in your dataset config"
+            )
+        if not (batch.sample_rates == self.sample_rate).all():
+            raise RuntimeError(
+                f"""Expected sample rates of input audio to be {self.sample_rate}, but got {batch.sample_rates}. 
+                Batch resampling within {self.__class__.__name__} is not currently supported. 
+                Please set `target_sr={self.sample_rate}` (with `load=True`) in the dataset section of your 
+                config to perform resampling at the dataset level."""
+            )
+
+        content = self.encode_waveforms(batch.waveforms.to(self.device), batch.lengths.to(self.device))
+        return content
+
     @torch.inference_mode()
     def encode_waveforms(
         self,
-        wavs: torch.Tensor,
+        waveforms: torch.Tensor,
         lengths: torch.Tensor | None = None,
         sample_rate: int | None = None,
     ) -> ContentFeatures:
@@ -70,32 +96,15 @@ class W2VBertContentEncoder(ContentEncoder):
         Returns:
             ContentFeatures with values of shape (batch, frames, dim).
         """
-        if wavs.dim() != 2:
-            raise ValueError(f"Expected wavs with shape (batch, time), got {tuple(wavs.shape)}")
-
-        sample_rate = sample_rate or self.sample_rate
-
-        if sample_rate != self.sample_rate:
-            wavs = torchaudio.functional.resample(
-                wavs,
-                orig_freq=sample_rate,
-                new_freq=self.sample_rate,
-            )
-            sample_rate = self.sample_rate
-
-        wavs = wavs.detach().cpu()
-
-        # HF audio feature extractors expect a list of 1D arrays/tensors.
-        wav_list = [wav for wav in wavs]
+        waveforms_list = [waveforms[i, : lengths[i]].cpu() for i in range(waveforms.shape[0])]
 
         features = self.processor(
-            wav_list,
-            sampling_rate=sample_rate,
+            waveforms_list,
+            sampling_rate=sample_rate or self.sample_rate,
             return_tensors="pt",
             padding=True,
-        )
-
-        features = {key: value.to(self.device) for key, value in features.items()}
+            return_attention_mask=True,
+        ).to(self.device)
 
         outputs = self.model(
             **features,
@@ -105,21 +114,7 @@ class W2VBertContentEncoder(ContentEncoder):
 
         hidden_states = outputs.hidden_states
         selected = hidden_states[self.layer]  # (batch, frames, dim)
-
-        attention_mask = features.get("attention_mask")
-
-        output_lengths = None
-        if attention_mask is not None:
-            # Conservative approximation: scale by observed frame reduction.
-            input_lengths = attention_mask.sum(dim=1)
-            n_input = attention_mask.shape[1]
-            n_frames = selected.shape[1]
-
-            output_lengths = torch.floor(input_lengths.to(torch.float32) * n_frames / n_input).to(torch.long)
-
-        elif lengths is not None:
-            n_frames = selected.shape[1]
-            output_lengths = torch.floor(lengths.to(torch.float32) * n_frames).to(torch.long)
+        output_lengths = features.attention_mask.sum(1)
 
         return ContentFeatures(
             values=selected,
