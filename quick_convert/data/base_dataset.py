@@ -38,7 +38,7 @@ class BaseDataset(Dataset):
         # feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
         pattern: Optional[str] = None,
         exclude_patterns: Optional[Iterable[str]] = None,
-        annotation_providers: Optional[Iterable[BaseAnnotationProvider]] = None,
+        annotation_providers: Iterable[BaseAnnotationProvider] = [],
         **kwargs,
     ):
         if root is None and paths is None:
@@ -184,6 +184,12 @@ class BaseDataset(Dataset):
             sample_rate=sample_rate,
         )
 
+    def _collate_dicts(self, batch: list[AudioSample], property="annotations") -> dict[str, list[Any]]:
+        return {
+            key: [d.get(key) for d in (getattr(item, property) or {} for item in batch)]
+            for key in {k for item in batch for k in (getattr(item, property) or {})}
+        }
+
     def collate_fn(self, batch: list[AudioSample]) -> Any:
         """
         Default collate behavior.
@@ -196,6 +202,7 @@ class BaseDataset(Dataset):
                 paths=[item.path for item in batch],
                 splits=[item.split for item in batch],
                 spk_ids=[item.spk_id for item in batch],
+                annotations=self._collate_dicts(batch, "annotations"),
             )
 
         # list[[1 t]]
@@ -204,7 +211,7 @@ class BaseDataset(Dataset):
 
         padded = pad_sequence(waveforms, batch_first=True)
 
-        sample_rates = [item.sample_rate for item in batch]
+        sample_rates = torch.tensor([item.sample_rate for item in batch], dtype=torch.int)
         # if len(set(sample_rates)) != 1:
         #     raise ValueError(f"Batch contains multiple sample rates: {sorted(set(sample_rates))}")
 
@@ -215,6 +222,7 @@ class BaseDataset(Dataset):
             paths=[item.path for item in batch],
             splits=[item.split for item in batch],
             spk_ids=[item.spk_id for item in batch],
+            annotations=self._collate_dicts(batch, "annotations"),
         )
 
     def make_dataloader(

@@ -7,7 +7,7 @@ defaults:
   - _self_
 
 feature_extractor:
-  _target_: quick_convert.components.feature_extractors.f0.F0Extractor
+  _target_: quick_convert.components.low_level_features.f0.F0Extractor
   extract_fn: quick_convert.components.donors.emotion_compensation.utils.get_yaapt_f0
 
 dataset:
