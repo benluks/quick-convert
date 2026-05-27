@@ -1,4 +1,4 @@
 # configs/component/feature_extractor/speaker_embedding.yaml
-_target_: quick_convert.components.feature_extractors.speaker_embedding.SpeakerEmbeddingExtractor
+_target_: quick_convert.components.low_level_features.speaker_embedding.SpeakerEmbeddingExtractor
 device: ${device}
 speaker_encoder: ${speaker_encoder}

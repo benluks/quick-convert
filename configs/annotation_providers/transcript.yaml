@@ -1,0 +1,9 @@
+# configs/annotation_providers/transcript_csv.yaml
+_target_: ${dataset.transcript.cls}
+name: transcript
+path_template: ${dataset.transcript.path_template}
+utterance_key: ${dataset.transcript.utterance_key}
+key_column: ${dataset.transcript.key_column}
+text_column: ${dataset.transcript.text_column}
+delimiter: ${dataset.transcript.delimiter}
+join_text_columns: ${dataset.transcript.join_text_columns}
