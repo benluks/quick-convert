@@ -5,7 +5,7 @@ defaults:
   - /pipeline: precompute_features
   - /dataset: librispeech
   - /components/feature_extractor@feature_extractor: content
-  - /components/ssl@encoder: w2vbert
+  - /components/ssl@encoder: emo2vec
   - _self_
 
 dataset:

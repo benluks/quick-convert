@@ -59,7 +59,6 @@ class W2VBertContentEncoder(ContentEncoder):
     # def forward(self, batch: AudioBatch):
     #     self.extract_batch(batch)
 
-    # @torch.inference_mode()
     def forward(self, batch: AudioBatch):
         if getattr(batch, "waveforms", None) is None:
             raise RuntimeError(
