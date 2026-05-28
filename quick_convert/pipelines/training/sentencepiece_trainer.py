@@ -23,14 +23,10 @@ class TokenizerTrainer(BaseTrainer):
 
     def _iter_sentences(self, dataset: Any) -> Iterable[str]:
         for item in dataset:
-            if hasattr(item, "annotations") and (getattr(item, "annotations").get("transcript", None) is not None):
-                text = item.annotations.get("transcript")
-            elif isinstance(item, dict):
-                text = item[self.text_key]
-            elif hasattr(item, "features") and self.text_key in item.features:
-                text = item.features[self.text_key]
-            else:
-                raise KeyError(f"Could not find text field {self.text_key!r} in dataset item.")
+            try:
+                text = item.resources[self.text_key].value
+            except (KeyError, AttributeError):
+                raise ValueError(f"Each item in the dataset must have a resource with key '{self.text_key}'.")
 
             if text:
                 yield str(text)
