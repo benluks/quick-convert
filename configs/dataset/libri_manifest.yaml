@@ -1,5 +1,5 @@
 dataset:
-  _target_: quick_convert.data.ManifestDataset
+  _target_: quick_convert.data.manifest_dataset.ManifestDataset
   manifest_path: manifests/test.csv
   load:
     - w2vbert

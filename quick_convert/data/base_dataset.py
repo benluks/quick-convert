@@ -71,7 +71,7 @@ class BaseDataset(Dataset):
         self.pattern = pattern or "*"
         self.exclude_patterns = exclude_patterns or []
         self.resource_providers = resource_providers
-        rows: Iterable[MetadataSample] = field(default_factory=Iterable[MetadataSample])
+        rows: Iterable[MetadataSample] = []
 
         if paths is not None:
             files = [Path(p) for p in paths if Path(p).is_file()]
@@ -144,27 +144,21 @@ class BaseDataset(Dataset):
 
     def _normalize_load(self, load: bool | list[str] | Literal["all"] | None) -> bool | set[str]:
         if load is None or load is False:
-            return False
+            return []
 
         if load is True or load == "all":
-            return True
+            return {"audio"} + {provider.name for provider in self.resource_providers}
 
         if isinstance(load, str):
             return {load}
 
         return set(load)
 
-    def _should_load(self, ref: ResourceRef) -> bool:
-        if ref.value is not None:
+    def _should_load(self, ref: ResourceRef | Literal["audio"]) -> bool:
+        if getattr(ref, "value", None) is not None:
             return False
-
-        if self.load is True:
-            return True
-
-        if self.load is False:
-            return False
-
-        return ref.name in self.load
+        name = "audio" if ref == "audio" else ref.name
+        return name in self.load
 
     def __len__(self) -> int:
         return len(self.rows)
