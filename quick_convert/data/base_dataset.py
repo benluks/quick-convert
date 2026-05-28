@@ -11,9 +11,10 @@ import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 
+from quick_convert.data.resources.base import BaseResourceProvider
 from quick_convert.utils.paths import TemplateFormatter
 
-from .annotations.base import BaseAnnotationProvider
+from .resources import BaseResourceProvider
 
 # from .features import PatternSidecarFeatureResolver
 
@@ -42,7 +43,7 @@ class BaseDataset(Dataset):
         # feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
         pattern: Optional[str] = None,
         exclude_patterns: Optional[Iterable[str]] = None,
-        annotation_providers: Iterable[BaseAnnotationProvider] = [],
+        resource_providers: Iterable[BaseResourceProvider] = [],
         **kwargs,
     ):
         if root is None and paths is None:
@@ -68,8 +69,7 @@ class BaseDataset(Dataset):
 
         self.pattern = pattern or "*"
         self.exclude_patterns = exclude_patterns or []
-        self.annotation_providers = annotation_providers
-
+        self.resource_providers = resource_providers
         rows: list[MetadataSample] = []
 
         if paths is not None:
@@ -154,12 +154,12 @@ class BaseDataset(Dataset):
         # for resolver in self.feature_resolvers:
         #     features.update(resolver.resolve(sample))
 
-        annotations = {}
+        resources = {}
 
-        for provider in self.annotation_providers:
-            annotations[provider.name] = provider(sample)
+        for provider in self.resource_providers:
+            resources[provider.name] = provider(sample)
 
-        return replace(sample, annotations=annotations)
+        return replace(sample, resources=resources)
 
     def _is_excluded(self, path: Path) -> bool:
         return any(fnmatch(path.name, pattern) or fnmatch(str(path), pattern) for pattern in self.exclude_patterns)
@@ -209,7 +209,7 @@ class BaseDataset(Dataset):
             sample_rate=sample_rate,
         )
 
-    def _collate_dicts(self, batch: list[AudioSample], property="annotations") -> dict[str, list[Any]]:
+    def _collate_dicts(self, batch: list[AudioSample], property="resources") -> dict[str, list[Any]]:
         return {
             key: [d.get(key) for d in (getattr(item, property) or {} for item in batch)]
             for key in {k for item in batch for k in (getattr(item, property) or {})}
@@ -228,7 +228,7 @@ class BaseDataset(Dataset):
                 paths=[item.path for item in batch],
                 splits=[item.split for item in batch],
                 spk_ids=[item.spk_id for item in batch],
-                annotations=self._collate_dicts(batch, "annotations"),
+                resources=self._collate_dicts(batch, "resources"),
             )
 
         # list[[1 t]]
@@ -249,7 +249,7 @@ class BaseDataset(Dataset):
             paths=[item.path for item in batch],
             splits=[item.split for item in batch],
             spk_ids=[item.spk_id for item in batch],
-            annotations=self._collate_dicts(batch, "annotations"),
+            resources=self._collate_dicts(batch, "resources"),
         )
 
     def make_dataloader(

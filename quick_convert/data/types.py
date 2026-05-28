@@ -11,7 +11,7 @@ class MetadataSample:
     path: Path
     split: Optional[str] = None
     spk_id: Optional[str] = None
-    annotations: dict[str, Any] = field(default_factory=dict)
+    resources: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ class MetadataBatch:
     paths: list[Path]
     splits: list[str | None]
     spk_ids: list[str | None]
-    annotations: dict[str, Any]
+    resources: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -60,7 +60,7 @@ class AudioBatch(MetadataBatch):
             waveform=self.waveforms[idx] if self.waveforms is not None else None,
             sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
             # features={key: value[idx] for key, value in self.features.items()},
-            annotations={key: value[idx] for key, value in self.annotations.items()},
+            resources={key: value[idx] for key, value in self.resources.items()},
         )
 
     def __iter__(self):

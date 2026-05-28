@@ -1,4 +1,4 @@
-# quick_convert/data/annotations/transcripts.py
+# quick_convert/data/resources/annotations/transcripts.py
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ import csv
 from pathlib import Path
 from typing import Any
 
-from .base import BaseAnnotationProvider
-from ...utils.paths import SamplePathFormatter
+from ..base import BaseResourceProvider
+from ....utils.paths import SamplePathFormatter
 
 
-class CSVTranscriptProvider(BaseAnnotationProvider):
+class CSVTranscriptProvider(BaseResourceProvider):
     def __init__(
         self,
         name: str = "transcript",
