@@ -32,6 +32,7 @@ class BaseDataset(Dataset):
         splits: Optional[Iterable[str]] = None,
         file_format: Optional[Union[str, Iterable[str]]] = None,
         paths: Optional[Iterable[Union[str, Path]]] = None,
+        rows: Optional[Iterable[MetadataSample]] = None,
         load: Optional[bool | list[str] | Literal["all"]] = False,
         return_spkid: bool = False,
         target_sr: Optional[int] = None,

@@ -1,0 +1,7 @@
+dataset:
+  _target_: quick_convert.data.ManifestDataset
+  manifest_path: manifests/test.csv
+  load:
+    - w2vbert
+  resource_providers:
+    - ...
