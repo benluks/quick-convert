@@ -1,4 +1,4 @@
-# quick_convert/data/annotations/transcripts.py
+# quick_convert/data/resources/annotations/transcripts.py
 
 from __future__ import annotations
 
@@ -6,10 +6,11 @@ import csv
 from pathlib import Path
 from typing import Any
 
-from .base import BaseAnnotationProvider, PathFormatter
+from ..base import Annotation, BaseResourceProvider
+from ....utils.paths import SamplePathFormatter
 
 
-class CSVTranscriptProvider(BaseAnnotationProvider):
+class CSVTranscriptProvider(BaseResourceProvider):
     def __init__(
         self,
         name: str = "transcript",
@@ -44,7 +45,8 @@ class CSVTranscriptProvider(BaseAnnotationProvider):
         utterance_id = str(self._get_sample_value(sample, self.utterance_key))
 
         try:
-            return self._cache[transcript_path][utterance_id]
+            transcript = self._cache[transcript_path][utterance_id]
+            return Annotation(value=transcript, kind="text", name=self.name, path=transcript_path)
         except KeyError as e:
             raise KeyError(
                 f"No transcript found for utterance_id={utterance_id!r} in transcript file {transcript_path}"
@@ -52,7 +54,7 @@ class CSVTranscriptProvider(BaseAnnotationProvider):
 
     def _resolve_transcript_path(self, sample: Any) -> Path:
         if self.path_template is not None:
-            return PathFormatter.format(sample, self.path_template)
+            return SamplePathFormatter.format(sample, self.path_template)
 
         if self.transcript_path_key is None:
             raise ValueError("Either path_template or transcript_path_key must be provided.")
@@ -92,4 +94,4 @@ class CSVTranscriptProvider(BaseAnnotationProvider):
         return index
 
     def _get_sample_value(self, sample: Any, key: str) -> Any:
-        return PathFormatter._get_sample_value(sample, key)
+        return SamplePathFormatter._get_sample_value(sample, key)
