@@ -18,7 +18,7 @@ utt_id_template: "{path.stem}"
 # i put **kwargs into the base_dataset constructor so this wouldn't throw an error but I'm
 # not in love with that resolution
 transcript_provider:
-  _target_: quick_convert.data.annotations.transcript.CSVTranscriptProvider
+  _target_: quick_convert.data.resources.CSVTranscriptProvider
   path_template: "{path.parent}/{path.parent.parent.name}-{path.parent.name}.trans.txt"
   utterance_key: path.stem
   key_column: 0
