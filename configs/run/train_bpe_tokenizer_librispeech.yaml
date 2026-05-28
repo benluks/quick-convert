@@ -14,7 +14,7 @@ train_dataset:
   splits:
     - test-other
   load: false
-  annotation_providers:
+  resource_providers:
     - ${dataset.transcript_provider}
 
 val_dataset: null
