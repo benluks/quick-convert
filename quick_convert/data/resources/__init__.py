@@ -5,6 +5,7 @@ resources allow you to pass arbitrary metadata or sidecar files associated with 
 from .base import BaseResourceProvider, ResourceRef, ResourceCollection, Annotation
 from .paths import PathResourceProvider
 from .annotations import CSVTranscriptProvider
+from .loader import load_resource
 
 __all__ = [
     "BaseResourceProvider",
@@ -13,4 +14,5 @@ __all__ = [
     "ResourceRef",
     "ResourceCollection",
     "Annotation",
+    "load_resource",
 ]

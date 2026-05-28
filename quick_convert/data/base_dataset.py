@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import field, replace
 from fnmatch import fnmatch
 from os import PathLike
 from pathlib import Path
-from typing import Callable, Iterable, Optional, Union, Any
+from typing import Callable, Iterable, Literal, Optional, Union, Any
 
 import torch
 import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
+
+from .resources import load_resource, ResourceRef
 
 from .resources import BaseResourceProvider, ResourceCollection
 from quick_convert.utils.paths import TemplateFormatter
@@ -30,7 +32,7 @@ class BaseDataset(Dataset):
         splits: Optional[Iterable[str]] = None,
         file_format: Optional[Union[str, Iterable[str]]] = None,
         paths: Optional[Iterable[Union[str, Path]]] = None,
-        load: bool = False,
+        load: Optional[bool | list[str] | Literal["all"]] = False,
         return_spkid: bool = False,
         target_sr: Optional[int] = None,
         convert_to_mono: bool = True,
@@ -59,7 +61,7 @@ class BaseDataset(Dataset):
 
         self.target_sr = target_sr
         self.root = Path(root) if root is not None else None
-        self.load = load
+        self.load = self._normalize_load(load)
         self.return_spkid = return_spkid
         if get_spkid_fn is not None:
             self.get_spkid = get_spkid_fn
@@ -68,13 +70,14 @@ class BaseDataset(Dataset):
         self.pattern = pattern or "*"
         self.exclude_patterns = exclude_patterns or []
         self.resource_providers = resource_providers
-        rows: list[MetadataSample] = []
+        rows: Iterable[MetadataSample] = field(default_factory=Iterable[MetadataSample])
 
         if paths is not None:
             files = [Path(p) for p in paths if Path(p).is_file()]
             for p in files:
                 rows.append(
                     MetadataSample(
+                        utt_id=self.get_utt_id(p),
                         path=p,
                         spk_id=self.get_spkid(p) if return_spkid else None,
                     )
@@ -138,6 +141,30 @@ class BaseDataset(Dataset):
 
         return normalized
 
+    def _normalize_load(self, load: bool | list[str] | Literal["all"] | None) -> bool | set[str]:
+        if load is None or load is False:
+            return False
+
+        if load is True or load == "all":
+            return True
+
+        if isinstance(load, str):
+            return {load}
+
+        return set(load)
+
+    def _should_load(self, ref: ResourceRef) -> bool:
+        if ref.value is not None:
+            return False
+
+        if self.load is True:
+            return True
+
+        if self.load is False:
+            return False
+
+        return ref.name in self.load
+
     def __len__(self) -> int:
         return len(self.rows)
 
@@ -147,14 +174,17 @@ class BaseDataset(Dataset):
         if self.load:
             sample = self.load_sample(sample)
 
-        # features = dict(getattr(sample, "features", {}) or {})
-
-        # for resolver in self.feature_resolvers:
-        #     features.update(resolver.resolve(sample))
+        if self._should_load("audio"):
+            sample = self.load_sample(sample)
 
         resource_refs = [provider(sample) for provider in self.resource_providers]
-
         resources = ResourceCollection.from_refs(resource_refs)
+
+        for name, ref in resources.items():
+            if self._should_load(ref):
+                resources[name] = load_resource(ref)
+
+        # materialize resources here
 
         return replace(sample, resources=resources)
 
@@ -219,7 +249,8 @@ class BaseDataset(Dataset):
         - If self.load=False, returns a metadata batch.
         - If self.load=True, pads variable-length waveforms and returns tensors + metadata.
         """
-        if not self.load:
+        has_audio = all(getattr(item, "waveform") is not None for item in batch)
+        if not has_audio:
             return MetadataBatch(
                 utt_ids=[item.utt_id for item in batch],
                 paths=[item.path for item in batch],

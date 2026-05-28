@@ -41,6 +41,7 @@ class ResourceRef:
     path: Path
     kind: ResourceKind
     name: str
+    value: Optional[Any] = None
     # metadata: dict[str, Any] = field(default_factory=dict)
 
 
