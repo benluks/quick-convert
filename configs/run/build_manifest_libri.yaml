@@ -12,7 +12,7 @@ columns:
   split: "{sample.split}"
   spk_id: "{sample.path.parent.parent.stem}"
   transcript: "{sample.resources.transcript.value}"
-  content_path: "{sample.resources.w2vbert.path}"
+  # content_path: "{sample.resources.w2vbert.path}"
 
 pipeline:
   overwrite: true
@@ -21,9 +21,8 @@ suffix: ""
 resources_path: outputs/precomputed/${hydra:runtime.choices.dataset}
 dataset:
   splits:
-    - test-other
-  # load: false
-  # pattern: "**/1688*.flac"
+    - train-clean-360
+    - dev-clean
   resource_providers:
     - ${dataset.transcript_provider}
     - _target_: quick_convert.data.resources.PathResourceProvider
