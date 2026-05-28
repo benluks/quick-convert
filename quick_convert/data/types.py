@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from .resources import ResourceCollection
+
 
 @dataclass(frozen=True)
 class MetadataSample:
@@ -11,7 +13,7 @@ class MetadataSample:
     path: Path
     split: Optional[str] = None
     spk_id: Optional[str] = None
-    resources: dict[str, Any] = field(default_factory=dict)
+    resources: ResourceCollection = field(default_factory=ResourceCollection)
 
 
 @dataclass(frozen=True)
@@ -32,7 +34,7 @@ class MetadataBatch:
     paths: list[Path]
     splits: list[str | None]
     spk_ids: list[str | None]
-    resources: dict[str, Any]
+    resources: ResourceCollection
 
 
 @dataclass(frozen=True)

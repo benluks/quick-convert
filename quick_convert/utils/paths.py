@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from ..data.types import AudioSample
+# from ..data.types import AudioSample
 
 
 class TemplateFormatter:
@@ -25,7 +25,7 @@ class TemplateFormatter:
 
 class SamplePathFormatter(TemplateFormatter):
     @staticmethod
-    def format(sample: AudioSample, template: str) -> Path:
+    def format(sample, template: str) -> Path:
         """
         Backwards-compatible path formatter.
         Existing code expects this to return a resolved Path.
@@ -33,7 +33,7 @@ class SamplePathFormatter(TemplateFormatter):
         return Path(SamplePathFormatter.format_str(sample, template)).resolve()
 
     @staticmethod
-    def format_str(sample: AudioSample, template: str) -> str:
+    def format_str(sample, template: str) -> str:
         """
         String formatter for non-path values like utt_id.
         Supports normal Python format syntax:
@@ -49,7 +49,7 @@ class SamplePathFormatter(TemplateFormatter):
         )
 
     @staticmethod
-    def _get_sample_value(sample: AudioSample, key: str) -> Any:
+    def _get_sample_value(sample, key: str) -> Any:
         """
         Dot-path resolver for config keys like:
           path.stem

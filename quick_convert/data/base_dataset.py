@@ -11,10 +11,8 @@ import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 
-from quick_convert.data.resources.base import BaseResourceProvider
+from .resources import BaseResourceProvider, ResourceCollection
 from quick_convert.utils.paths import TemplateFormatter
-
-from .resources import BaseResourceProvider
 
 # from .features import PatternSidecarFeatureResolver
 
@@ -154,10 +152,9 @@ class BaseDataset(Dataset):
         # for resolver in self.feature_resolvers:
         #     features.update(resolver.resolve(sample))
 
-        resources = {}
+        resource_refs = [provider(sample) for provider in self.resource_providers]
 
-        for provider in self.resource_providers:
-            resources[provider.name] = provider(sample)
+        resources = ResourceCollection.from_refs(resource_refs)
 
         return replace(sample, resources=resources)
 

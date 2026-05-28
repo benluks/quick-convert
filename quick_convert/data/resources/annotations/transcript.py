@@ -6,7 +6,7 @@ import csv
 from pathlib import Path
 from typing import Any
 
-from ..base import BaseResourceProvider
+from ..base import Annotation, BaseResourceProvider
 from ....utils.paths import SamplePathFormatter
 
 
@@ -45,7 +45,8 @@ class CSVTranscriptProvider(BaseResourceProvider):
         utterance_id = str(self._get_sample_value(sample, self.utterance_key))
 
         try:
-            return self._cache[transcript_path][utterance_id]
+            transcript = self._cache[transcript_path][utterance_id]
+            return Annotation(value=transcript, kind="text", name=self.name, path=transcript_path)
         except KeyError as e:
             raise KeyError(
                 f"No transcript found for utterance_id={utterance_id!r} in transcript file {transcript_path}"
