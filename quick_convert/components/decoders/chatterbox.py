@@ -12,7 +12,7 @@ from ...external.chatterbox.s3gen.flow import CausalMaskedDiffWithXvec
 class ChatterboxSpectrogramGenerator(nn.Module):
     def __init__(
         self,
-        backbone: CausalMaskedDiffWithXvec,
+        flow: CausalMaskedDiffWithXvec,
         content_dim: int,
         speaker_dim: int,
         mel_dim: int = 80,
@@ -21,16 +21,16 @@ class ChatterboxSpectrogramGenerator(nn.Module):
     ):
         super().__init__()
 
-        self.backbone = backbone
+        self.flow = flow
 
-        self.content_proj = nn.Linear(content_dim, backbone.input_size)
+        self.content_proj = nn.Linear(content_dim, flow.input_size)
 
         self.use_content_encoder = use_content_encoder
         self.content_encoder = content_encoder
 
         self.speaker_proj = nn.Linear(
             speaker_dim,
-            backbone.decoder.spk_emb_dim if hasattr(backbone.decoder, "spk_emb_dim") else mel_dim,
+            flow.decoder.spk_emb_dim if hasattr(flow.decoder, "spk_emb_dim") else mel_dim,
         )
 
     def encode_content(
@@ -40,7 +40,7 @@ class ChatterboxSpectrogramGenerator(nn.Module):
     ):
         """
         Converts arbitrary learned speech features into the representation
-        expected by the chatterbox backbone encoder.
+        expected by the chatterbox flow encoder.
         """
 
         x = self.content_proj(content_features)
@@ -89,7 +89,7 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         if cond is not None:
             batch["cond"] = cond
 
-        return self.backbone.compute_loss(
+        return self.flow.compute_loss(
             batch=batch,
             device=target_mel.device,
         )
@@ -119,7 +119,7 @@ class ChatterboxSpectrogramGenerator(nn.Module):
             prompt_mel = torch.zeros(
                 B,
                 0,
-                self.backbone.output_size,
+                self.flow.output_size,
                 device=token_embeddings.device,
                 dtype=token_embeddings.dtype,
             )
@@ -130,7 +130,7 @@ class ChatterboxSpectrogramGenerator(nn.Module):
             device=token_embeddings.device,
         )
 
-        feat, _ = self.backbone.decoder(
+        feat, _ = self.flow.decoder(
             mu=token_embeddings.transpose(1, 2),
             mask=torch.ones(
                 B,

@@ -4,13 +4,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from .resources import ResourceCollection
+
 
 @dataclass(frozen=True)
 class MetadataSample:
+    utt_id: str
     path: Path
     split: Optional[str] = None
     spk_id: Optional[str] = None
-    annotations: dict[str, Any] = field(default_factory=dict)
+    resources: ResourceCollection = field(default_factory=ResourceCollection)
 
 
 @dataclass(frozen=True)
@@ -27,10 +30,11 @@ class AudioSample(MetadataSample):
 
 @dataclass(frozen=True)
 class MetadataBatch:
+    utt_ids: list[str]
     paths: list[Path]
     splits: list[str | None]
     spk_ids: list[str | None]
-    annotations: dict[str, Any]
+    resources: ResourceCollection
 
 
 @dataclass(frozen=True)
@@ -51,13 +55,14 @@ class AudioBatch(MetadataBatch):
 
     def __getitem__(self, idx: int) -> AudioSample:
         return AudioSample(
+            utt_id=self.utt_ids[idx],
             path=self.paths[idx],
             split=self.splits[idx],
             spk_id=self.spk_ids[idx],
             waveform=self.waveforms[idx] if self.waveforms is not None else None,
             sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
-            features={key: value[idx] for key, value in self.features.items()},
-            annotations={key: value[idx] for key, value in self.annotations.items()},
+            # features={key: value[idx] for key, value in self.features.items()},
+            resources={key: value[idx] for key, value in self.resources.items()},
         )
 
     def __iter__(self):

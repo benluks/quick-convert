@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import field, replace
 from fnmatch import fnmatch
 from os import PathLike
 from pathlib import Path
-from typing import Callable, Iterable, Optional, Union, Any
+from typing import Callable, Iterable, Literal, Optional, Union, Any
 
 import torch
 import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 
-from .annotations.base import BaseAnnotationProvider
+from .resources import load_resource, ResourceRef
+
+from .resources import BaseResourceProvider, ResourceCollection
+from quick_convert.utils.paths import TemplateFormatter
 
 # from .features import PatternSidecarFeatureResolver
 
@@ -29,16 +32,19 @@ class BaseDataset(Dataset):
         splits: Optional[Iterable[str]] = None,
         file_format: Optional[Union[str, Iterable[str]]] = None,
         paths: Optional[Iterable[Union[str, Path]]] = None,
-        load: bool = False,
+        rows: Optional[Iterable[MetadataSample]] = None,
+        load: Optional[bool | list[str] | Literal["all"]] = False,
         return_spkid: bool = False,
         target_sr: Optional[int] = None,
         convert_to_mono: bool = True,
         # pass a spkid function to avoid subclassing just to implement get_spkid logic
+        utt_id_template: Optional[str] = None,
+        get_utt_id_fn: Optional[Callable[[PathLike], str]] = None,
         get_spkid_fn: Optional[Callable[[PathLike], str]] = None,
         # feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
         pattern: Optional[str] = None,
         exclude_patterns: Optional[Iterable[str]] = None,
-        annotation_providers: Optional[Iterable[BaseAnnotationProvider]] = None,
+        resource_providers: Iterable[BaseResourceProvider] = [],
         **kwargs,
     ):
         if root is None and paths is None:
@@ -49,9 +55,14 @@ class BaseDataset(Dataset):
         self.file_formats = self._normalize_and_validate_format(file_format)
         self.splits = list(splits) if splits is not None else None
         self.convert_to_mono = convert_to_mono
+
+        # for determining utterance ID
+        self.utt_id_template = utt_id_template
+        self.get_utt_id_fn = get_utt_id_fn
+
         self.target_sr = target_sr
         self.root = Path(root) if root is not None else None
-        self.load = load
+        self.load = self._normalize_load(load)
         self.return_spkid = return_spkid
         if get_spkid_fn is not None:
             self.get_spkid = get_spkid_fn
@@ -59,15 +70,15 @@ class BaseDataset(Dataset):
 
         self.pattern = pattern or "*"
         self.exclude_patterns = exclude_patterns or []
-        self.annotation_providers = annotation_providers
-
-        rows: list[MetadataSample] = []
+        self.resource_providers = resource_providers
+        rows: Iterable[MetadataSample] = []
 
         if paths is not None:
             files = [Path(p) for p in paths if Path(p).is_file()]
             for p in files:
                 rows.append(
                     MetadataSample(
+                        utt_id=self.get_utt_id(p),
                         path=p,
                         spk_id=self.get_spkid(p) if return_spkid else None,
                     )
@@ -102,6 +113,7 @@ class BaseDataset(Dataset):
                         continue
                     rows.append(
                         MetadataSample(
+                            utt_id=self.get_utt_id(p),
                             path=p,
                             split=split,
                             spk_id=self.get_spkid(p) if return_spkid else None,
@@ -130,6 +142,24 @@ class BaseDataset(Dataset):
 
         return normalized
 
+    def _normalize_load(self, load: bool | list[str] | Literal["all"] | None) -> bool | set[str]:
+        if load is None or load is False:
+            return []
+
+        if load is True or load == "all":
+            return {"audio"} + {provider.name for provider in self.resource_providers}
+
+        if isinstance(load, str):
+            return {load}
+
+        return set(load)
+
+    def _should_load(self, ref: ResourceRef | Literal["audio"]) -> bool:
+        if getattr(ref, "value", None) is not None:
+            return False
+        name = "audio" if ref == "audio" else ref.name
+        return name in self.load
+
     def __len__(self) -> int:
         return len(self.rows)
 
@@ -139,20 +169,36 @@ class BaseDataset(Dataset):
         if self.load:
             sample = self.load_sample(sample)
 
-        # features = dict(getattr(sample, "features", {}) or {})
+        if self._should_load("audio"):
+            sample = self.load_sample(sample)
 
-        # for resolver in self.feature_resolvers:
-        #     features.update(resolver.resolve(sample))
+        resource_refs = [provider(sample) for provider in self.resource_providers]
+        resources = ResourceCollection.from_refs(resource_refs)
 
-        annotations = {}
+        for name, ref in resources.items():
+            if self._should_load(ref):
+                resources[name] = load_resource(ref)
 
-        for provider in self.annotation_providers:
-            annotations[provider.name] = provider(sample)
+        # materialize resources here
 
-        return replace(sample, annotations=annotations)
+        return replace(sample, resources=resources)
 
     def _is_excluded(self, path: Path) -> bool:
         return any(fnmatch(path.name, pattern) or fnmatch(str(path), pattern) for pattern in self.exclude_patterns)
+
+    def get_utt_id(self, path: Path) -> str:
+        if self.get_utt_id_fn is not None:
+            return self.get_utt_id_fn(path)
+
+        elif self.utt_id_template is not None:
+            return TemplateFormatter.format_str(
+                self.utt_id_template,
+                path=path,
+            )
+        else:
+            raise RuntimeError(
+                f"No method for determining utt_id. Please provide either `utt_id_template` or `get_utt_id_fn` when initializing {type(self).__name__}."
+            )
 
     def get_spkid(self, file_path: PathLike) -> str:
         raise NotImplementedError(f"{type(self).__name__} must implement `get_spkid` when `return_spkid=True`.")
@@ -177,12 +223,19 @@ class BaseDataset(Dataset):
         """
         waveform, sample_rate = self.load_audio(sample.path, self.target_sr)
         return AudioSample(
+            utt_id=sample.utt_id,
             path=sample.path,
             split=sample.split,
             spk_id=sample.spk_id,
             waveform=waveform,
             sample_rate=sample_rate,
         )
+
+    def _collate_dicts(self, batch: list[AudioSample], property="resources") -> dict[str, list[Any]]:
+        return {
+            key: [d.get(key) for d in (getattr(item, property) or {} for item in batch)]
+            for key in {k for item in batch for k in (getattr(item, property) or {})}
+        }
 
     def collate_fn(self, batch: list[AudioSample]) -> Any:
         """
@@ -191,11 +244,14 @@ class BaseDataset(Dataset):
         - If self.load=False, returns a metadata batch.
         - If self.load=True, pads variable-length waveforms and returns tensors + metadata.
         """
-        if not self.load:
+        has_audio = all(getattr(item, "waveform") is not None for item in batch)
+        if not has_audio:
             return MetadataBatch(
+                utt_ids=[item.utt_id for item in batch],
                 paths=[item.path for item in batch],
                 splits=[item.split for item in batch],
                 spk_ids=[item.spk_id for item in batch],
+                resources=self._collate_dicts(batch, "resources"),
             )
 
         # list[[1 t]]
@@ -204,7 +260,7 @@ class BaseDataset(Dataset):
 
         padded = pad_sequence(waveforms, batch_first=True)
 
-        sample_rates = [item.sample_rate for item in batch]
+        sample_rates = torch.tensor([item.sample_rate for item in batch], dtype=torch.int)
         # if len(set(sample_rates)) != 1:
         #     raise ValueError(f"Batch contains multiple sample rates: {sorted(set(sample_rates))}")
 
@@ -212,9 +268,11 @@ class BaseDataset(Dataset):
             waveforms=padded,
             lengths=lengths,
             sample_rates=sample_rates,
+            utt_ids=[item.utt_id for item in batch],
             paths=[item.path for item in batch],
             splits=[item.split for item in batch],
             spk_ids=[item.spk_id for item in batch],
+            resources=self._collate_dicts(batch, "resources"),
         )
 
     def make_dataloader(
