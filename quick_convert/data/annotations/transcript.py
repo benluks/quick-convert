@@ -6,7 +6,8 @@ import csv
 from pathlib import Path
 from typing import Any
 
-from .base import BaseAnnotationProvider, PathFormatter
+from .base import BaseAnnotationProvider
+from ...utils.paths import SamplePathFormatter
 
 
 class CSVTranscriptProvider(BaseAnnotationProvider):
@@ -52,7 +53,7 @@ class CSVTranscriptProvider(BaseAnnotationProvider):
 
     def _resolve_transcript_path(self, sample: Any) -> Path:
         if self.path_template is not None:
-            return PathFormatter.format(sample, self.path_template)
+            return SamplePathFormatter.format(sample, self.path_template)
 
         if self.transcript_path_key is None:
             raise ValueError("Either path_template or transcript_path_key must be provided.")
@@ -92,4 +93,4 @@ class CSVTranscriptProvider(BaseAnnotationProvider):
         return index
 
     def _get_sample_value(self, sample: Any, key: str) -> Any:
-        return PathFormatter._get_sample_value(sample, key)
+        return SamplePathFormatter._get_sample_value(sample, key)

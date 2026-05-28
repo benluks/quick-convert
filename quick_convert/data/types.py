@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 @dataclass(frozen=True)
 class MetadataSample:
+    utt_id: str
     path: Path
     split: Optional[str] = None
     spk_id: Optional[str] = None
@@ -27,6 +28,7 @@ class AudioSample(MetadataSample):
 
 @dataclass(frozen=True)
 class MetadataBatch:
+    utt_ids: list[str]
     paths: list[Path]
     splits: list[str | None]
     spk_ids: list[str | None]
@@ -51,6 +53,7 @@ class AudioBatch(MetadataBatch):
 
     def __getitem__(self, idx: int) -> AudioSample:
         return AudioSample(
+            utt_id=self.utt_ids[idx],
             path=self.paths[idx],
             split=self.splits[idx],
             spk_id=self.spk_ids[idx],

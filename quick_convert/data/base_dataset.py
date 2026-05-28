@@ -11,6 +11,8 @@ import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 
+from quick_convert.utils.paths import TemplateFormatter
+
 from .annotations.base import BaseAnnotationProvider
 
 # from .features import PatternSidecarFeatureResolver
@@ -34,6 +36,8 @@ class BaseDataset(Dataset):
         target_sr: Optional[int] = None,
         convert_to_mono: bool = True,
         # pass a spkid function to avoid subclassing just to implement get_spkid logic
+        utt_id_template: Optional[str] = None,
+        get_utt_id_fn: Optional[Callable[[PathLike], str]] = None,
         get_spkid_fn: Optional[Callable[[PathLike], str]] = None,
         # feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
         pattern: Optional[str] = None,
@@ -49,6 +53,11 @@ class BaseDataset(Dataset):
         self.file_formats = self._normalize_and_validate_format(file_format)
         self.splits = list(splits) if splits is not None else None
         self.convert_to_mono = convert_to_mono
+
+        # for determining utterance ID
+        self.utt_id_template = utt_id_template
+        self.get_utt_id_fn = get_utt_id_fn
+
         self.target_sr = target_sr
         self.root = Path(root) if root is not None else None
         self.load = load
@@ -102,6 +111,7 @@ class BaseDataset(Dataset):
                         continue
                     rows.append(
                         MetadataSample(
+                            utt_id=self.get_utt_id(p),
                             path=p,
                             split=split,
                             spk_id=self.get_spkid(p) if return_spkid else None,
@@ -154,6 +164,20 @@ class BaseDataset(Dataset):
     def _is_excluded(self, path: Path) -> bool:
         return any(fnmatch(path.name, pattern) or fnmatch(str(path), pattern) for pattern in self.exclude_patterns)
 
+    def get_utt_id(self, path: Path) -> str:
+        if self.get_utt_id_fn is not None:
+            return self.get_utt_id_fn(path)
+
+        elif self.utt_id_template is not None:
+            return TemplateFormatter.format_str(
+                self.utt_id_template,
+                path=path,
+            )
+        else:
+            raise RuntimeError(
+                f"No method for determining utt_id. Please provide either `utt_id_template` or `get_utt_id_fn` when initializing {type(self).__name__}."
+            )
+
     def get_spkid(self, file_path: PathLike) -> str:
         raise NotImplementedError(f"{type(self).__name__} must implement `get_spkid` when `return_spkid=True`.")
 
@@ -177,6 +201,7 @@ class BaseDataset(Dataset):
         """
         waveform, sample_rate = self.load_audio(sample.path, self.target_sr)
         return AudioSample(
+            utt_id=sample.utt_id,
             path=sample.path,
             split=sample.split,
             spk_id=sample.spk_id,
@@ -199,6 +224,7 @@ class BaseDataset(Dataset):
         """
         if not self.load:
             return MetadataBatch(
+                utt_ids=[item.utt_id for item in batch],
                 paths=[item.path for item in batch],
                 splits=[item.split for item in batch],
                 spk_ids=[item.spk_id for item in batch],
@@ -219,6 +245,7 @@ class BaseDataset(Dataset):
             waveforms=padded,
             lengths=lengths,
             sample_rates=sample_rates,
+            utt_ids=[item.utt_id for item in batch],
             paths=[item.path for item in batch],
             splits=[item.split for item in batch],
             spk_ids=[item.spk_id for item in batch],
