@@ -1,0 +1,18 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: null
+  - /dataset: librispeech
+  - _self_
+
+resources_path: outputs/precomputed/${hydra:runtime.choices.dataset}
+dataset:
+  splits:
+    - test-other
+  load: false
+  pattern: "**/1688*.flac"
+  resource_providers:
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      name: w2vbert
+      path_template: ${resources_path}/w2vbert/{sample.split}/{sample.utt_id}.pt
