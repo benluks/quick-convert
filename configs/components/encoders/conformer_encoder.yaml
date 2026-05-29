@@ -1,0 +1,4 @@
+_target_: quick_convert.components.encoders.ConformerEncoder
+num_blocks: ???
+input_dim: ???
+embed_dim: ???

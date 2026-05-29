@@ -11,7 +11,7 @@ from quick_convert.data.types import AudioBatch
 
 class BaseEncoderDecoderTrainingModule(L.LightningModule):
     """
-    Model-agnostic PyTorch Lightning base trainer for end-to-end 
+    Model-agnostic PyTorch Lightning base trainer for end-to-end
     encoder-decoder type anonymization models.
 
     Subclasses must implement :meth:`_shared_step`, which contains the
@@ -36,21 +36,17 @@ class BaseEncoderDecoderTrainingModule(L.LightningModule):
         self,
         encoder: torch.nn.Module,
         decoder: torch.nn.Module,
-        lr_scheduler_cls: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
-        lr_scheduler_kwargs: Optional[dict[str, Any]] = None,
-        optimizer_cls: type[torch.optim.Optimizer] = torch.optim.AdamW,
-        optimizer_kwargs: dict[str, Any] = {"weight_decay": 1e-2},
+        optimizer: type[torch.optim.Optimizer] = torch.optim.AdamW,
+        lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
     ) -> None:
         super().__init__()
         self.save_hyperparameters(ignore=["encoder", "decoder"])
 
         self.encoder = encoder
         self.decoder = decoder
-        self.configure_optimizers = self._configure_optimizers(optimizer_cls, 
-                                                               optimizer_kwargs, 
-                                                               lr_scheduler_cls,
-                                                               lr_scheduler_kwargs)
-        
+        self.configure_optimizers = self._configure_optimizers(
+            partial_optimizer=optimizer, partial_lr_scheduler=lr_scheduler
+        )
 
     # ------------------------------------------------------------------
     # Abstract interface
@@ -77,19 +73,17 @@ class BaseEncoderDecoderTrainingModule(L.LightningModule):
     # Optimizers / schedulers
     # ------------------------------------------------------------------
 
-    def configure_optimizers(self) -> dict[str, Any]:
+    def _configure_optimizers(self, partial_optimizer, partial_lr_scheduler=None) -> dict[str, Any]:
         params = [p for p in self.parameters() if p.requires_grad]
 
-        optimizer = self.hparams.optimizer_cls(
-            params,
-            lr=self.hparams.lr,
-            **self.hparams.optimizer_kwargs,
+        optimizer = partial_optimizer(
+            params=params,
         )
 
-        scheduler = self.hparams.lr_scheduler_cls(
-            optimizer, 
-            **self.hparams.lr_scheduler_kwargs
-        )
+        if partial_lr_scheduler is not None:
+            scheduler = partial_lr_scheduler(optimizer=optimizer)
+        else:
+            scheduler = None
 
         return {
             "optimizer": optimizer,

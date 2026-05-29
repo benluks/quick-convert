@@ -11,6 +11,8 @@ import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 
+from .resources import collate_resources
+
 from .resources import load_resource, ResourceRef
 
 from .resources import BaseResourceProvider, ResourceCollection
@@ -253,14 +255,14 @@ class BaseDataset(Dataset):
         - If self.load=False, returns a metadata batch.
         - If self.load=True, pads variable-length waveforms and returns tensors + metadata.
         """
-        has_audio = all(getattr(item, "waveform") is not None for item in batch)
+        has_audio = all(getattr(item, "waveform", None) is not None for item in batch)
         if not has_audio:
             return MetadataBatch(
                 utt_ids=[item.utt_id for item in batch],
                 paths=[item.path for item in batch],
                 splits=[item.split for item in batch],
                 spk_ids=[item.spk_id for item in batch],
-                resources=self._collate_dicts(batch, "resources"),
+                resources=collate_resources(batch),
             )
 
         # list[[1 t]]
@@ -281,7 +283,7 @@ class BaseDataset(Dataset):
             paths=[item.path for item in batch],
             splits=[item.split for item in batch],
             spk_ids=[item.spk_id for item in batch],
-            resources=self._collate_dicts(batch, "resources"),
+            resources=collate_resources(batch),
         )
 
     def make_dataloader(

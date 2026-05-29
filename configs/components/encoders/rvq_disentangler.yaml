@@ -1,23 +1,14 @@
+# configs/components/encoders/rvq_disentangler.yaml
 defaults:
-  - /components/ssl@feature_extractor_cfg: w2vbert
-  - /components/encoders@content_encoder_cfg: parallel_conformer
-  - /components/layers@rvq_cfg: rvq
-  - /components/encoders@linguistic_head_cfg: linguistic_head
-  - /components/encoders@speaker_head_cfg: speaker_head
-  - /components/encoders@linear_head_cfg: linear_head
+  - /components/encoders@content_encoder: parallel_conformer
+  - /components/encoders@linguistic_head: linguistic_head
+  - /components/encoders@speaker_head: speaker_head
   - _self_
 
 _target_: quick_convert.components.encoders.RVQDisentangler
-feature_extractor:
-  <<: ${feature_extractor_cfg}
-content_encoder:
-  <<: ${content_encoder_cfg}
-  input_dim: ${architecture.content_input_dim}
-rvq: ${rvq_cfg}
-speaker_head: ${speaker_head_config}
-linguistic_head: ${linguistic_head_cfg}
-emotion_head: ${linear_head_cfg}
-prosody_head: ${linear_head_cfg}
+rvq: ${architecture.rvq}
+emotion_head: ${architecture.emotion_head}
+prosody_head: ${architecture.prosody_head}
 rvq_idx:
   content: 0
   speaker: 1

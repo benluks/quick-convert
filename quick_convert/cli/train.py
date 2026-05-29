@@ -7,6 +7,9 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 
 
+OmegaConf.register_new_resolver("mul", lambda x, y: int(x) * int(y))
+
+
 @hydra.main(
     version_base=None,
     config_path="../../configs",

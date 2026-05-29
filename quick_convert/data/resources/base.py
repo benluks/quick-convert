@@ -2,6 +2,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Literal, Optional
 
+import torch
+from torch.nn.utils.rnn import pad_sequence
+
 
 class BaseResourceProvider:
     """
@@ -64,6 +67,9 @@ class ResourceCollection:
     def __getitem__(self, name: str) -> ResourceRef:
         return self._items[name]
 
+    def __setitem__(self, name: str, ref: ResourceRef) -> None:
+        self._items[name] = ref
+
     def __getattr__(self, name: str) -> ResourceRef:
         try:
             return self._items[name]
@@ -93,3 +99,101 @@ class ResourceCollection:
                 raise ValueError(f"Duplicate resource name: {ref.name}")
             items[ref.name] = ref
         return cls(items)
+
+
+@dataclass(frozen=True)
+class TensorResourceBatch:
+    values: torch.Tensor
+    lengths: torch.Tensor
+
+
+def _normalize_tensor_resource(x: torch.Tensor) -> torch.Tensor:
+    """
+    Normalize tensor resources to [T, D].
+
+    Accepted:
+    - [D]       -> [1, D]
+    - [1, D]    -> [1, D]
+    - [T, D]    -> [T, D]
+    - [1,T,D]   -> [T, D]
+    """
+    if x.dim() == 1:
+        return x.unsqueeze(0)
+
+    if x.dim() == 2:
+        return x
+
+    if x.dim() == 3 and x.shape[0] == 1:
+        return x.squeeze(0)
+
+    raise ValueError(f"Expected tensor resource with shape [D], [1,D], [T,D], or [1,T,D]. Got shape {tuple(x.shape)}.")
+
+
+def _collate_tensor_resources(
+    refs: list[ResourceRef],
+    squeeze_single_frame: bool = False,
+) -> TensorResourceBatch:
+    tensors = []
+    for ref in refs:
+        if ref.value is None:
+            raise ValueError(f"Resource {ref.name} has no loaded value. Make sure it is included in dataset.load.")
+        if not isinstance(ref.value, torch.Tensor):
+            raise TypeError(
+                f"Resource {ref.name} has kind='torch_tensor' but value is "
+                f"{type(ref.value).__name__}, not torch.Tensor."
+            )
+
+        tensors.append(_normalize_tensor_resource(ref.value))
+
+    lengths = torch.tensor([x.shape[0] for x in tensors], dtype=torch.long)
+    padded = pad_sequence(tensors, batch_first=True)
+
+    if squeeze_single_frame and padded.shape[1] == 1:
+        padded = padded.squeeze(1)
+
+    return TensorResourceBatch(values=padded, lengths=lengths)
+
+
+def _collate_resource_refs(
+    refs: list[ResourceRef],
+    squeeze_single_frame_tensors: bool = False,
+) -> Any:
+    kinds = {ref.kind for ref in refs}
+    if len(kinds) != 1:
+        raise ValueError(f"Cannot collate mixed resource kinds: {sorted(kinds)}")
+
+    kind = refs[0].kind
+
+    if kind == "text":
+        return [ref.value for ref in refs]
+
+    if kind == "torch_tensor":
+        return _collate_tensor_resources(
+            refs,
+            squeeze_single_frame=squeeze_single_frame_tensors,
+        )
+
+    raise NotImplementedError(f"Collation for resource kind {kind!r} is not implemented.")
+
+
+def collate_resources(
+    batch,
+    squeeze_single_frame_tensors: bool = False,
+) -> dict[str, Any]:
+    resource_names = {name for item in batch for name in (item.resources.keys() if item.resources is not None else [])}
+
+    collated = {}
+
+    for name in resource_names:
+        refs = []
+        for item in batch:
+            if item.resources is None or name not in item.resources.keys():
+                raise ValueError(f"Sample {item.utt_id!r} is missing resource {name!r}")
+            refs.append(item.resources[name])
+
+        collated[name] = _collate_resource_refs(
+            refs,
+            squeeze_single_frame_tensors=squeeze_single_frame_tensors,
+        )
+
+    return collated

@@ -2,14 +2,14 @@ from typing import Optional
 
 import lightning as L
 
-from quick_convert.data.base_dataset import BaseDataset
+from quick_convert.data import BaseDataset
 from .base_trainer import BaseTrainer
 
 
 class LightningTrainer(BaseTrainer):
     def __init__(
         self,
-        module,
+        module: L.LightningModule,
         train_dataloader_kwargs: Optional[dict] = {},
         val_dataloader_kwargs: Optional[dict] = {},
     ):

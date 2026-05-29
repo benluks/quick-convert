@@ -6,9 +6,7 @@ import torch
 import sentencepiece as spm
 
 from quick_convert.components.encoders import RVQDisentangler
-from quick_convert.components.speaker import SpeakerEncoder
-from quick_convert.components.ssl.base import ContentEncoder
-from quick_convert.components.spectrogram_generator import ChatterboxSpectrogramGenerator as CSG
+from quick_convert.components.decoders import ChatterboxSpectrogramGenerator as CSG
 
 from quick_convert.data.types import AudioBatch
 from quick_convert.pipelines.training.modules.encoder_decoder.base import BaseEncoderDecoderTrainingModule
@@ -41,12 +39,8 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             Instantiated :class:`~quick_convert.components.encoders.RVQDisentangler`
             whose ``feature_extractor`` will be frozen.
         decoder:
-            :class:`~quick_convert.components.spectrogram_generator.ChatterboxSpectrogramGenerator`
+            :class:`~quick_convert.components.decoders.ChatterboxSpectrogramGenerator`
             used to reconstruct spectrograms from quantised latents.
-        spk_encoder:
-            Frozen speaker encoder providing speaker-identity distillation targets.
-        emo_encoder:
-            Frozen content/emotion encoder providing emotion distillation targets.
         tokenizer:
             SentencePiece processor used to tokenise transcript targets for CTC
             distillation.
@@ -79,44 +73,30 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         self,
         encoder: RVQDisentangler,
         decoder: CSG,
-        spk_encoder: SpeakerEncoder,
-        emo_encoder: ContentEncoder,
         tokenizer: spm.SentencePieceProcessor,
         rvq_loss_weights: dict[str, float],
         distillation_loss_weights: dict[str, float],
         adv_loss_weights: dict[str, float],
         decoder_loss_weight: Optional[float] = None,
-        pros_encoder: ContentEncoder = None,
-        lr_scheduler_cls: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
-        lr_scheduler_kwargs: Optional[dict[str, Any]] = None,
-        optimizer_cls: type[torch.optim.Optimizer] = torch.optim.AdamW,
-        optimizer_kwargs: dict[str, Any] = {"weight_decay": 1e-2},
+        optimizer: torch.optim.Optimizer = torch.optim.AdamW,
+        lr_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
         *kwargs: Any,
     ) -> None:
         super().__init__(
             encoder=encoder,
             decoder=decoder,
-            lr_scheduler_cls=lr_scheduler_cls,
-            lr_scheduler_kwargs=lr_scheduler_kwargs,
-            optimizer_cls=optimizer_cls,
-            optimizer_kwargs=optimizer_kwargs,
+            optimizer=optimizer,
+            lr_scheduler=lr_scheduler,
         )
 
-        self.spk_encoder = spk_encoder
-        self.emo_encoder = emo_encoder
-        self.pros_encoder = pros_encoder
         self.tokenizer = tokenizer
 
-        self.save_hyperparameters(
-            ignore=["encoder", "decoder", "tokenizer", "spk_encoder", "emo_encoder", "pros_encoder"]
-        )
+        self.save_hyperparameters(ignore=["encoder", "decoder", "tokenizer"])
         self._validate_inputs(
             rvq_loss_weights=rvq_loss_weights,
             distillation_loss_weights=distillation_loss_weights,
             adv_loss_weights=adv_loss_weights,
-            pros_encoder=pros_encoder,
         )
-        self._freeze_feature_extractors()
 
     # ------------------------------------------------------------------
     # Setup helpers
@@ -127,10 +107,9 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         rvq_loss_weights: dict[str, float],
         distillation_loss_weights: dict[str, float],
         adv_loss_weights: dict[str, float],
-        pros_encoder: Optional[object],
     ) -> None:
         """Raise ``ValueError`` if any loss-weight dict is missing required keys."""
-        distil_keys = {"ling", "spk", "emo"} | ({"pros"} if pros_encoder is not None else set())
+        distil_keys = {"ling", "spk", "emo"}
         checks = [
             ("rvq_loss_weights", rvq_loss_weights, {"commitment_loss", "codebook_loss"}),
             ("distillation_loss_weights", distillation_loss_weights, distil_keys),
@@ -140,40 +119,11 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             if missing := required - weights.keys():
                 raise ValueError(f"{name} is missing keys: {missing}")
 
-    def _freeze_feature_extractors(self) -> None:
-        """Freeze all teacher encoders and the SSL backbone inside the encoder.
-
-        All frozen modules are also switched to eval mode so that batch-norm
-        and dropout layers behave deterministically during training.
-        """
-        for param in self.encoder.feature_extractor.parameters():
-            param.requires_grad = False
-
-        for param in self.spk_encoder.parameters():
-            param.requires_grad = False
-
-        for param in self.emo_encoder.parameters():
-            param.requires_grad = False
-
-        if self.pros_encoder is not None:
-            for param in self.pros_encoder.parameters():
-                param.requires_grad = False
-
-        self.encoder.feature_extractor.eval()
-        self.spk_encoder = self.spk_encoder.eval()
-        self.emo_encoder = self.emo_encoder.eval()
-
-        self.pros_encoder = self.pros_encoder.eval() if self.pros_encoder is not None else None
-
     # ------------------------------------------------------------------
     # Forward
     # ------------------------------------------------------------------
 
-    def forward(
-        self,
-        waveform: torch.Tensor,
-        lengths: torch.Tensor,
-    ):
+    def forward(self, batch: AudioBatch):
         """Encode ``waveform`` with the RVQ disentangler and decode the result.
 
         Args:
@@ -183,7 +133,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         Returns:
             Decoder output produced from the quantised latent.
         """
-        return self.decoder(self.encoder(waveform, lengths))
+        return self.decoder(self.encoder(batch.waveforms, batch.lengths))
 
     # ------------------------------------------------------------------
     # Shared step logic
