@@ -12,7 +12,7 @@ columns:
   split: "{sample.split}"
   spk_id: "{sample.path.parent.parent.stem}"
   transcript: "{sample.resources.transcript.value}"
-  content_path: "{sample.resources.w2vbert.path}"
+  # content_path: "{sample.resources.w2vbert.path}"
 
 pipeline:
   overwrite: true
@@ -26,10 +26,10 @@ dataset:
   # pattern: "**/1688*.flac"
   resource_providers:
     - ${dataset.transcript_provider}
-    - _target_: quick_convert.data.resources.PathResourceProvider
-      name: w2vbert
-      kind: torch_tensor
-      path_template: ${resources_path}/w2vbert/{sample.split}/{sample.utt_id}.pt
+    # - _target_: quick_convert.data.resources.PathResourceProvider
+    #   name: w2vbert
+    #   kind: torch_tensor
+    #   path_template: ${resources_path}/w2vbert/{sample.split}/{sample.utt_id}.pt
   #   - _target_: quick_convert.data.resources.PathResourceProvider
   #     name: spk_espnet
   #     kind: torch_tensor
