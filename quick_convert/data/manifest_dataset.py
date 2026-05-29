@@ -36,19 +36,18 @@ class ManifestDataset(BaseDataset):
             with open(path, newline="") as f:
                 try:
                     reader = csv.DictReader(f)
+                    for row in reader:
+                        rows.append(
+                            MetadataSample(
+                                utt_id=row.get(utt_id_column),
+                                path=Path(row[path_column]) if row.get(path_column) else None,
+                                split=row.get(split_column),
+                                spk_id=row.get(spk_id_column),
+                            )
+                        )
                 except csv.Error:
                     raise ValueError(
                         f"Failed to parse manifest file {path} as CSV. Please check the file format and delimiter."
                     )
-
-            for row in reader:
-                rows.append(
-                    MetadataSample(
-                        utt_id=row.get(utt_id_column),
-                        path=Path(row[path_column]) if row.get(path_column) else None,
-                        split=row.get(split_column),
-                        spk_id=row.get(spk_id_column),
-                    )
-                )
 
         super().__init__(rows=rows, **kwargs)

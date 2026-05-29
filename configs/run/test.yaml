@@ -3,16 +3,17 @@
 defaults:
   - /global: default
   - /pipeline: null
-  - /dataset: librispeech
+  - /dataset: manifest
   - _self_
 
-resources_path: outputs/precomputed/${hydra:runtime.choices.dataset}
+dataset_name: librispeech
+resources_path: outputs/precomputed/${dataset_name}
+dataset_path: ${out_root}/${dataset_name}
+
 dataset:
-  splits:
-    - test-other
-  load: false
-  pattern: "**/1688*.flac"
   resource_providers:
+    # - ${dataset.transcript_provider}
     - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
       name: w2vbert
       path_template: ${resources_path}/w2vbert/{sample.split}/{sample.utt_id}.pt

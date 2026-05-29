@@ -73,7 +73,6 @@ class DepthWiseConvolution(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (B, T, C)
-        res = x
         x = self.ln(x)          # (B, T, C)
         x = x.transpose(1, 2)   # (B, C, T)
         x = self.pw_conv1(x)    # (B, 2C, T)
@@ -83,4 +82,4 @@ class DepthWiseConvolution(nn.Module):
         x = self.activation(x)  # (B, C, T)
         x = self.pw_conv2(x)    # (B, C, T)
         x = self.dropout(x)     # (B, C, T)
-        return res + x.transpose(1, 2)   # (B, T, C)
+        return x.transpose(1, 2)   # (B, T, C)

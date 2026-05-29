@@ -25,10 +25,10 @@ dataset:
     - dev-clean
   resource_providers:
     - ${dataset.transcript_provider}
-  #  - _target_: quick_convert.data.resources.PathResourceProvider
-  #    name: w2vbert
-  #    kind: torch_tensor
-  #    path_template: ${resources_path}/w2vbert/{sample.split}/{sample.utt_id}.pt
+    # - _target_: quick_convert.data.resources.PathResourceProvider
+    #   name: w2vbert
+    #   kind: torch_tensor
+    #   path_template: ${resources_path}/w2vbert/{sample.split}/{sample.utt_id}.pt
   #   - _target_: quick_convert.data.resources.PathResourceProvider
   #     name: spk_espnet
   #     kind: torch_tensor

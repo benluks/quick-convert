@@ -47,10 +47,16 @@ class BaseDataset(Dataset):
         resource_providers: Iterable[BaseResourceProvider] = [],
         **kwargs,
     ):
-        if root is None and paths is None:
-            raise ValueError("You must provide either `root` or `paths`.")
-        if root is not None and paths is not None:
-            raise ValueError("Provide only one of `root` or `paths`, not both.")
+        sources = [
+            root is not None,
+            paths is not None,
+            rows is not None,
+        ]
+
+        if sum(sources) != 1:
+            raise ValueError(
+                f"Provide exactly one of `root`, `paths`, or `rows`. Got root={root}, paths={paths}, rows={rows}."
+            )
 
         self.file_formats = self._normalize_and_validate_format(file_format)
         self.splits = list(splits) if splits is not None else None
@@ -71,9 +77,12 @@ class BaseDataset(Dataset):
         self.pattern = pattern or "*"
         self.exclude_patterns = exclude_patterns or []
         self.resource_providers = resource_providers
-        rows: Iterable[MetadataSample] = []
 
-        if paths is not None:
+        if rows is not None:
+            self.rows = rows
+            return
+
+        elif paths is not None:
             files = [Path(p) for p in paths if Path(p).is_file()]
             for p in files:
                 rows.append(

@@ -173,7 +173,8 @@ class RVQDisentangler(nn.Module):
             text_quantized, 
             emo_pros_quantized, 
             commitment_loss, 
-            codebook_loss, 
+            codebook_loss,
+            content, 
             lengths,
         )
     
@@ -188,11 +189,16 @@ class RVQDisentangler(nn.Module):
             prosody_seq: torch.FloatTensor | None,
         ) -> List:
 
-        z_q, z_quantized, spk_q, text_q, emo_pros_q, commitment_loss, codebook_loss, lengths = self.encode(waveform, lengths)
+        z_q, z_quantized, spk_q, text_q, emo_pros_q, commitment_loss, codebook_loss, content, lengths = self.encode(waveform, lengths)
+
+        # MSE loss between RVQ output and content encoder output 
+        # to encourage the RVQ to capture the all of the information from the content encoder
+        rvq_mse_loss = F.mse_loss(z_q, content.detach())
 
         rvq_losses = {
             'commitment_loss': commitment_loss,
             'codebook_loss': codebook_loss,
+            'mse_loss': rvq_mse_loss,
         }
 
         # Speaker loss: encourage spk_q to match the target speaker embedding
