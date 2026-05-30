@@ -33,14 +33,14 @@ rvq_dim: ${mul:${architecture.rvq.n_codebooks},${architecture.rvq.codebook_dim}}
 
 emotion_head:
   _target_: quick_convert.components.encoders.LinearHead
-  input_dim: ${architecture.rvq_dim}
+  input_dim: ${architecture.rvq.input_dim}
   output_dim: ${architecture.feature_extractors.emotion.feature_dim}
 
 linguistic_head:
-  hidden_dim: ${architecture.rvq_dim}
+  hidden_dim: ${architecture.rvq.input_dim}
   output_dim: ${architecture.tokenizer_vocab_size}
 speaker_head:
-  input_dim: ${architecture.rvq_dim}
+  input_dim: ${architecture.rvq.input_dim}
   hidden_dim: 256
   output_dim: ${architecture.feature_extractors.speaker.feature_dim}
 

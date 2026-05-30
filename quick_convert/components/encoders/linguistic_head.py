@@ -43,6 +43,7 @@ class LinguisticCTCHead(nn.Module):
         Implementation assumes tokenization happens outside the model, 
         and that 0 is reserved for the CTC blank token. 
         """        
+        x = self(x)
         x = x.transpose(0, 1)  # (T, B, output_dim) for CTC loss
         x = x.log_softmax(dim=-1)  # Log probabilities for CTC loss
         ctc_loss = F.ctc_loss(

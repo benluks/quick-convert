@@ -178,7 +178,9 @@ class RVQDisentangler(nn.Module):
 
         # MSE loss between RVQ output and content encoder output
         # to encourage the RVQ to capture the all of the information from the content encoder
-        rvq_mse_loss = F.mse_loss(z_q, content.detach())
+        rvq_mse_loss = F.mse_loss(
+            z_q, content.detach().transpose(1, 2)
+        )  # content is (B, F, T), z_q is (B, T, F) after transpose
 
         rvq_losses = {
             "commitment_loss": commitment_loss,
@@ -202,7 +204,7 @@ class RVQDisentangler(nn.Module):
         ctc_loss = self.linguistic_head.compute_loss(
             text_q,
             linguistic_targets,
-            padding_mask=self._make_padding_mask(lengths, text_q.shape[1]),
+            # padding_mask=self._make_padding_mask(lengths),
             input_lengths=lengths,
             target_lengths=target_lengths,
         )

@@ -20,6 +20,7 @@ module:
   rvq_loss_weights:
     commitment_loss: 1.0
     codebook_loss: 1.0
+    mse_loss: 1.0
   distillation_loss_weights:
     ling: 1.0
     spk: 1.0

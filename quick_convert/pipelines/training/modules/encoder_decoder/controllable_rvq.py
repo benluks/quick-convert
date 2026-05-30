@@ -169,7 +169,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         )
 
         tokenized_transcripts = self.tokenizer.encode(targets)
-        ling_targets = collate_token_sequences(tokenized_transcripts)
+        ling_targets = collate_token_sequences(tokenized_transcripts, padding_value=self.tokenizer.pad_id())
 
         z_q, spk_q, text_q, pros_emo_q, loss_dict = self.encoder.compute_loss(
             features,
