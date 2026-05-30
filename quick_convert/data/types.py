@@ -28,7 +28,7 @@ class AudioSample(MetadataSample):
     sample_rate: Optional[int] = None
 
 
-@dataclass(frozen=True)
+@dataclass
 class MetadataBatch:
     utt_ids: list[str]
     paths: list[Path]
@@ -37,14 +37,14 @@ class MetadataBatch:
     resources: ResourceCollection
 
 
-@dataclass(frozen=True)
+@dataclass
 class LoadedBatch(MetadataBatch):
     waveforms: float["b t"]
     lengths: int["b"]
     sample_rates: int["b"]
 
 
-@dataclass(frozen=True)
+@dataclass
 class AudioBatch(MetadataBatch):
     waveforms: Optional[float["b t"]] = None
     lengths: Optional[int["b"]] = None

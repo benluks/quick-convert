@@ -6,6 +6,7 @@ from typing import Any, Optional
 import torch
 import lightning as L
 
+from quick_convert.components.encoders import RVQDisentangler
 from quick_convert.data.types import AudioBatch
 
 
@@ -34,7 +35,7 @@ class BaseEncoderDecoderTrainingModule(L.LightningModule):
 
     def __init__(
         self,
-        encoder: torch.nn.Module,
+        encoder: RVQDisentangler,
         decoder: torch.nn.Module,
         optimizer: type[torch.optim.Optimizer] = torch.optim.AdamW,
         lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
@@ -44,9 +45,8 @@ class BaseEncoderDecoderTrainingModule(L.LightningModule):
 
         self.encoder = encoder
         self.decoder = decoder
-        self.configure_optimizers = self._configure_optimizers(
-            partial_optimizer=optimizer, partial_lr_scheduler=lr_scheduler
-        )
+        self.optimizer_factory = optimizer
+        self.lr_scheduler_factory = lr_scheduler
 
     # ------------------------------------------------------------------
     # Abstract interface
@@ -69,21 +69,19 @@ class BaseEncoderDecoderTrainingModule(L.LightningModule):
     def validation_step(self, batch: AudioBatch, batch_idx: int) -> torch.Tensor:
         return self._shared_step(batch, "val")
 
-    # ------------------------------------------------------------------
-    # Optimizers / schedulers
-    # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
+        # Optimizers / schedulers
+        # ------------------------------------------------------------------
 
-    def _configure_optimizers(self, partial_optimizer, partial_lr_scheduler=None) -> dict[str, Any]:
+    def configure_optimizers(self):
         params = [p for p in self.parameters() if p.requires_grad]
 
-        optimizer = partial_optimizer(
-            params=params,
-        )
+        optimizer = self.optimizer_factory(params=params)
 
-        if partial_lr_scheduler is not None:
-            scheduler = partial_lr_scheduler(optimizer=optimizer)
-        else:
-            scheduler = None
+        if self.lr_scheduler_factory is None:
+            return optimizer
+
+        scheduler = self.lr_scheduler_factory(optimizer=optimizer)
 
         return {
             "optimizer": optimizer,

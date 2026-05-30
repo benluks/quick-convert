@@ -39,7 +39,7 @@ ResourceKind = Literal[
 ]
 
 
-@dataclass(frozen=True)
+@dataclass
 class ResourceRef:
     path: Path
     kind: ResourceKind
@@ -48,7 +48,7 @@ class ResourceRef:
     # metadata: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass
 class Annotation(ResourceRef):
     """
     Since annotations are automatically loaded into memory when accessed,
@@ -71,8 +71,15 @@ class ResourceCollection:
         self._items[name] = ref
 
     def __getattr__(self, name: str) -> ResourceRef:
+        if name.startswith("__") or name == "_items":
+            raise AttributeError(name)
+
+        items = self.__dict__.get("_items")
+        if items is None:
+            raise AttributeError(name)
+
         try:
-            return self._items[name]
+            return items[name]
         except KeyError:
             raise AttributeError(name) from None
 
@@ -101,7 +108,7 @@ class ResourceCollection:
         return cls(items)
 
 
-@dataclass(frozen=True)
+@dataclass
 class TensorResourceBatch:
     values: torch.Tensor
     lengths: torch.Tensor
@@ -109,13 +116,14 @@ class TensorResourceBatch:
 
 def _normalize_tensor_resource(x: torch.Tensor) -> torch.Tensor:
     """
-    Normalize tensor resources to [T, D].
+    Normalize tensor resources so the first dim is always time.
 
     Accepted:
-    - [D]       -> [1, D]
-    - [1, D]    -> [1, D]
-    - [T, D]    -> [T, D]
-    - [1,T,D]   -> [T, D]
+    - [D]         -> [1, D]
+    - [T, D]      -> [T, D]
+    - [1, T, D]   -> [T, D]
+    - [T, L, D]   -> [T, L, D]
+    - [1,T,L,D]   -> [T, L, D]
     """
     if x.dim() == 1:
         return x.unsqueeze(0)
@@ -123,10 +131,17 @@ def _normalize_tensor_resource(x: torch.Tensor) -> torch.Tensor:
     if x.dim() == 2:
         return x
 
-    if x.dim() == 3 and x.shape[0] == 1:
-        return x.squeeze(0)
+    if x.dim() == 3:
+        if x.shape[0] == 1:
+            return x.squeeze(0)  # [1, T, D] -> [T, D]
+        return x  # [T, L, D]
 
-    raise ValueError(f"Expected tensor resource with shape [D], [1,D], [T,D], or [1,T,D]. Got shape {tuple(x.shape)}.")
+    if x.dim() == 4 and x.shape[0] == 1:
+        return x.squeeze(0)  # [1, T, L, D] -> [T, L, D]
+
+    raise ValueError(
+        f"Expected tensor resource with shape [D], [T,D], [1,T,D], [T,L,D], or [1,T,L,D]. Got shape {tuple(x.shape)}."
+    )
 
 
 def _collate_tensor_resources(
@@ -144,6 +159,14 @@ def _collate_tensor_resources(
             )
 
         tensors.append(_normalize_tensor_resource(ref.value))
+
+    trailing_shape = tensors[0].shape[1:]
+
+    for x in tensors[1:]:
+        if x.shape[1:] != trailing_shape:
+            raise ValueError(
+                f"Cannot collate tensor resources with mismatched trailing shapes: {trailing_shape} vs {x.shape[1:]}"
+            )
 
     lengths = torch.tensor([x.shape[0] for x in tensors], dtype=torch.long)
     padded = pad_sequence(tensors, batch_first=True)
@@ -197,3 +220,23 @@ def collate_resources(
         )
 
     return collated
+
+
+def collate_token_sequences(
+    sequences: list[list[int]],
+    padding_value: int = 0,
+) -> TensorResourceBatch:
+    tensors = [torch.tensor(seq, dtype=torch.long) for seq in sequences]
+
+    lengths = torch.tensor(
+        [len(x) for x in tensors],
+        dtype=torch.long,
+    )
+
+    padded = pad_sequence(
+        tensors,
+        batch_first=True,
+        padding_value=padding_value,
+    )
+
+    return TensorResourceBatch(values=padded, lengths=lengths)

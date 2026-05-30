@@ -79,10 +79,9 @@ class RVQDisentangler(nn.Module):
     def _make_padding_mask(
         self,
         frame_lengths: torch.Tensor,  # (B,)
-        max_len: int,
     ) -> torch.Tensor:
         """Returns (B, T) bool mask — True marks padding positions."""
-        idx = torch.arange(max_len, device=frame_lengths.device)  # (T,)
+        idx = torch.arange(frame_lengths.max(), device=frame_lengths.device)  # (T,)
         return idx.unsqueeze(0) >= frame_lengths.unsqueeze(1)  # (B, T)
 
     # ------------------------------------------------------------------
@@ -122,7 +121,7 @@ class RVQDisentangler(nn.Module):
             lengths:         Updated lengths after feature extraction, shape (B,).
         """
 
-        padding_mask = self._make_padding_mask(features, lengths)  # (B, T_frames)
+        padding_mask = self._make_padding_mask(lengths)  # (B, T_frames)
 
         # 4. Content encoder: (B, T, L, F) -> (B, T, F)
         content = self.content_encoder(features, padding_mask=padding_mask)
@@ -140,6 +139,7 @@ class RVQDisentangler(nn.Module):
 
         # 8. Select the disentangled representations
         spk_quantized = z_quantized[self.rvq_idx["speaker"]].transpose(1, 2)  # (B, T, F)
+        # TODO: rename to linguistic content
         text_quantized = z_quantized[self.rvq_idx["content"]].transpose(1, 2)  # (B, T, F)
 
         # For prosody and emotion we sum the remaining quantized vectors, giving the RVQ
@@ -147,11 +147,6 @@ class RVQDisentangler(nn.Module):
         emo_pros_quantized = (
             torch.stack(z_quantized[self.rvq_idx["emo_pros"] :], dim=3).sum(dim=3).transpose(1, 2)
         )  # (B, T, F)
-
-        # TODO - update lengths
-        # frame rate of feature extractor is 50hz, so each frame corresponds to 20ms of audio,
-        # which is 320 samples at 16kHz.
-        lengths = (lengths / 320).ceil().long()
 
         return (
             z_q,
@@ -173,6 +168,7 @@ class RVQDisentangler(nn.Module):
         target_lengths: int["b"],
         speaker_seq: float["b d_spk"],
         emotion_seq: Optional[float["b t d_emo"]],
+        emotion_lengths: Optional[int["b"]],
         prosody_seq: Optional[float["b t d_pro"]],
     ) -> List:
 

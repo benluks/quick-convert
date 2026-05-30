@@ -6,6 +6,7 @@ defaults:
   - /components/encoders@module.encoder: rvq_disentangler
   - /architecture: controllable_rvq
   - /trainer/optimizer@module.optimizer: adamw
+  - /trainer/lr_scheduler@module.lr_scheduler: cosine_annealing
   - _self_
 
 _target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
@@ -33,4 +34,7 @@ module:
   optimizer:
     lr: 1e-4
     weight_decay: 1e-2
-  lr_scheduler: null
+  lr_scheduler:
+    _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+    _partial_: true
+    T_max: 10000

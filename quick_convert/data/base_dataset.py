@@ -70,7 +70,7 @@ class BaseDataset(Dataset):
 
         self.target_sr = target_sr
         self.root = Path(root) if root is not None else None
-        self.load = self._normalize_load(load)
+
         self.return_spkid = return_spkid
         if get_spkid_fn is not None:
             self.get_spkid = get_spkid_fn
@@ -79,6 +79,8 @@ class BaseDataset(Dataset):
         self.pattern = pattern or "*"
         self.exclude_patterns = exclude_patterns or []
         self.resource_providers = resource_providers
+
+        self.load = self._normalize_load(load)
 
         if rows is not None:
             self.rows = rows
@@ -113,7 +115,7 @@ class BaseDataset(Dataset):
                     search_roots.append((split, split_root))
 
             file_formats = self.file_formats if self.file_formats is not None else self.VALID_FORMATS
-
+            rows = []
             for split, search_root in search_roots:
                 for p in search_root.rglob(self.pattern):
                     if not p.is_file():
@@ -158,7 +160,7 @@ class BaseDataset(Dataset):
             return []
 
         if load is True or load == "all":
-            return {"audio"} + {provider.name for provider in self.resource_providers}
+            return {"audio"}.union({provider.name for provider in self.resource_providers})
 
         if isinstance(load, str):
             return {load}

@@ -8,6 +8,7 @@ import sentencepiece as spm
 from quick_convert.components.encoders import RVQDisentangler
 from quick_convert.components.decoders import ChatterboxSpectrogramGenerator as CSG
 
+from quick_convert.data.resources.base import collate_token_sequences
 from quick_convert.data.types import AudioBatch
 from quick_convert.pipelines.training.modules.encoder_decoder.base import BaseEncoderDecoderTrainingModule
 
@@ -152,25 +153,32 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         Returns:
             Scalar total loss tensor passed to the Lightning optimiser.
         """
-        waveform = batch.waveforms  # (B, T)
         lengths = batch.lengths  # (B,)
-        targets = batch.targets  # transcript token ids, shape (B, T_text) or None
-        target_lengths = batch.target_lengths  # (B,) or None
+        targets = batch.resources["transcript"]  # transcript token ids, shape (B, T_text) or None
 
-        with torch.no_grad():
-            spk_targets = self.spk_encoder(waveform).values
-            emo_targets = self.emo_encoder(waveform).values
-            pros_targets = self.pros_encoder(waveform).values if self.pros_encoder is not None else None
+        features = batch.resources["content"].values
+        lengths = batch.resources["content"].lengths
 
-        ling_targets = self.tokenizer(targets)
+        spk_targets = batch.resources["spk"].values
+        emo_targets = batch.resources["emo2vec"].values
+        emo_lengths = batch.resources["emo2vec"].lengths
+        pros_targets = (
+            batch.resources["pros"].values
+            if "pros" in batch.resources and batch.resources["pros"] is not None
+            else None
+        )
+
+        tokenized_transcripts = self.tokenizer.encode(targets)
+        ling_targets = collate_token_sequences(tokenized_transcripts)
 
         z_q, spk_q, text_q, pros_emo_q, loss_dict = self.encoder.compute_loss(
-            waveform,
+            features,
             lengths,
-            ling_targets,
-            target_lengths,
+            ling_targets.values,
+            ling_targets.lengths,
             spk_targets,
             emo_targets,
+            emo_lengths,
             pros_targets,
         )
 
