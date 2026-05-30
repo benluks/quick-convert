@@ -29,7 +29,7 @@ rvq:
   codebook_dim: 16
   quantizer_dropout: 0.0
 
-rvq_dim: ${mul:${architecture.rvq.n_codebooks},${architecture.rvq.codebook_dim}}
+# rvq_dim: ${mul:${architecture.rvq.n_codebooks},${architecture.rvq.codebook_dim}}
 
 emotion_head:
   _target_: quick_convert.components.encoders.LinearHead
@@ -51,21 +51,21 @@ prosody_head: null
 
 sample_rate: 16000
 
-content:
-  input_dim: 1024
-  embed_dim: 128
+# content:
+#   input_dim: 1024
+#   embed_dim: 128
 
-ssl_dim: 1024
-content_dim: 512
-hidden_dim: 512
+# ssl_dim: 1024
+# content_dim: 512
+# hidden_dim: 512
 
-num_quantizers: 8
-codebook_size: 1024
+# num_quantizers: 8
+# codebook_size: 1024
 
-linguistic_dim: 512
-speaker_dim: 192
-emotion_dim: 768
-prosody_dim: 128
+# linguistic_dim: 512
+# speaker_dim: 192
+# emotion_dim: 768
+# prosody_dim: 128
 
 mel_dim: 80
 

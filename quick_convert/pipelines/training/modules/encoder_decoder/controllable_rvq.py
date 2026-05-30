@@ -205,10 +205,18 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             + self.hparams.adv_loss_weights["ling_pros"] * loss_dict["adv_losses"]["adv_ling_loss_pros"]
         )
 
+        # DECODING
+
         # Decoder reconstruction loss: z_q is used as both the flow target (x1)
         # and the conditioning signal; detach x1 so gradients flow only through mu
         # TODO
-        decoder_loss = self.decoder.compute_loss(waveform, lengths, text_q, pros_emo_q, spk_q)
+        decoder_loss = self.decoder.compute_loss(
+            features=...,
+            lengths=batch.lengths,
+            target_wav=batch.waveforms.values,
+            wav_lens=batch.waveforms.lengths,
+            sampling_rate=batch.sample_rates[0],
+        )
 
         loss = rvq_loss + distil_loss + adv_loss + self.hparams.decoder_loss_weight * decoder_loss
         log_dict = {

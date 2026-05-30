@@ -21,6 +21,7 @@ trainer:
 
 train_dataset:
   load:
+    - audio
     - transcript
     - content
     - emo2vec
