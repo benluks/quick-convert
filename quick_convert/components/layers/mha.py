@@ -1,4 +1,3 @@
-
 from typing import Optional
 
 import torch
@@ -7,6 +6,7 @@ from torch import nn
 # Heavily inspired by "https://github.com/BUTSpeechFIT/DiariZen/blob/main/diarizen/models/module/conformer.py"
 
 from .positional_embeddings import RoPE
+
 
 class MultiHeadAttention(nn.Module):
     """
@@ -29,10 +29,9 @@ class MultiHeadAttention(nn.Module):
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.head_dim = embed_dim // num_heads
-        self.scale = self.head_dim ** -0.5
+        self.scale = self.head_dim**-0.5
         self.dropout = dropout
-        self.pos_emb = RoPE(self.head_dim, 
-                            pos_emb_base=pos_emb_base)
+        self.pos_emb = RoPE(self.head_dim, base=pos_emb_base)
 
         # Per-head Q/K/V projections: (num_heads, embed_dim, head_dim).
         # Stored as Parameters so all heads are projected in a single batched matmul.
@@ -41,7 +40,6 @@ class MultiHeadAttention(nn.Module):
         self.v_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
-        
     # ------------------------------------------------------------------
     # Forward
     # ------------------------------------------------------------------
@@ -65,9 +63,7 @@ class MultiHeadAttention(nn.Module):
         attn_scores = torch.matmul(q, k.transpose(-2, -1)) * self.scale  # (B, H, T_q, T_k)
 
         if padding_mask is not None:
-            attn_scores = attn_scores.masked_fill(
-                padding_mask.unsqueeze(1).unsqueeze(2), float("-inf")
-            )
+            attn_scores = attn_scores.masked_fill(padding_mask.unsqueeze(1).unsqueeze(2), float("-inf"))
 
         attn_weights = torch.softmax(attn_scores, dim=-1)  # (B, H, T, T)
         attn_weights = nn.functional.dropout(attn_weights, p=self.dropout)

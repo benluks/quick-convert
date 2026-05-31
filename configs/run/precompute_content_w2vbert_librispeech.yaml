@@ -18,3 +18,4 @@ dataset:
 
 pipeline:
   out_root: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/ssl@encoder}
+  skip_existing: false

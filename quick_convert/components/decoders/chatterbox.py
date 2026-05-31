@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from quick_convert.external.chatterbox.s3gen.utils.mel import mel_spectrogram
+
 from ...external.chatterbox.s3gen.flow import CausalMaskedDiffWithXvec
 
 
@@ -16,39 +18,11 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         content_dim: int,
         speaker_dim: int,
         mel_dim: int = 80,
-        use_content_encoder: bool = False,
-        content_encoder: Optional[nn.Module] = None,
     ):
         super().__init__()
 
         self.flow = flow
-
-        self.content_proj = nn.Linear(content_dim, flow.input_size)
-
-        self.use_content_encoder = use_content_encoder
-        self.content_encoder = content_encoder
-
-        self.speaker_proj = nn.Linear(
-            speaker_dim,
-            flow.decoder.spk_emb_dim if hasattr(flow.decoder, "spk_emb_dim") else mel_dim,
-        )
-
-    def encode_content(
-        self,
-        content_features: torch.Tensor,
-        content_lengths: torch.Tensor,
-    ):
-        """
-        Converts arbitrary learned speech features into the representation
-        expected by the chatterbox flow encoder.
-        """
-
-        x = self.content_proj(content_features)
-
-        if self.use_content_encoder:
-            x = self.content_encoder(x, content_lengths)
-
-        return x, content_lengths
+        self.mel_extractor = mel_spectrogram
 
     def project_speaker(
         self,
@@ -57,12 +31,17 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         speaker_embedding = F.normalize(speaker_embedding, dim=-1)
         return self.speaker_proj(speaker_embedding)
 
+    def _mel_lengths(self, lengths, n_fft=1280, hop_size=320):
+        pad = (n_fft - hop_size) // 2
+        return ((lengths + 2 * pad - n_fft) // hop_size) + 1
+
     def compute_loss(
         self,
-        content_features: torch.Tensor,
-        content_lengths: torch.Tensor,
-        target_mel: torch.Tensor,
-        target_mel_lengths: torch.Tensor,
+        features: torch.Tensor,
+        lengths: torch.Tensor,
+        target_wav: torch.Tensor,
+        wav_lens: torch.Tensor,
+        sampling_rate: int,
         speaker_embedding: torch.Tensor,
         cond: Optional[torch.Tensor] = None,
     ):
@@ -70,20 +49,29 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         Thin wrapper around donor compute_loss.
         """
 
-        token_embeddings, token_lengths = self.encode_content(
-            content_features,
-            content_lengths,
-        )
+        n_fft = int(sampling_rate / 12.5)
+        hop_size = int(sampling_rate / 50)
 
-        projected_speaker = self.project_speaker(speaker_embedding)
+        target_mel = self.mel_extractor(
+            y=target_wav,
+            n_fft=n_fft,
+            num_mels=80,
+            sampling_rate=sampling_rate,
+            hop_size=hop_size,
+            win_size=n_fft,
+            fmin=0,
+            fmax=8000,
+            center=False,
+        )
+        target_mel_lengths = self._mel_lengths(wav_lens, n_fft=n_fft, hop_size=hop_size)
 
         batch = {
             # bypass token embedding lookup entirely
-            "speech_token": token_embeddings,
-            "speech_token_len": token_lengths,
+            "speech_token": features,
+            "speech_token_len": lengths,
             "speech_feat": target_mel,
             "speech_feat_len": target_mel_lengths,
-            "embedding": projected_speaker,
+            "embedding": speaker_embedding,
         }
 
         if cond is not None:
@@ -97,8 +85,8 @@ class ChatterboxSpectrogramGenerator(nn.Module):
     @torch.inference_mode()
     def forward(
         self,
-        content_features: torch.Tensor,
-        content_lengths: torch.Tensor,
+        features: torch.Tensor,
+        lengths: torch.Tensor,
         speaker_embedding: torch.Tensor,
         prompt_mel: Optional[torch.Tensor] = None,
         n_timesteps: int = 10,
@@ -106,38 +94,34 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         noised_mels: Optional[torch.Tensor] = None,
         meanflow: bool = False,
     ):
-        token_embeddings, token_lengths = self.encode_content(
-            content_features,
-            content_lengths,
-        )
 
         projected_speaker = self.project_speaker(speaker_embedding)
 
-        B = token_embeddings.size(0)
+        B = features.size(0)
 
         if prompt_mel is None:
             prompt_mel = torch.zeros(
                 B,
                 0,
                 self.flow.output_size,
-                device=token_embeddings.device,
-                dtype=token_embeddings.dtype,
+                device=features.device,
+                dtype=features.dtype,
             )
 
         prompt_feat_len = torch.zeros(
             B,
             dtype=torch.long,
-            device=token_embeddings.device,
+            device=features.device,
         )
 
         feat, _ = self.flow.decoder(
-            mu=token_embeddings.transpose(1, 2),
+            mu=features.transpose(1, 2),
             mask=torch.ones(
                 B,
                 1,
-                token_embeddings.size(1),
-                device=token_embeddings.device,
-                dtype=token_embeddings.dtype,
+                features.size(1),
+                device=features.device,
+                dtype=features.dtype,
             ),
             spks=projected_speaker,
             cond=cond,

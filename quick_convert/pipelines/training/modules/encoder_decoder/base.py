@@ -6,12 +6,13 @@ from typing import Any, Optional
 import torch
 import lightning as L
 
+from quick_convert.components.encoders import RVQDisentangler
 from quick_convert.data.types import AudioBatch
 
 
 class BaseEncoderDecoderTrainingModule(L.LightningModule):
     """
-    Model-agnostic PyTorch Lightning base trainer for end-to-end 
+    Model-agnostic PyTorch Lightning base trainer for end-to-end
     encoder-decoder type anonymization models.
 
     Subclasses must implement :meth:`_shared_step`, which contains the
@@ -34,23 +35,18 @@ class BaseEncoderDecoderTrainingModule(L.LightningModule):
 
     def __init__(
         self,
-        encoder: torch.nn.Module,
+        encoder: RVQDisentangler,
         decoder: torch.nn.Module,
-        lr_scheduler_cls: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
-        lr_scheduler_kwargs: Optional[dict[str, Any]] = None,
-        optimizer_cls: type[torch.optim.Optimizer] = torch.optim.AdamW,
-        optimizer_kwargs: dict[str, Any] = {"weight_decay": 1e-2},
+        optimizer: type[torch.optim.Optimizer] = torch.optim.AdamW,
+        lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
     ) -> None:
         super().__init__()
         self.save_hyperparameters(ignore=["encoder", "decoder"])
 
         self.encoder = encoder
         self.decoder = decoder
-        self.configure_optimizers = self._configure_optimizers(optimizer_cls, 
-                                                               optimizer_kwargs, 
-                                                               lr_scheduler_cls,
-                                                               lr_scheduler_kwargs)
-        
+        self.optimizer_factory = optimizer
+        self.lr_scheduler_factory = lr_scheduler
 
     # ------------------------------------------------------------------
     # Abstract interface
@@ -73,23 +69,19 @@ class BaseEncoderDecoderTrainingModule(L.LightningModule):
     def validation_step(self, batch: AudioBatch, batch_idx: int) -> torch.Tensor:
         return self._shared_step(batch, "val")
 
-    # ------------------------------------------------------------------
-    # Optimizers / schedulers
-    # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
+        # Optimizers / schedulers
+        # ------------------------------------------------------------------
 
-    def configure_optimizers(self) -> dict[str, Any]:
+    def configure_optimizers(self):
         params = [p for p in self.parameters() if p.requires_grad]
 
-        optimizer = self.hparams.optimizer_cls(
-            params,
-            lr=self.hparams.lr,
-            **self.hparams.optimizer_kwargs,
-        )
+        optimizer = self.optimizer_factory(params=params)
 
-        scheduler = self.hparams.lr_scheduler_cls(
-            optimizer, 
-            **self.hparams.lr_scheduler_kwargs
-        )
+        if self.lr_scheduler_factory is None:
+            return optimizer
+
+        scheduler = self.lr_scheduler_factory(optimizer=optimizer)
 
         return {
             "optimizer": optimizer,

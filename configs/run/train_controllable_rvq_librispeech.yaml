@@ -4,17 +4,41 @@ defaults:
   - /global: default
   - /pipeline: training
   - /trainer: controllable_rvq
-  - /dataset@train_dataset: librispeech
-  - /dataset@val_dataset: librispeech
+  - /dataset@train_dataset: manifest
+  - /dataset@source_dataset: librispeech
+  - /dataset@val_dataset: null
   - _self_
 
-train_dataset:
-  splits:
-    - train-clean-100
-    - train-clean-360
-    - train-other-500
+val_dataset: null
 
-val_dataset:
+dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
+resources_path: outputs/precomputed/${dataset_name}
+dataset_path: ${out_root}/${dataset_name}
+
+trainer:
+  train_dataloader_kwargs:
+    batch_size: 8
+
+train_dataset:
+  load:
+    - audio
+    - transcript
+    - content
+    - emo2vec
+    - spk
   splits:
-    - dev-clean
-    - dev-other
+    - test-other
+  resource_providers:
+    - ${source_dataset.transcript_provider}
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: content
+      path_template: ${resources_path}/w2vbert/{sample.split}/{sample.utt_id}.pt
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: emo2vec
+      path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: spk
+      path_template: ${resources_path}/spk_espnet/{sample.split}/{sample.utt_id}.pt

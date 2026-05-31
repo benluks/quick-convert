@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
+from typing import Optional
 
 import torch
 import torchaudio
@@ -19,7 +20,7 @@ class W2VBertContentEncoder(ContentEncoder):
         self,
         model_name: str = "facebook/w2v-bert-2.0",
         sample_rate: int = 16000,
-        layer: int = -1,
+        layer: Optional[int] = None,
         device: str | None = None,
         local_files_only: bool = False,
         **kwargs,
@@ -112,7 +113,11 @@ class W2VBertContentEncoder(ContentEncoder):
         )
 
         hidden_states = outputs.hidden_states
-        selected = hidden_states[self.layer]  # (batch, frames, dim)
+
+        if self.layer is None:
+            selected = torch.stack(hidden_states[1:], dim=2)  # (batch, frames, layer, dim)
+        else:
+            selected = hidden_states[self.layer]  # (batch, frames, dim)
         output_lengths = features.attention_mask.sum(1)
 
         return ContentFeatures(

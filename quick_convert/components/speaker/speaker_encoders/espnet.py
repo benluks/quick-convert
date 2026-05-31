@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
-from espnet2.bin.spk_inference import Speech2Embedding
+
 
 from ....data import AudioBatch
 from ....utils.audio import load_audio
@@ -24,6 +24,9 @@ class ESPnetSpeakerEncoder(SpeakerEncoder):
         super().__init__(device=device)
         self.model_tag = model_tag
         self.device = device
+
+        from espnet2.bin.spk_inference import Speech2Embedding
+
         self.model = Speech2Embedding.from_pretrained(
             model_tag=model_tag,
             device=device,

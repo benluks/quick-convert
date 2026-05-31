@@ -40,24 +40,27 @@ class ConformerEncoder(nn.Module):
     ):
         super().__init__()
 
-        self.input_proj = (
-            nn.Linear(input_dim, embed_dim, bias=bias)
-            if input_dim != embed_dim
-            else nn.Identity()
-        )
+        self.input_proj = nn.Linear(input_dim, embed_dim, bias=bias) if input_dim != embed_dim else nn.Identity()
 
-        self.blocks = nn.ModuleList([
-            ConformerBlock(
-                embed_dim=embed_dim,
-                num_heads=num_heads,
-                ffn_dim=ffn_dim,
-                conv_kernel_size=conv_kernel_size,
-                dropout=dropout,
-                bias=bias,
-                pos_emb_base=pos_emb_base,
-            )
-            for _ in range(num_blocks)
-        ])
+        self.blocks = nn.ModuleList(
+            [
+                ConformerBlock(
+                    embed_dim=embed_dim,
+                    num_heads=num_heads,
+                    ffn_dim=ffn_dim,
+                    conv_kernel_size=conv_kernel_size,
+                    dropout=dropout,
+                    bias=bias,
+                    pos_emb_base=pos_emb_base,
+                )
+                for _ in range(num_blocks)
+            ]
+        )
+        self.embed_dim = embed_dim
+
+    # callable so it works with chatterbox
+    def output_size(self):
+        return self.embed_dim
 
     def forward(
         self,

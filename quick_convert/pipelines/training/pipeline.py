@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from os import PathLike
 from pathlib import Path
 from typing import Any, Optional
 
+from quick_convert.data.base_dataset import BaseDataset
 from quick_convert.pipelines.training.base_trainer import BaseTrainer
 
 
@@ -12,11 +14,11 @@ class TrainingPipeline:
     def __init__(
         self,
         trainer: BaseTrainer,
-        train_dataset: Any | None = None,
-        val_dataset: Any | None = None,
-        test_dataset: Any | None = None,
-        output_dir: str | Path | None = None,
-        train_kwargs: Optional[dict] = None,
+        train_dataset: BaseDataset,
+        val_dataset: Optional[BaseDataset] = None,
+        test_dataset: Optional[BaseDataset] | None = None,
+        output_dir: PathLike = None,
+        train_kwargs: Optional[dict] = {},
         **kwargs,
     ) -> None:
         self.trainer = trainer
@@ -30,7 +32,6 @@ class TrainingPipeline:
         return self.trainer.train(
             train_dataset=self.train_dataset,
             val_dataset=self.val_dataset,
-            test_dataset=self.test_dataset,
             output_dir=self.output_dir,
-            **self.train_kwargs,
+            kwargs=self.train_kwargs,
         )
