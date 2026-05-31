@@ -1,18 +1,77 @@
+# @package architecture
 # configs/architecture/controllable_rvq.yaml
+
+defaults:
+  - /components/ssl@emotion_ssl: emo2vec
+  - /components/ssl@content_ssl: w2vbert
+  - /components/speaker_encoder@speaker_ssl: espnet
+  - /components/decoders@decoder: chatterbox
+  - /components/layers@rvq: rvq
+  - /components/encoders@decoder.flow.encoder: conformer_encoder
+  - _self_
+
+tokenizer_model_path: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
+tokenizer_vocab_size: 1000
+
+feature_extractors:
+  content: ${architecture.content_ssl}
+  emotion: ${architecture.emotion_ssl}
+  speaker: ${architecture.speaker_ssl}
+
+content_encoder:
+  input_dim: ${architecture.ssl_dim}
+  embed_dim: 128
+
+rvq:
+  input_dim: ${architecture.content_encoder.embed_dim}
+  n_codebooks: 16
+  codebook_size: 1024
+  codebook_dim: 16
+  quantizer_dropout: 0.0
+
+# rvq_dim: ${mul:${architecture.rvq.n_codebooks},${architecture.rvq.codebook_dim}}
+
+emotion_head:
+  _target_: quick_convert.components.encoders.LinearHead
+  input_dim: ${architecture.rvq.input_dim}
+  output_dim: ${architecture.feature_extractors.emotion.feature_dim}
+
+linguistic_head:
+  hidden_dim: ${architecture.rvq.input_dim}
+  output_dim: ${architecture.tokenizer_vocab_size}
+speaker_head:
+  input_dim: ${architecture.rvq.input_dim}
+  hidden_dim: 256
+  output_dim: ${architecture.feature_extractors.speaker.feature_dim}
+
+prosody_head: null
+# _target_: quick_convert.components.encoders.LinearHead
+# input_dim: ${architecture.ssl_dim}
+# output_dim: ${architecture.emotion_dim}
 
 sample_rate: 16000
 
-ssl_dim: 1024
-content_dim: 512
-hidden_dim: 512
-rvq_dim: 512
+# content:
+#   input_dim: 1024
+#   embed_dim: 128
 
-num_quantizers: 8
-codebook_size: 1024
+# ssl_dim: 1024
+# content_dim: 512
+# hidden_dim: 512
 
-linguistic_dim: 512
-speaker_dim: 192
-emotion_dim: 768
-prosody_dim: 128
+# num_quantizers: 8
+# codebook_size: 1024
+
+# linguistic_dim: 512
+# speaker_dim: 192
+# emotion_dim: 768
+# prosody_dim: 128
 
 mel_dim: 80
+
+decoder:
+  flow:
+    encoder:
+      num_blocks: 6
+      embed_dim: 256
+      input_dim: ${architecture.content_encoder.embed_dim}

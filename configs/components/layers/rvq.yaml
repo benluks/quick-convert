@@ -1,1 +1,6 @@
 _target_: quick_convert.components.layers.ResidualVectorQuantizer
+input_dim: ???
+n_codebooks: ???
+codebook_size: ???
+codebook_dim: ???
+quantizer_dropout: ???

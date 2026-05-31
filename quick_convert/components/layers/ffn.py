@@ -3,6 +3,7 @@ from torch import nn
 
 from .activations import Swish
 
+
 class PositionwiseFeedForward(nn.Module):
     """
     Position-wise feedforward network (FFN) module.
@@ -24,16 +25,17 @@ class PositionwiseFeedForward(nn.Module):
         embed_dim: int,
         ffn_dim: int,
         dropout: float = 0.0,
+        bias: bool = True,
     ):
         super().__init__()
 
-        self.ln = nn.RMSNorm(embed_dim) # RMSNorm is used instead of LayerNorm
-        self.ffn1 = nn.Linear(embed_dim, ffn_dim)
+        self.bias = bias
+        self.ln = nn.RMSNorm(embed_dim)  # RMSNorm is used instead of LayerNorm
+        self.ffn1 = nn.Linear(embed_dim, ffn_dim, bias=bias)
         self.swish = Swish()
         self.dropout1 = nn.Dropout(dropout)
-        self.ffn2 = nn.Linear(ffn_dim, embed_dim)
+        self.ffn2 = nn.Linear(ffn_dim, embed_dim, bias=bias)
         self.dropout2 = nn.Dropout(dropout)
-
 
     def forward(self, x):
         x = self.ln(x)
@@ -43,4 +45,3 @@ class PositionwiseFeedForward(nn.Module):
         x = self.ffn2(x)
         x = self.dropout2(x)
         return 0.5 * x
-    

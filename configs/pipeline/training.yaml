@@ -37,7 +37,6 @@ train_kwargs:
   devices: auto
   precision: 32
   log_every_n_steps: 10
-  default_root_dir: ${pipeline.output_dir}
   enable_checkpointing: true
   enable_progress_bar: true
   enable_model_summary: true

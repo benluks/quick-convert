@@ -4,6 +4,8 @@ import hydra
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 
+OmegaConf.register_new_resolver("mul", lambda x, y: int(x) * int(y))
+
 
 @hydra.main(version_base=None, config_path="../../configs", config_name="run/test")
 def main(cfg: DictConfig) -> None:
