@@ -10,6 +10,7 @@ rvq: ${architecture.rvq}
 emotion_head: ${architecture.emotion_head}
 prosody_head: ${architecture.prosody_head}
 rvq_idx:
-  content: 0
-  speaker: 1
+  speaker: 0
+  content: 1
   emo_pros: 2
+  

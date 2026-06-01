@@ -1,28 +1,34 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from quick_convert.external.chatterbox.s3gen.utils.mel import mel_spectrogram
-
+from ...external.chatterbox.bridges.load_vocoder import load_vocoder
+from ...external.chatterbox.s3gen.utils.mel import mel_spectrogram
 from ...external.chatterbox.s3gen.flow import CausalMaskedDiffWithXvec
+from ...external.chatterbox.s3gen.hifigan import HiFTGenerator
 
 
 class ChatterboxSpectrogramGenerator(nn.Module):
     def __init__(
         self,
         flow: CausalMaskedDiffWithXvec,
-        content_dim: int,
-        speaker_dim: int,
+        cond_strategy: Literal["rvq", "mel", None] = None,
+        device: Optional[torch.device] = None,
+        # content_dim: int,
+        # speaker_dim: int,
         mel_dim: int = 80,
     ):
         super().__init__()
 
         self.flow = flow
         self.mel_extractor = mel_spectrogram
+        self.cond_strategy = cond_strategy
+        self.device = device
+        self.vocoder: HiFTGenerator = load_vocoder(device=device)[0]
 
     def project_speaker(
         self,
@@ -35,25 +41,12 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         pad = (n_fft - hop_size) // 2
         return ((lengths + 2 * pad - n_fft) // hop_size) + 1
 
-    def compute_loss(
-        self,
-        features: torch.Tensor,
-        lengths: torch.Tensor,
-        target_wav: torch.Tensor,
-        wav_lens: torch.Tensor,
-        sampling_rate: int,
-        speaker_embedding: torch.Tensor,
-        cond: Optional[torch.Tensor] = None,
-    ):
-        """
-        Thin wrapper around donor compute_loss.
-        """
-
+    def _compute_mels(self, wav: torch.Tensor, lengths: torch.Tensor, sampling_rate: int):
         n_fft = int(sampling_rate / 12.5)
         hop_size = int(sampling_rate / 50)
 
-        target_mel = self.mel_extractor(
-            y=target_wav,
+        mel = self.mel_extractor(
+            y=wav,
             n_fft=n_fft,
             num_mels=80,
             sampling_rate=sampling_rate,
@@ -63,8 +56,30 @@ class ChatterboxSpectrogramGenerator(nn.Module):
             fmax=8000,
             center=False,
         )
-        target_mel_lengths = self._mel_lengths(wav_lens, n_fft=n_fft, hop_size=hop_size)
+        mel_lengths = self._mel_lengths(lengths, n_fft=n_fft, hop_size=hop_size)
+        return mel, mel_lengths
 
+    def mel2wav(self, mel: torch.Tensor) -> torch.Tensor:
+        """
+        Use the pretrained Chatterbox vocoder to convert mel spectrograms to waveforms.
+        """
+        return self.vocoder.inference(mel)[0]
+
+    def compute_loss(
+        self,
+        features: torch.Tensor,
+        lengths: torch.Tensor,
+        target_wav: torch.Tensor,
+        wav_lens: torch.Tensor,
+        sampling_rate: int,
+        speaker_embedding: torch.Tensor,
+        # cond: Optional[torch.Tensor] = None,
+    ):
+        """
+        Thin wrapper around donor compute_loss.
+        """
+
+        target_mel, target_mel_lengths = self._compute_mels(target_wav, wav_lens, sampling_rate.item())
         batch = {
             # bypass token embedding lookup entirely
             "speech_token": features,
@@ -74,60 +89,37 @@ class ChatterboxSpectrogramGenerator(nn.Module):
             "embedding": speaker_embedding,
         }
 
-        if cond is not None:
-            batch["cond"] = cond
+        # if cond is not None:
+        #     batch["cond"] = cond
 
-        return self.flow.compute_loss(
+        output = self.flow.compute_loss(
             batch=batch,
             device=target_mel.device,
+            cond_strategy=self.cond_strategy,
         )
+        return output["loss"], output["y"]
 
     @torch.inference_mode()
     def forward(
         self,
-        features: torch.Tensor,
-        lengths: torch.Tensor,
+        feature: torch.Tensor,
+        length: torch.Tensor,
         speaker_embedding: torch.Tensor,
-        prompt_mel: Optional[torch.Tensor] = None,
         n_timesteps: int = 10,
+        # adding max_len because this only suppoorts batch size 1, so in parent class we iterate through batch and
+        # call forward on each sample. Instead of unpadding them and then padding them together later, we just
+        # pass in the max length for the batch and let the flow handle the masking and padding.
+        max_len: Optional[int] = 0,
         cond: Optional[torch.Tensor] = None,
-        noised_mels: Optional[torch.Tensor] = None,
-        meanflow: bool = False,
+        run_vocoder: bool = False,
     ):
-
-        projected_speaker = self.project_speaker(speaker_embedding)
-
-        B = features.size(0)
-
-        if prompt_mel is None:
-            prompt_mel = torch.zeros(
-                B,
-                0,
-                self.flow.output_size,
-                device=features.device,
-                dtype=features.dtype,
-            )
-
-        prompt_feat_len = torch.zeros(
-            B,
-            dtype=torch.long,
-            device=features.device,
-        )
-
-        feat, _ = self.flow.decoder(
-            mu=features.transpose(1, 2),
-            mask=torch.ones(
-                B,
-                1,
-                features.size(1),
-                device=features.device,
-                dtype=features.dtype,
-            ),
-            spks=projected_speaker,
-            cond=cond,
+        mel, _ = self.flow.inference(
+            token=feature,
+            token_len=length,
+            embedding=speaker_embedding,
+            finalize=True,
+            max_feature_len=max_len,
             n_timesteps=n_timesteps,
-            noised_mels=noised_mels,
-            meanflow=meanflow,
         )
 
-        return feat
+        return mel
