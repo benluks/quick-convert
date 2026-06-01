@@ -15,20 +15,6 @@ dataloader:
   pin_memory: true
   drop_last: false
 
-train_dataloader_kwargs:
-  batch_size: ${pipeline.batch_size}
-  shuffle: true
-  num_workers: ${pipeline.dataloader.num_workers}
-  pin_memory: ${pipeline.dataloader.pin_memory}
-  drop_last: ${pipeline.dataloader.drop_last}
-
-val_dataloader_kwargs:
-  batch_size: ${pipeline.val_batch_size}
-  shuffle: false
-  num_workers: ${pipeline.dataloader.num_workers}
-  pin_memory: ${pipeline.dataloader.pin_memory}
-  drop_last: ${pipeline.dataloader.drop_last}
-
 train_kwargs:
   # in the future, have the lightning_trainer class interpret more implementation-agnostic
   # param names and translate them into L.Trainer kwargs

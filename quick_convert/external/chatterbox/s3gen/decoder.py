@@ -244,7 +244,7 @@ class ConditionalDecoder(nn.Module):
         """Forward pass of the UNet1DConditional model.
 
         Args:
-            x: (B, 80, T)
+            x: Noisy spectrogram (B, 80, T)
             mask (_type_)
             t (_type_): shape (batch_size)
             spks (_type_, optional) Defaults to None.

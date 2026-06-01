@@ -20,7 +20,7 @@ import torchaudio as ta
 from functools import lru_cache
 from typing import Optional
 
-from ..s3tokenizer import S3_SR, SPEECH_VOCAB_SIZE, S3Tokenizer
+# from ..s3tokenizer import S3_SR, SPEECH_VOCAB_SIZE, S3Tokenizer
 from .const import S3GEN_SR
 from .flow import CausalMaskedDiffWithXvec
 from .xvector import CAMPPlus
@@ -50,10 +50,12 @@ class S3Token2Mel(torch.nn.Module):
 
     TODO: make these modules configurable?
     """
+
     def __init__(self, meanflow=False):
         super().__init__()
-        self.tokenizer = S3Tokenizer("speech_tokenizer_v2_25hz")
-        self.mel_extractor = mel_spectrogram # TODO: make it a torch module?
+        self.tokenizer = None
+        # self.tokenizer = S3Tokenizer("speech_tokenizer_v2_25hz")
+        self.mel_extractor = mel_spectrogram  # TODO: make it a torch module?
         self.speaker_encoder = CAMPPlus(
             # NOTE: This doesn't affect inference. It turns off activation checkpointing
             # (a training optimization), which causes a crazy DDP error with accelerate
@@ -70,9 +72,9 @@ class S3Token2Mel(torch.nn.Module):
             positional_dropout_rate=0.1,
             attention_dropout_rate=0.1,
             normalize_before=True,
-            input_layer='linear',
-            pos_enc_layer_type='rel_pos_espnet',
-            selfattention_layer_type='rel_selfattn',
+            input_layer="linear",
+            pos_enc_layer_type="rel_pos_espnet",
+            selfattention_layer_type="rel_selfattn",
             input_size=512,
             use_cnn_module=False,
             macaron_style=False,
@@ -88,7 +90,7 @@ class S3Token2Mel(torch.nn.Module):
             n_blocks=4,
             num_mid_blocks=12,
             num_heads=8,
-            act_fn='gelu',
+            act_fn="gelu",
             meanflow=self.meanflow,
         )
         cfm_params = CFM_PARAMS
@@ -98,10 +100,7 @@ class S3Token2Mel(torch.nn.Module):
             estimator=estimator,
         )
 
-        self.flow = CausalMaskedDiffWithXvec(
-            encoder=encoder,
-            decoder=decoder
-        )
+        self.flow = CausalMaskedDiffWithXvec(encoder=encoder, decoder=decoder)
 
         self.resamplers = {}
 
@@ -156,10 +155,8 @@ class S3Token2Mel(torch.nn.Module):
 
         # Make sure mel_len = 2 * stoken_len (happens when the input is not padded to multiple of 40ms)
         if ref_mels_24.shape[1] != 2 * ref_speech_tokens.shape[1]:
-            logging.warning(
-                "Reference mel length is not equal to 2 * reference token length.\n"
-            )
-            ref_speech_tokens = ref_speech_tokens[:, :ref_mels_24.shape[1] // 2]
+            logging.warning("Reference mel length is not equal to 2 * reference token length.\n")
+            ref_speech_tokens = ref_speech_tokens[:, : ref_mels_24.shape[1] // 2]
             ref_speech_token_lens[0] = ref_speech_tokens.shape[1]
 
         return dict(
@@ -178,7 +175,7 @@ class S3Token2Mel(torch.nn.Module):
         ref_sr: Optional[int],
         # pre-computed ref embedding (prod API)
         ref_dict: Optional[dict] = None,
-        n_cfm_timesteps = None,
+        n_cfm_timesteps=None,
         finalize: bool = False,
         speech_token_lens=None,
         noised_mels=None,
@@ -199,7 +196,9 @@ class S3Token2Mel(torch.nn.Module):
         - `ref_sr`: reference sample rate
         - `finalize`: whether streaming is finished or not. Note that if False, the last 3 tokens will be ignored.
         """
-        assert (ref_wav is None) ^ (ref_dict is None), f"Must provide exactly one of ref_wav or ref_dict (got {ref_wav} and {ref_dict})"
+        assert (ref_wav is None) ^ (ref_dict is None), (
+            f"Must provide exactly one of ref_wav or ref_dict (got {ref_wav} and {ref_dict})"
+        )
 
         if ref_dict is None:
             ref_dict = self.embed_ref(ref_wav, ref_sr)
@@ -210,8 +209,7 @@ class S3Token2Mel(torch.nn.Module):
                     ref_dict[rk] = torch.from_numpy(ref_dict[rk])
                 if torch.is_tensor(ref_dict[rk]):
                     ref_dict[rk] = ref_dict[rk].to(device=self.device, dtype=self.dtype)
-        
-        
+
         speech_tokens = torch.atleast_2d(speech_tokens)
 
         # backcompat
@@ -256,7 +254,7 @@ class S3Token2Wav(S3Token2Mel):
         n_trim = S3GEN_SR // 50  # 20ms = half of a frame
         trim_fade = torch.zeros(2 * n_trim)
         trim_fade[n_trim:] = (torch.cos(torch.linspace(torch.pi, 0, n_trim)) + 1) / 2
-        self.register_buffer("trim_fade", trim_fade, persistent=False) # (buffers get automatic device casting)
+        self.register_buffer("trim_fade", trim_fade, persistent=False)  # (buffers get automatic device casting)
         self.estimator_dtype = "fp32"
 
     def forward(
@@ -272,16 +270,20 @@ class S3Token2Wav(S3Token2Mel):
         skip_vocoder=False,
         n_cfm_timesteps=None,
         noised_mels=None,
-
     ):
         """
         Generate waveforms from S3 speech tokens and a reference waveform, which the speaker timbre is inferred from.
         NOTE: used for sync synthesis only. Please use `S3GenStreamer` for streaming synthesis.
         """
         output_mels = super().forward(
-            speech_tokens, speech_token_lens=speech_token_lens, ref_wav=ref_wav,
-            ref_sr=ref_sr, ref_dict=ref_dict, finalize=finalize,
-            n_cfm_timesteps=n_cfm_timesteps, noised_mels=noised_mels,
+            speech_tokens,
+            speech_token_lens=speech_token_lens,
+            ref_wav=ref_wav,
+            ref_sr=ref_sr,
+            ref_dict=ref_dict,
+            finalize=finalize,
+            n_cfm_timesteps=n_cfm_timesteps,
+            noised_mels=noised_mels,
         )
 
         if skip_vocoder:
@@ -294,7 +296,7 @@ class S3Token2Wav(S3Token2Mel):
 
         if not self.training:
             # NOTE: ad-hoc method to reduce "spillover" from the reference clip.
-            output_wavs[:, :len(self.trim_fade)] *= self.trim_fade
+            output_wavs[:, : len(self.trim_fade)] *= self.trim_fade
 
         return output_wavs
 
@@ -307,7 +309,7 @@ class S3Token2Wav(S3Token2Mel):
         ref_sr: Optional[int] = None,
         # pre-computed ref embedding (prod API)
         ref_dict: Optional[dict] = None,
-        n_cfm_timesteps = None,
+        n_cfm_timesteps=None,
         finalize: bool = False,
         speech_token_lens=None,
     ):
@@ -316,8 +318,14 @@ class S3Token2Wav(S3Token2Mel):
         if self.meanflow:
             noise = torch.randn(1, 80, speech_tokens.size(-1) * 2, dtype=self.dtype, device=self.device)
         output_mels = super().forward(
-            speech_tokens, speech_token_lens=speech_token_lens, ref_wav=ref_wav, ref_sr=ref_sr, ref_dict=ref_dict,
-            n_cfm_timesteps=n_cfm_timesteps, finalize=finalize, noised_mels=noise,
+            speech_tokens,
+            speech_token_lens=speech_token_lens,
+            ref_wav=ref_wav,
+            ref_sr=ref_sr,
+            ref_dict=ref_dict,
+            n_cfm_timesteps=n_cfm_timesteps,
+            finalize=finalize,
+            noised_mels=noise,
         )
         return output_mels
 
@@ -354,10 +362,10 @@ class S3Token2Wav(S3Token2Mel):
             n_cfm_timesteps=n_cfm_timesteps,
             finalize=True,
         )
-        output_mels = output_mels.to(dtype=self.dtype) # FIXME (fp16 mode) is this still needed?
+        output_mels = output_mels.to(dtype=self.dtype)  # FIXME (fp16 mode) is this still needed?
         output_wavs, output_sources = self.hift_inference(output_mels, None)
 
         # NOTE: ad-hoc method to reduce "spillover" from the reference clip.
-        output_wavs[:, :len(self.trim_fade)] *= self.trim_fade
+        output_wavs[:, : len(self.trim_fade)] *= self.trim_fade
 
         return output_wavs, output_sources

@@ -15,6 +15,7 @@ import threading
 import torch
 import torch.nn.functional as F
 from .matcha.flow_matching import BASECFM
+from .decoder import ConditionalDecoder
 from .configs import CFM_PARAMS
 from tqdm import tqdm
 
@@ -24,7 +25,7 @@ def cast_all(*args, dtype):
 
 
 class ConditionalCFM(BASECFM):
-    def __init__(self, in_channels, cfm_params, n_spks=1, spk_emb_dim=64, estimator: torch.nn.Module = None):
+    def __init__(self, in_channels, cfm_params, n_spks=1, spk_emb_dim=64, estimator: ConditionalDecoder = None):
         super().__init__(
             n_feats=in_channels,
             cfm_params=cfm_params,
@@ -39,7 +40,17 @@ class ConditionalCFM(BASECFM):
         self.estimator = estimator
 
     @torch.inference_mode()
-    def forward(self, mu, mask, n_timesteps, temperature=1.0, spks=None, cond=None, prompt_len=0, flow_cache=torch.zeros(1, 80, 0, 2)):
+    def forward(
+        self,
+        mu,
+        mask,
+        n_timesteps,
+        temperature=1.0,
+        spks=None,
+        cond=None,
+        prompt_len=0,
+        flow_cache=torch.zeros(1, 80, 0, 2),
+    ):
         """Forward diffusion
 
         Args:
@@ -71,7 +82,7 @@ class ConditionalCFM(BASECFM):
         flow_cache = torch.stack([z_cache, mu_cache], dim=-1)
 
         t_span = torch.linspace(0, 1, n_timesteps + 1, device=mu.device, dtype=mu.dtype)
-        if self.t_scheduler == 'cosine':
+        if self.t_scheduler == "cosine":
             t_span = 1 - torch.cos(t_span * 0.5 * torch.pi)
         return self.solve_euler(z, t_span=t_span, mu=mu, mask=mask, spks=spks, cond=cond), flow_cache
 
@@ -92,18 +103,18 @@ class ConditionalCFM(BASECFM):
             meanflow: meanflow mode
         """
         in_dtype = x.dtype
-        x, t_span, mu, mask, spks, cond = cast_all(x, t_span, mu, mask, spks, cond, dtype=self.estimator.dtype)
+        x, t_span, mu, mask, spks, cond_cast = cast_all(x, t_span, mu, mask, spks, cond, dtype=self.estimator.dtype)
 
         # Duplicated batch dims are for CFG
         # Do not use concat, it may cause memory format changed and trt infer with wrong results!
         B, T = mu.size(0), x.size(2)
-        x_in    = torch.zeros([2 * B, 80, T], device=x.device, dtype=x.dtype)
-        mask_in = torch.zeros([2 * B,  1, T], device=x.device, dtype=x.dtype)
-        mu_in   = torch.zeros([2 * B, 80, T], device=x.device, dtype=x.dtype)
-        t_in    = torch.zeros([2 * B       ], device=x.device, dtype=x.dtype)
-        spks_in = torch.zeros([2 * B, 80   ], device=x.device, dtype=x.dtype)
-        cond_in = torch.zeros([2 * B, 80, T], device=x.device, dtype=x.dtype)
-        r_in    = torch.zeros([2 * B       ], device=x.device, dtype=x.dtype) # (only used for meanflow)
+        x_in = torch.zeros([2 * B, 80, T], device=x.device, dtype=x.dtype)
+        mask_in = torch.zeros([2 * B, 1, T], device=x.device, dtype=x.dtype)
+        mu_in = torch.zeros([2 * B, 80, T], device=x.device, dtype=x.dtype)
+        t_in = torch.zeros([2 * B], device=x.device, dtype=x.dtype)
+        spks_in = torch.zeros([2 * B, 80], device=x.device, dtype=x.dtype)
+        cond_in = torch.zeros([2 * B, 80, T], device=x.device, dtype=x.dtype) if cond is not None else None
+        r_in = torch.zeros([2 * B], device=x.device, dtype=x.dtype)  # (only used for meanflow)
 
         for t, r in zip(t_span[:-1], t_span[1:]):
             t = t.unsqueeze(dim=0)
@@ -129,18 +140,24 @@ class ConditionalCFM(BASECFM):
             mu_in[:B] = mu
             t_in[:B] = t_in[B:] = t
             spks_in[:B] = spks
-            cond_in[:B] = cond
-            r_in[:B] = r_in[B:] = r # (only used for meanflow)
+            if cond_cast is not None:
+                cond_in[:B] = cond
+            else:
+                cond_in = None
+            r_in[:B] = r_in[B:] = r  # (only used for meanflow)
             dxdt = self.estimator.forward(
-                x=x_in, mask=mask_in, mu=mu_in, t=t_in, spks=spks_in, cond=cond_in,
+                x=x_in,
+                mask=mask_in,
+                mu=mu_in,
+                t=t_in,
+                spks=spks_in,
+                cond=cond_in,
                 r=r_in if meanflow else None,
             )
             dxdt, cfg_dxdt = torch.split(dxdt, [B, B], dim=0)
-            dxdt = ((1.0 + self.inference_cfg_rate) * dxdt - self.inference_cfg_rate * cfg_dxdt)
+            dxdt = (1.0 + self.inference_cfg_rate) * dxdt - self.inference_cfg_rate * cfg_dxdt
             dt = r - t
             x = x + dt * dxdt
-
-
 
         return x.to(in_dtype)
 
@@ -166,7 +183,7 @@ class ConditionalCFM(BASECFM):
 
         # random timestep
         t = torch.rand([b, 1, 1], device=mu.device, dtype=mu.dtype)
-        if self.t_scheduler == 'cosine':
+        if self.t_scheduler == "cosine":
             t = 1 - torch.cos(t * 0.5 * torch.pi)
         # sample noise p(x_0)
         z = torch.randn_like(x1)
@@ -179,7 +196,7 @@ class ConditionalCFM(BASECFM):
             cfg_mask = torch.rand(b, device=x1.device) > self.training_cfg_rate
             mu = mu * cfg_mask.view(-1, 1, 1)
             spks = spks * cfg_mask.view(-1, 1)
-            cond = cond * cfg_mask.view(-1, 1, 1)
+            cond = cond * cfg_mask.view(-1, 1, 1) if cond is not None else None
 
         pred = self.estimator(y, mask, mu, t.squeeze(), spks, cond)
         loss = F.mse_loss(pred * mask, u * mask, reduction="sum") / (torch.sum(mask) * u.shape[1])
@@ -221,7 +238,7 @@ class CausalConditionalCFM(ConditionalCFM):
 
         # time steps for reverse diffusion
         t_span = torch.linspace(0, 1, n_timesteps + 1, device=mu.device, dtype=mu.dtype)
-        if (not meanflow) and (self.t_scheduler == 'cosine'):
+        if (not meanflow) and (self.t_scheduler == "cosine"):
             t_span = 1 - torch.cos(t_span * 0.5 * torch.pi)
 
         # NOTE: right now, the only meanflow models are also distilled models, which don't need CFG

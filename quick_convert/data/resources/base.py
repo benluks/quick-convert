@@ -113,6 +113,18 @@ class TensorResourceBatch:
     values: torch.Tensor
     lengths: torch.Tensor
 
+    def __len__(self) -> int:
+        return self.values.shape[0]
+
+    def __getitem__(self, idx: int):
+        if self.lengths is None:
+            return self.values[idx]
+
+        length = self.lengths[idx]
+
+        # optional: trim padded time dimension
+        return self.values[idx, :length]
+
 
 def _normalize_tensor_resource(x: torch.Tensor) -> torch.Tensor:
     """
