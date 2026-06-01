@@ -103,7 +103,9 @@ class ConditionalCFM(BASECFM):
             meanflow: meanflow mode
         """
         in_dtype = x.dtype
-        x, t_span, mu, mask, spks, cond_cast = cast_all(x, t_span, mu, mask, spks, cond, dtype=self.estimator.dtype)
+
+        x, t_span, mu, mask, spks = cast_all(x, t_span, mu, mask, spks, dtype=self.estimator.dtype)
+        cond_cast = cast_all(cond, dtype=self.estimator.dtype)[0] if cond is not None else None
 
         # Duplicated batch dims are for CFG
         # Do not use concat, it may cause memory format changed and trt infer with wrong results!

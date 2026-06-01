@@ -187,6 +187,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
         token_len,
         embedding,
         finalize,
+        max_feature_len=0,
         prompt_feat=None,
         prompt_feat_len=None,
         prompt_token=None,
@@ -218,7 +219,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
 
         # concat text and prompt_text
 
-        mask = make_pad_mask(token_len).to(token.device)  # (B, T)
+        mask = make_pad_mask(token_len, max_len=max_feature_len).to(token.device)  # (B, T)
         if self.input_embedding is not None:
             if (token >= self.vocab_size).any():
                 logger.error(
@@ -235,7 +236,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
             h = h[:, : -self.pre_lookahead_len * self.token_mel_ratio]
 
         mel_len1 = 0
-        
+
         if self.input_embedding is not None:
             h_lengths = h_masks.sum(dim=-1).squeeze(dim=-1)
             mel_len1, mel_len2 = prompt_feat.shape[1], h.shape[1] - prompt_feat.shape[1]

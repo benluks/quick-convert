@@ -102,24 +102,24 @@ class ChatterboxSpectrogramGenerator(nn.Module):
     @torch.inference_mode()
     def forward(
         self,
-        features: torch.Tensor,
-        lengths: torch.Tensor,
+        feature: torch.Tensor,
+        length: torch.Tensor,
         speaker_embedding: torch.Tensor,
-        prompt_mel: Optional[torch.Tensor] = None,
         n_timesteps: int = 10,
+        # adding max_len because this only suppoorts batch size 1, so in parent class we iterate through batch and
+        # call forward on each sample. Instead of unpadding them and then padding them together later, we just
+        # pass in the max length for the batch and let the flow handle the masking and padding.
+        max_len: Optional[int] = 0,
         cond: Optional[torch.Tensor] = None,
         run_vocoder: bool = False,
     ):
-
-        projected_speaker = self.project_speaker(speaker_embedding)
-
-        B = features.size(0)
-
-        output_mels, _ = self.flow.inference(
-            token=features,
-            token_len=lengths,
+        mel, _ = self.flow.inference(
+            token=feature,
+            token_len=length,
+            embedding=speaker_embedding,
             finalize=True,
+            max_feature_len=max_len,
             n_timesteps=n_timesteps,
         )
 
-        return feat
+        return mel

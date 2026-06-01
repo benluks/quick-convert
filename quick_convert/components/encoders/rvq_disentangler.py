@@ -90,7 +90,10 @@ class RVQDisentangler(nn.Module):
 
     def forward(self, features: torch.Tensor, lengths: torch.Tensor) -> List[torch.Tensor]:
         with torch.no_grad():
-            return self.encode(features, lengths)[0:5]  # Return z_q, text_q, spk_q, pros_q, emo_q
+            z_q, z_quantized, spk_q, text_q, emo_pros_q = self.encode(features, lengths)[0:5]
+            spk_output = self.speaker_head(spk_q)
+
+            return z_q, z_quantized, text_q, spk_q, spk_output, emo_pros_q
 
     def encode(
         self,
