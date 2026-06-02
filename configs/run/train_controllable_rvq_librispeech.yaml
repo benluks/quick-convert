@@ -14,13 +14,11 @@ resources_path: outputs/precomputed/${dataset_name}
 dataset_path: ${out_root}/${dataset_name}
 
 pipeline:
-  batch_size: 2
+  batch_size: 32
 
 trainer:
   train_dataloader_kwargs:
-    shuffle: false
-#   val_dataloader_kwargs:
-#     batch_size: 2
+    shuffle: true
 
 data: &data
   resource_providers:
