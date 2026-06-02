@@ -175,6 +175,10 @@ class RVQDisentangler(nn.Module):
         prosody_seq: Optional[float["b t d_pro"]],
     ) -> List:
 
+        min_max_feat_len = min([features.shape[1], emotion_seq.shape[1]])
+        features, emotion_seq = features[:, :min_max_feat_len], emotion_seq[:, :min_max_feat_len]
+        lengths = torch.minimum(lengths, torch.tensor(min_max_feat_len, device=lengths.device))
+
         z_q, z_quantized, spk_q, text_q, emo_pros_q, commitment_loss, codebook_loss, content, lengths = self.encode(
             features, lengths
         )
