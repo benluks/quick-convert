@@ -7,7 +7,6 @@ defaults:
   - /dataset@train_dataset: manifest
   - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
-  - /dataset@val_dataset: null
   - _self_
 
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
