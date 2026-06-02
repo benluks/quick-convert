@@ -5,6 +5,7 @@ defaults:
   - /pipeline: training
   - /trainer: controllable_rvq
   - /dataset@train_dataset: manifest
+  - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
   - /dataset@val_dataset: null
   - _self_
