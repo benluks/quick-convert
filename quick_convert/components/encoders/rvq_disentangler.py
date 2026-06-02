@@ -90,7 +90,10 @@ class RVQDisentangler(nn.Module):
 
     def forward(self, features: torch.Tensor, lengths: torch.Tensor) -> List[torch.Tensor]:
         with torch.no_grad():
-            return self.encode(features, lengths)[0:5]  # Return z_q, text_q, spk_q, pros_q, emo_q
+            z_q, z_quantized, spk_q, text_q, emo_pros_q = self.encode(features, lengths)[0:5]
+            spk_output = self.speaker_head(spk_q)
+
+            return z_q, z_quantized, text_q, spk_q, spk_output, emo_pros_q
 
     def encode(
         self,
@@ -189,7 +192,7 @@ class RVQDisentangler(nn.Module):
         }
 
         # Speaker loss: encourage spk_q to match the target speaker embedding
-        spk_loss = self.speaker_head.compute_loss(spk_q, speaker_seq)
+        spk_output, spk_loss = self.speaker_head.compute_loss(spk_q, speaker_seq)
 
         # Emotion loss: encourage emo_q to match the target emotion features (if provided)
         emo_loss = self.emotion_head.compute_loss(emo_pros_q, emotion_seq)
@@ -217,10 +220,10 @@ class RVQDisentangler(nn.Module):
         }
 
         # Adversarial speaker loss over linguistic features: encourage spk_q to be uninformative about speaker identity
-        adv_spk_loss_ling = self.adv_speaker_head_ling.compute_loss(self.grl(text_q), speaker_seq)
+        _, adv_spk_loss_ling = self.adv_speaker_head_ling.compute_loss(self.grl(text_q), speaker_seq)
 
         # Adversarial speaker loss over prosody features: encourage pros_q to be uninformative about speaker identity
-        adv_spk_loss_pros = self.adv_speaker_head_pros.compute_loss(self.grl(emo_pros_q), speaker_seq)
+        _, adv_spk_loss_pros = self.adv_speaker_head_pros.compute_loss(self.grl(emo_pros_q), speaker_seq)
 
         # Adversarial linguistic loss over speaker features: encourage text_q to be uninformative about linguistic content
         adv_ling_loss_spk = self.adv_linguistic_head_spk.compute_loss(
@@ -254,6 +257,7 @@ class RVQDisentangler(nn.Module):
         return [
             z_quantized,
             spk_q,
+            spk_output,
             text_q,
             emo_pros_q,
             loss_dict,

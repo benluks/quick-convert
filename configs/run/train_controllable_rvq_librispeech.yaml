@@ -9,15 +9,18 @@ defaults:
   - /dataset@val_dataset: null
   - _self_
 
-val_dataset: null
-
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
 resources_path: outputs/precomputed/${dataset_name}
 dataset_path: ${out_root}/${dataset_name}
 
+pipeline:
+  batch_size: 2
+
 trainer:
   train_dataloader_kwargs:
-    batch_size: 8
+    shuffle: false
+#   val_dataloader_kwargs:
+#     batch_size: 2
 
 train_dataset:
   load:
@@ -42,3 +45,5 @@ train_dataset:
       kind: torch_tensor
       name: spk
       path_template: ${resources_path}/spk_espnet/{sample.split}/{sample.utt_id}.pt
+
+val_dataset: ${train_dataset}

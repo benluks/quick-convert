@@ -66,7 +66,7 @@ class MultiHeadAttention(nn.Module):
             attn_scores = attn_scores.masked_fill(padding_mask.unsqueeze(1).unsqueeze(2), float("-inf"))
 
         attn_weights = torch.softmax(attn_scores, dim=-1)  # (B, H, T, T)
-        attn_weights = nn.functional.dropout(attn_weights, p=self.dropout)
+        attn_weights = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
 
         attn_output = torch.matmul(attn_weights, v)  # (B, H, T, D)
         attn_output = attn_output.transpose(1, 2).contiguous().view(B, T, D)  # (B, T, D)

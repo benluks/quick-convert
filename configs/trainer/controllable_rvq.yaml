@@ -10,6 +10,22 @@ defaults:
   - _self_
 
 _target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
+
+train_dataloader_kwargs:
+  batch_size: ${pipeline.batch_size}
+  shuffle: true
+  num_workers: ${pipeline.dataloader.num_workers}
+  pin_memory: ${pipeline.dataloader.pin_memory}
+  drop_last: ${pipeline.dataloader.drop_last}
+
+val_dataloader_kwargs:
+  batch_size: ${pipeline.val_batch_size}
+  shuffle: false
+  num_workers: ${pipeline.dataloader.num_workers}
+  pin_memory: ${pipeline.dataloader.pin_memory}
+  drop_last: ${pipeline.dataloader.drop_last}
+  persistent_workers: true
+
 module:
   _target_: quick_convert.pipelines.training.modules.ControllableRVQTrainingModule
   decoder: ${architecture.decoder}
@@ -31,7 +47,7 @@ module:
     spk_pros: 1.0
     ling_spk: 1.0
     ling_pros: 1.0
-  
+
   optimizer:
     lr: 1e-4
     weight_decay: 1e-2

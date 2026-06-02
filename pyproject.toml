@@ -71,7 +71,11 @@ emotion-compensation = [
     "speechbrain>=1.1.0",
 ]
 chatterbox = ["conformer==0.3.2", "diffusers==0.29.0"]
-module-training = ["lightning>=2.6.1", "sentencepiece>=0.2.0"]
+module-training = [
+    "lightning>=2.6.1",
+    "sentencepiece>=0.2.0",
+    "tensorboard>=2.20.0",
+]
 conditional-rvq = ["funasr>=1.3.6", "transformers>=5.7.0"]
 mpm = ["masked-prosody-model>=0.3.0"]
 

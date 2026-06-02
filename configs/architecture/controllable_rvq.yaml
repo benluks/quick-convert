@@ -10,6 +10,9 @@ defaults:
   - /components/encoders@decoder.flow.encoder: conformer_encoder
   - _self_
 
+# probably won't need more than 256
+encoder_dim: 128
+
 tokenizer_model_path: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
 tokenizer_vocab_size: 1000
 
@@ -19,12 +22,12 @@ feature_extractors:
   speaker: ${architecture.speaker_ssl}
 
 content_encoder:
-  input_dim: ${architecture.ssl_dim}
-  embed_dim: 128
+  input_dim: ${architecture.content_ssl.feature_dim}
+  embed_dim: ${architecture.encoder_dim}
 
 rvq:
   input_dim: ${architecture.content_encoder.embed_dim}
-  n_codebooks: 16
+  n_codebooks: 8
   codebook_size: 1024
   codebook_dim: 16
   quantizer_dropout: 0.0
@@ -52,8 +55,8 @@ prosody_head: null
 sample_rate: 16000
 
 # content:
-#   input_dim: 1024
-#   embed_dim: 128
+#   input_dim: ${architecture.content_ssl.feature_dim}
+#   embed_dim: ${architecture.encoder_dim}
 
 # ssl_dim: 1024
 # content_dim: 512
@@ -70,8 +73,14 @@ sample_rate: 16000
 mel_dim: 80
 
 decoder:
+  cond_strategy: null
   flow:
+    vocab_size: null
     encoder:
       num_blocks: 6
       embed_dim: 256
-      input_dim: ${architecture.content_encoder.embed_dim}
+      # hardcoded for now. 2 because ling_q +  emo_pros_q
+      input_dim: ${mul:2,${architecture.encoder_dim}}
+    decoder:
+      estimator:
+        in_channels: ${mul:${add:3,${bool:${architecture.decoder.cond_strategy}}},${architecture.mel_dim}}
