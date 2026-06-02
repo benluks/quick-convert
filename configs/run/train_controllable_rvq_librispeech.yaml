@@ -22,15 +22,7 @@ trainer:
 #   val_dataloader_kwargs:
 #     batch_size: 2
 
-train_dataset:
-  load:
-    - audio
-    - transcript
-    - content
-    - emo2vec
-    - spk
-  splits:
-    - test-other
+data: &data
   resource_providers:
     - ${source_dataset.transcript_provider}
     - _target_: quick_convert.data.resources.PathResourceProvider
@@ -46,4 +38,19 @@ train_dataset:
       name: spk
       path_template: ${resources_path}/spk_espnet/{sample.split}/{sample.utt_id}.pt
 
-val_dataset: ${train_dataset}
+  load:
+    - audio
+    - transcript
+    - content
+    - emo2vec
+    - spk
+
+train_dataset:
+  <<: *data
+  splits:
+    - train-clean-360
+
+val_dataset:
+  <<: *data
+  splits:
+    - dev-clean
