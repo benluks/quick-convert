@@ -1,5 +1,10 @@
 
+
+from typing import Optional
+
 import torch
+import torch.nn.functional as F
+
 from torch import nn
 from torch.nn.utils import weight_norm
 
@@ -83,3 +88,117 @@ class DepthWiseConvolution(nn.Module):
         x = self.pw_conv2(x)    # (B, C, T)
         x = self.dropout(x)     # (B, C, T)
         return x.transpose(1, 2)   # (B, T, C)
+    
+
+
+# ---------------------------------------------------------------------------
+# 1D Conv Blocks from Matcha TTS
+# ---------------------------------------------------------------------------
+# Taken from Chatterbox's MatchaTTS: 
+# https://github.com/resemble-ai/chatterbox/blob/master/src/chatterbox/models/s3gen/matcha/decoder.py 
+
+class Conv1DBlock(torch.nn.Module):
+    def __init__(
+            self,
+            dim: int,
+            dim_out: int,
+            groups: int = 8):
+        
+        super().__init__()
+
+        self.block = torch.nn.Sequential(
+            torch.nn.Conv1d(dim, dim_out, 3, padding=1),
+            torch.nn.GroupNorm(groups, dim_out),
+            nn.Mish(),
+        )
+
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        output = self.block(x * mask)
+        return output * mask
+
+class ResnetBlock1D(torch.nn.Module):
+    def __init__(
+            self,
+            dim: int,
+            dim_out: int,
+            time_emb_dim: int,
+            groups: int = 8):
+        
+        super().__init__()
+        self.mlp = torch.nn.Sequential(nn.Mish(), torch.nn.Linear(time_emb_dim, dim_out))
+
+        self.block1 = Conv1DBlock(dim, dim_out, groups=groups)
+        self.block2 = Conv1DBlock(dim_out, dim_out, groups=groups)
+
+        self.res_conv = torch.nn.Conv1d(dim, dim_out, 1)
+
+    def forward(
+            self, 
+            x: torch.Tensor, 
+            mask: torch.Tensor, 
+            time_emb: torch.Tensor) -> torch.Tensor:
+        
+        h = self.block1(x, mask)
+        h += self.mlp(time_emb).unsqueeze(-1)
+        h = self.block2(h, mask)
+        output = h + self.res_conv(x * mask)
+
+        return output
+
+class Downsample1D(nn.Module):
+    def __init__(
+            self, 
+            dim: int):
+        
+        super().__init__()
+        self.conv = torch.nn.Conv1d(dim, dim, 3, 2, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.conv(x)
+
+class Upsample1D(nn.Module):
+    """A 1D upsampling layer with an optional convolution.
+
+    Parameters:
+        channels (`int`):
+            number of channels in the inputs and outputs.
+        use_conv (`bool`, default `False`):
+            option to use a convolution.
+        use_conv_transpose (`bool`, default `False`):
+            option to use a convolution transpose.
+        out_channels (`int`, optional):
+            number of output channels. Defaults to `channels`.
+    """
+
+    def __init__(
+            self,
+            channels: int,
+            use_conv: bool = False,
+            use_conv_transpose: bool = True,
+            out_channels: Optional[int] = None,
+            name: str = "conv"):
+        
+        super().__init__()
+        self.channels = channels
+        self.out_channels = out_channels or channels
+        self.use_conv = use_conv
+        self.use_conv_transpose = use_conv_transpose
+        self.name = name
+
+        self.conv = None
+        if use_conv_transpose:
+            self.conv = nn.ConvTranspose1d(channels, self.out_channels, 4, 2, 1)
+        elif use_conv:
+            self.conv = nn.Conv1d(self.channels, self.out_channels, 3, padding=1)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        assert inputs.shape[1] == self.channels
+        if self.use_conv_transpose:
+            return self.conv(inputs)
+
+        outputs = F.interpolate(inputs, scale_factor=2.0, mode="nearest")
+
+        if self.use_conv:
+            outputs = self.conv(outputs)
+
+        return outputs
