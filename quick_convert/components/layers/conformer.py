@@ -42,7 +42,7 @@ class ConformerBlock(nn.Module):
 
     def forward(self, x: torch.Tensor, padding_mask: torch.Tensor) -> torch.Tensor:
         # First FFN
-        x = x + self.ffn1(x)
+        x = x + 0.5*self.ffn1(x)
 
         # Multi-head self-attention
         x = x + self.mha(x, padding_mask=padding_mask)
@@ -51,9 +51,10 @@ class ConformerBlock(nn.Module):
         x = x + self.conv(x)
 
         # Second FFN
-        x = x + self.ffn2(x)
+        x = x + 0.5*self.ffn2(x)
 
-        # Final layer norm
+        # Final layer norm (post norm is the default in Conformer,
+        # but we should consider to update it to pre-norm)
         x = self.ln(x)
 
         return x

@@ -1,8 +1,7 @@
 import torch
 from torch import nn
 
-from .activations import Swish
-
+from .activations import Swish, SnakeBeta
 
 class PositionwiseFeedForward(nn.Module):
     """
@@ -44,4 +43,32 @@ class PositionwiseFeedForward(nn.Module):
         x = self.dropout1(x)
         x = self.ffn2(x)
         x = self.dropout2(x)
-        return 0.5 * x
+        return x
+
+
+class DecoderFeedForward(nn.Module):
+    r"""
+    A feed-forward layer: SnakeBeta(dim → 4*dim) → Dropout → Linear(4*dim → dim).
+
+    Parameters:
+        dim (`int`): The number of channels in the input and output.
+        dropout (`float`, *optional*, defaults to 0.0): The dropout probability to use.
+    """
+
+    def __init__(
+        self,
+        dim: int,
+        dropout: float = 0.0,
+        **kwargs,
+    ):
+        super().__init__()
+        inner_dim = dim * 4
+        self.act = SnakeBeta(dim, inner_dim)
+        self.dropout = nn.Dropout(dropout)
+        self.proj = nn.Linear(inner_dim, dim)
+
+    def forward(self, x: torch.FloatTensor) -> torch.FloatTensor:
+        x = self.act(x)
+        x = self.dropout(x)
+        x = self.proj(x)
+        return x
