@@ -34,7 +34,7 @@ data: &data
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: spk
-      path_template: ${resources_path}/spk_espnet/{sample.split}/{sample.utt_id}.pt
+      path_template: ${resources_path}/espnet_wavlm-ecapa-joint/{sample.split}/{sample.utt_id}.pt
 
   load:
     - audio
