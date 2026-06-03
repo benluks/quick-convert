@@ -282,7 +282,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         ) = self._shared_step(batch, "val")
 
         with torch.no_grad():
-            if batch_idx == 0 and self.global_step % self.media_log_interval == 0:
+            if batch_idx == 0:
                 # Log the first sample in the batch for qualitative monitoring
                 decoder_features = torch.cat([text_q, pros_emo_q], dim=-1)
                 max_len = batch.resources["content"].lengths.max().item()
