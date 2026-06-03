@@ -14,7 +14,7 @@ resources_path: outputs/precomputed/${dataset_name}
 dataset_path: ${out_root}/${dataset_name}
 
 pipeline:
-  batch_size: 32
+  batch_size: 16
 
 trainer:
   train_dataloader_kwargs:
