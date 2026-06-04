@@ -4,7 +4,7 @@ _target_: quick_convert.pipelines.precompute_features.PrecomputeFeaturesPipeline
 dataset: ${dataset}
 extractor: ${feature_extractor}
 
-out_root: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.feature_extractor}
+out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.feature_extractor}
 batch_size: 8
 num_workers: 4
 skip_existing: true
