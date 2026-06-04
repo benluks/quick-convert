@@ -1,0 +1,7 @@
+_target_: quick_convert.pipelines.evaluation.pipeline.EvalPipeline
+dataset: ${dataset}
+system: ${system}
+metrics: ${metrics}
+out_dir: ${out_root}/eval_${system.name}_${hydra:runtime.choices.dataset}/
+batch_size: 8
+num_workers: 0

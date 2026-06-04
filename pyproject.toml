@@ -78,8 +78,10 @@ module-training = [
 ]
 conditional-rvq = ["funasr>=1.3.6", "transformers>=5.7.0"]
 mpm = ["masked-prosody-model>=0.3.0"]
+asr = ["openai-whisper>=20231117", "jiwer>=3.0"]
 
 [project.scripts]
 anonymize = "main:main"
+eval_asr = "main:main"
 test = "quick_convert.cli.test:main"
 # eval_asv = "main:main"

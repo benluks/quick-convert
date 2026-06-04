@@ -1,0 +1,6 @@
+_target_: quick_convert.systems.asr.WhisperASR
+model_name: base.en
+language: en
+sr: 16000
+device: ${device}
+name: whisper
