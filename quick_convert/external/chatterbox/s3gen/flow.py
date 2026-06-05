@@ -141,7 +141,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
         # just for cleanliness, bind `h_lengths` to a value. Originally it would
         # have been returned by the `self.encoder` forward pass.
         h_lengths = None
-        h = self.encoder(token, ~mask)  # (B, T, C)
+        h = self.encoder(token, mask)  # (B, T, C)
         h = self.encoder_proj(h)
 
         # get conditions

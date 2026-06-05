@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from quick_convert.utils.masking import masked_loss
+
 
 class LinearHead(nn.Module):
     """
@@ -29,4 +31,5 @@ class LinearHead(nn.Module):
     def compute_loss(self, x: torch.FloatTensor, targets: torch.FloatTensor, mask: torch.LongTensor) -> torch.Tensor:
         """Compute MSE loss between predicted prosody features and target prosody features."""
         x = self.forward(x)
-        return (nn.functional.mse_loss(x, targets, "none", reduction="none") * mask).sum() / mask.sum()
+
+        return masked_loss(nn.functional.mse_loss, x, targets, mask)
