@@ -1,0 +1,22 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /dataset: librispeech
+  - /pipeline: evaluation
+  - /asr@system: whisper
+  - _self_
+
+system:
+  model_name: tiny.en
+
+dataset:
+  splits:
+    - test-other
+  load: true
+  target_sr: ${system.sr}
+  resource_providers:
+    - ${dataset.transcript_provider}
+
+metrics:
+  - _target_: quick_convert.pipelines.evaluation.metrics.JiwerWER

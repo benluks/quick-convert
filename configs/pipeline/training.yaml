@@ -18,7 +18,8 @@ dataloader:
 train_kwargs:
   # in the future, have the lightning_trainer class interpret more implementation-agnostic
   # param names and translate them into L.Trainer kwargs
-  max_epochs: 100
+  max_steps: 100000
+  val_check_interval: 1000
   accelerator: auto
   devices: auto
   precision: 32

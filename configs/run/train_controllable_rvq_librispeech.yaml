@@ -5,8 +5,8 @@ defaults:
   - /pipeline: training
   - /trainer: controllable_rvq
   - /dataset@train_dataset: manifest
+  - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
-  - /dataset@val_dataset: null
   - _self_
 
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
@@ -47,10 +47,12 @@ data: &data
 
 train_dataset:
   <<: *data
+  manifest_path: ${dataset_path}/train-clean-360/manifest.csv
   splits:
     - train-clean-360
 
 val_dataset:
   <<: *data
+  manifest_path: ${dataset_path}/dev-clean/manifest.csv
   splits:
     - dev-clean

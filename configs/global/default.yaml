@@ -6,3 +6,7 @@ device: cuda
 # root for all datasets
 # data_root: /Users/ben
 # gpu: null
+
+hydra:
+  run:
+    dir: ${pipeline.out_dir}
