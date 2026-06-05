@@ -24,7 +24,7 @@ trainer:
 
 data: &data
   resource_providers:
-    - ${source_dataset.transcript_provider}
+    # - ${source_dataset.transcript_provider}
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: content
@@ -47,12 +47,17 @@ data: &data
 
 train_dataset:
   <<: *data
-  manifest_path: ${dataset_path}/train-clean-360/manifest.csv
-  splits:
-    - train-clean-360
+  manifest_path:
+    - ${dataset_path}/train-clean-100/manifest.csv
+    - ${dataset_path}/train-clean-360/manifest.csv
+    - ${dataset_path}/train-other-500/manifest.csv
+  # splits:
+  #   - train-clean-360
 
 val_dataset:
   <<: *data
-  manifest_path: ${dataset_path}/dev-clean/manifest.csv
-  splits:
-    - dev-clean
+  manifest_path:
+    - ${dataset_path}/dev-clean/manifest.csv
+    - ${dataset_path}/dev-other/manifest.csv
+  # splits:
+  #   - dev-clean
