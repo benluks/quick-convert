@@ -1,0 +1,61 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: controllable_rvq
+  - /dataset@train_dataset: manifest
+  - /dataset@val_dataset: null
+  - /dataset@source_dataset: librispeech
+  - _self_
+
+dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
+resources_path: outputs/precomputed/${dataset_name}
+dataset_path: ${out_root}/${dataset_name}
+
+pipeline:
+  batch_size: 2
+
+trainer:
+  train_dataloader_kwargs:
+    shuffle: false
+#   val_dataloader_kwargs:
+#     batch_size: 2
+
+data: &data
+  resource_providers:
+    # - ${source_dataset.transcript_provider}
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: content
+      path_template: ${resources_path}/w2vbert/{sample.split}/{sample.utt_id}.pt
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: emo2vec
+      path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: spk
+      path_template: ${resources_path}/spk_espnet/{sample.split}/{sample.utt_id}.pt
+
+  load:
+    - audio
+    - transcript
+    - content
+    - emo2vec
+    - spk
+
+train_dataset:
+  <<: *data
+  manifest_path: ${dataset_path}/test-other/manifest.csv
+  # splits:
+  #   - test-other
+  resources:
+    # intended resource name : column name
+    # key is the name of the desired resource
+    transcript:
+      # name of column in csv
+      column: transcript
+      kind: text
+
+val_dataset: null

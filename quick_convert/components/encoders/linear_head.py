@@ -26,7 +26,7 @@ class LinearHead(nn.Module):
         """
         return self.linear_head(self.ln(content_features))
 
-    def compute_loss(self, x: torch.FloatTensor, prosody_targets: torch.FloatTensor) -> torch.Tensor:
+    def compute_loss(self, x: torch.FloatTensor, targets: torch.FloatTensor, mask: torch.LongTensor) -> torch.Tensor:
         """Compute MSE loss between predicted prosody features and target prosody features."""
         x = self.forward(x)
-        return nn.functional.mse_loss(x, prosody_targets)
+        return (nn.functional.mse_loss(x, targets, "none", reduction="none") * mask).sum() / mask.sum()

@@ -179,13 +179,10 @@ class BaseDataset(Dataset):
     def __getitem__(self, idx: int) -> AudioSample:
         sample = self.rows[idx]
 
-        if self.load:
-            sample = self.load_sample(sample)
-
         if self._should_load("audio"):
             sample = self.load_sample(sample)
 
-        resource_refs = [provider(sample) for provider in self.resource_providers]
+        resource_refs = sample.resources + [provider(sample) for provider in self.resource_providers]
         resources = ResourceCollection.from_refs(resource_refs)
 
         for name, ref in resources.items():
@@ -242,6 +239,7 @@ class BaseDataset(Dataset):
             spk_id=sample.spk_id,
             waveform=waveform,
             sample_rate=sample_rate,
+            resources=sample.resources,
         )
 
     def _collate_dicts(self, batch: list[AudioSample], property="resources") -> dict[str, list[Any]]:

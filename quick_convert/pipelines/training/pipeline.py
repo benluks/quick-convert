@@ -17,7 +17,7 @@ class TrainingPipeline:
         train_dataset: BaseDataset,
         val_dataset: Optional[BaseDataset] = None,
         test_dataset: Optional[BaseDataset] | None = None,
-        output_dir: PathLike = None,
+        out_dir: PathLike = None,
         train_kwargs: Optional[dict] = {},
         **kwargs,
     ) -> None:
@@ -25,13 +25,13 @@ class TrainingPipeline:
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.test_dataset = test_dataset
-        self.output_dir = output_dir
+        self.out_dir = out_dir
         self.train_kwargs = train_kwargs
 
     def run(self) -> Any:
         return self.trainer.train(
             train_dataset=self.train_dataset,
             val_dataset=self.val_dataset,
-            output_dir=self.output_dir,
+            out_dir=self.out_dir,
             kwargs=self.train_kwargs,
         )
