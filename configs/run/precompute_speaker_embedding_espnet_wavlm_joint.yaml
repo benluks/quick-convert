@@ -16,4 +16,4 @@ dataset:
 pipeline:
   dataset: ${dataset}
   extractor: ${feature_extractor}
-  out_root: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.feature_extractor}_${hydra:runtime.choices.speaker_encoder}_${model_name}
+  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.feature_extractor}_${hydra:runtime.choices.speaker_encoder}_${model_name}
