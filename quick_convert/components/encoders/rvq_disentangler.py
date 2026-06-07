@@ -203,7 +203,7 @@ class RVQDisentangler(nn.Module):
         spk_output, spk_loss = self.speaker_head.compute_loss(spk_q, speaker_seq)
 
         # Emotion loss: encourage emo_q to match the target emotion features (if provided)
-        emo_loss = self.emotion_head.compute_loss(emo_pros_q, emotion_seq, make_padding_mask(emotion_lengths))
+        emo_loss = self.emotion_head.compute_loss(emo_pros_q, emotion_seq, make_padding_mask(lengths))
 
         # Prosody loss: encourage pros_q to match the target prosody features (if provided)
         if self.prosody_head is not None and prosody_seq is not None:
