@@ -19,6 +19,7 @@ class BuildManifestPipeline:
         out_path: PathLike,
         columns: dict[str, str],
         overwrite: bool = False,
+        **kwargs
     ) -> None:
         self.dataset = dataset
         self.out_path = Path(out_path)
