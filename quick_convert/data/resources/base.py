@@ -41,9 +41,9 @@ ResourceKind = Literal[
 
 @dataclass
 class ResourceRef:
-    path: Path
-    kind: ResourceKind
     name: str
+    kind: Optional[ResourceKind] = None
+    path: Optional[Path] = None
     value: Optional[Any] = None
     # metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -106,6 +106,20 @@ class ResourceCollection:
                 raise ValueError(f"Duplicate resource name: {ref.name}")
             items[ref.name] = ref
         return cls(items)
+
+    def merge(
+        self,
+        other: "ResourceCollection",
+        overwrite: bool = False,
+    ) -> "ResourceCollection":
+        items = self.as_dict()
+
+        for name, ref in other.items():
+            if name in items and not overwrite:
+                raise ValueError(f"Duplicate resource name: {name}")
+            items[name] = ref
+
+        return ResourceCollection(items)
 
 
 @dataclass

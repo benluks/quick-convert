@@ -3,6 +3,8 @@ from os import PathLike
 from pathlib import Path
 from typing import Iterable
 
+from quick_convert.data.resources.base import ResourceRef
+
 from .base_dataset import BaseDataset
 from .types import MetadataSample
 
@@ -23,6 +25,10 @@ class ManifestDataset(BaseDataset):
         utt_id_column: str = "utt_id",
         split_column: str = "split",
         spk_id_column: str = "spk_id",
+        # {"resource_name": "resource_column_name"} for every resource ALREADY_APPEARING IN THE CSV
+        # e.g. if you want the contents of the column `trans` to appear as a resource named `transcript`, you would pass
+        # resources = {"transcript": "trans"}
+        resources: dict[str, dict[str, str]] = {},
         **kwargs,
     ):
         rows = []
@@ -43,6 +49,14 @@ class ManifestDataset(BaseDataset):
                                 path=Path(row[path_column]) if row.get(path_column) else None,
                                 split=row.get(split_column),
                                 spk_id=row.get(spk_id_column),
+                                resources=[
+                                    ResourceRef(
+                                        name=name,
+                                        kind=spec["kind"],
+                                        value=row[spec["column"]],
+                                    )
+                                    for name, spec in resources.items()
+                                ],
                             )
                         )
                 except csv.Error:

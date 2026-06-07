@@ -5,7 +5,7 @@ defaults:
   - /pipeline: training
   - /trainer: controllable_rvq
   - /dataset@train_dataset: manifest
-  - /dataset@val_dataset: manifest
+  - /dataset@val_dataset: null
   - /dataset@source_dataset: librispeech
   - _self_
 
@@ -14,7 +14,9 @@ resources_path: outputs/precomputed/${dataset_name}
 dataset_path: ${out_root}/${dataset_name}
 
 pipeline:
-  batch_size: 2
+  batch_size: 4
+  train_kwargs:
+    val_check_interval: null 
 
 trainer:
   train_dataloader_kwargs:
@@ -47,17 +49,15 @@ data: &data
 
 train_dataset:
   <<: *data
-  manifest_path:
-    - ${dataset_path}/train-clean-100/manifest.csv
-    - ${dataset_path}/train-clean-360/manifest.csv
-    - ${dataset_path}/train-other-500/manifest.csv
+  manifest_path: ${dataset_path}/test-other/manifest.csv
   # splits:
-  #   - train-clean-360
+  #   - test-other
+  resources:
+    # intended resource name : column name
+    # key is the name of the desired resource
+    transcript:
+      # name of column in csv
+      column: transcript
+      kind: text
 
-val_dataset:
-  <<: *data
-  manifest_path:
-    - ${dataset_path}/dev-clean/manifest.csv
-    - ${dataset_path}/dev-other/manifest.csv
-  # splits:
-  #   - dev-clean
+val_dataset: null
