@@ -183,6 +183,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             emo_targets,
             emo_lengths,
             pros_targets,
+            run_adv=self.global_step > self.adv_loss_hold_off,
         )
 
         # Weighted sum of VQ commitment and codebook losses
@@ -202,14 +203,10 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
         # Weighted sum of adversarial losses that enforce cross-attribute disentanglement
         adv_loss = (
-            (
-                self.hparams.adv_loss_weights["spk_ling"] * loss_dict["adv_losses"]["adv_spk_loss_ling"]
-                + self.hparams.adv_loss_weights["spk_pros"] * loss_dict["adv_losses"]["adv_spk_loss_pros"]
-                + self.hparams.adv_loss_weights["ling_spk"] * loss_dict["adv_losses"]["adv_ling_loss_spk"]
-                + self.hparams.adv_loss_weights["ling_pros"] * loss_dict["adv_losses"]["adv_ling_loss_pros"]
-            )
-            if self.global_step >= self.adv_loss_hold_off
-            else 0
+            self.hparams.adv_loss_weights["spk_ling"] * loss_dict["adv_losses"]["adv_spk_loss_ling"]
+            + self.hparams.adv_loss_weights["spk_pros"] * loss_dict["adv_losses"]["adv_spk_loss_pros"]
+            + self.hparams.adv_loss_weights["ling_spk"] * loss_dict["adv_losses"]["adv_ling_loss_spk"]
+            + self.hparams.adv_loss_weights["ling_pros"] * loss_dict["adv_losses"]["adv_ling_loss_pros"]
         )
 
         # DECODING

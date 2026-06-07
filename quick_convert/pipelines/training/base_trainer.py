@@ -34,7 +34,7 @@ class BaseTrainer(ABC):
         train_dataset: Any | None = None,
         val_dataset: Any | None = None,
         test_dataset: Any | None = None,
-        output_dir: str | Path | None = None,
+        out_dir: str | Path | None = None,
         **kwargs: Any,
     ) -> Any:
         """
@@ -63,14 +63,14 @@ class BaseTrainer(ABC):
 
     def resolve_output_dir(
         self,
-        output_dir: str | Path | None = None,
+        out_dir: str | Path | None = None,
     ) -> Path | None:
         """
         Resolve the effective output directory.
 
         Runtime `output_dir` takes precedence over the constructor value.
         """
-        if output_dir is not None:
-            return Path(output_dir)
+        if out_dir is not None:
+            return Path(out_dir)
 
-        return self.output_dir
+        return self.out_dir
