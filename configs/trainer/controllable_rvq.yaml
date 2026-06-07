@@ -39,7 +39,7 @@ module:
     mse_loss: 0.01
   distillation_loss_weights:
     ling: 1.0
-    spk: 1.0
+    spk: 10.0
     emo: 1.0
     pros: 1.0
   adv_loss_weights:
@@ -55,3 +55,4 @@ module:
     _target_: torch.optim.lr_scheduler.CosineAnnealingLR
     _partial_: true
     T_max: 10000
+  adv_loss_hold_off: 1000

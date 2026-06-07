@@ -183,7 +183,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             emo_targets,
             emo_lengths,
             pros_targets,
-            run_adv=self.global_step > self.adv_loss_hold_off,
+            run_adv=self.global_step > self.hparams.adv_loss_hold_off,
         )
 
         # Weighted sum of VQ commitment and codebook losses
