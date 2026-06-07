@@ -35,7 +35,6 @@ data: &data
       kind: torch_tensor
       name: spk
       path_template: ${resources_path}/espnet_wavlm-ecapa-joint/{sample.split}/{sample.utt_id}.pt
-      resources:
     # intended resource name : column name
     # key is the name of the desired resource
   resources:
