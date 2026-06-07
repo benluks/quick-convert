@@ -15,8 +15,6 @@ conflicts = [
         { extra = "emotion-compensation" },
         { extra = "nac" },
         { extra = "pyannote" },
-        { extra = "conditional-rvq" },
-        { extra = "w2vbert" },
         { extra = "web" },
     ],
     [

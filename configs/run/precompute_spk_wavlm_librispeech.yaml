@@ -10,11 +10,14 @@ defaults:
 
 dataset:
   splits:
-    - train-clean-360
-    - dev-clean
+    - train-clean-100
+    - train-other-500
+    - dev-other
+    - test-clean
+    - test-other
 
   load: true
   target_sr: ${encoder.sample_rate}
 
 pipeline:
-  out_root: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/speaker_encoder@encoder}_wavlm-ecapa-joint
+  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/speaker_encoder@encoder}_wavlm-ecapa-joint
