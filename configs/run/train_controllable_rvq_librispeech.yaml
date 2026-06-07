@@ -35,6 +35,14 @@ data: &data
       kind: torch_tensor
       name: spk
       path_template: ${resources_path}/espnet_wavlm-ecapa-joint/{sample.split}/{sample.utt_id}.pt
+      resources:
+    # intended resource name : column name
+    # key is the name of the desired resource
+  resources:
+    transcript:
+      # name of column in csv
+      column: transcript
+      kind: text
 
   load:
     - audio
@@ -52,7 +60,6 @@ train_dataset:
 
 val_dataset:
   <<: *data
-  manifest_path: 
+  manifest_path:
     - ${dataset_path}/dev-clean/manifest.csv
     - ${dataset_path}/dev-other/manifest.csv
-
