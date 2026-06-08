@@ -1,7 +1,7 @@
 # configs/dataset/librispeech.yaml
 
 _target_: quick_convert.data.BaseDataset
-root: /cfs/collections/librispeech/LibriSpeech
+root: /Users/ben/LibriSpeech
 
 splits:
   - train-clean-100

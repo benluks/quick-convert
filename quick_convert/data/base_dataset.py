@@ -182,7 +182,7 @@ class BaseDataset(Dataset):
         if self._should_load("audio"):
             sample = self.load_sample(sample)
 
-        resource_refs = sample.resources + [provider(sample) for provider in self.resource_providers]
+        resource_refs = list(sample.resources) + [provider(sample) for provider in self.resource_providers]
         resources = ResourceCollection.from_refs(resource_refs)
 
         for name, ref in resources.items():
