@@ -3,13 +3,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from quick_convert.components.layers import ConformerBlock
-from quick_convert.components.layers.grl import GradientReversalLayer
+from quick_convert.components.losses import CTCLoss
 
 class LinguisticCTCHead(nn.Module):
     def __init__(
             self, 
             hidden_dim: int, 
-            output_dim: int
+            loss: CTCLoss = CTCLoss(), # Can probably be made more general...
         ):
         super().__init__()
         """
@@ -24,11 +24,10 @@ class LinguisticCTCHead(nn.Module):
         )
         """
         self.ln = nn.LayerNorm(hidden_dim)
-        self.linear_ctc = nn.Linear(hidden_dim, output_dim)
+        self.ctc_loss = loss
 
     def forward(self, x: torch.Tensor, *kwargs) -> torch.Tensor:
         x = self.ln(x)
-        x = self.linear_ctc(x)
         return x
     
     def compute_loss(
@@ -43,17 +42,9 @@ class LinguisticCTCHead(nn.Module):
         Implementation assumes tokenization happens outside the model, 
         and that 0 is reserved for the CTC blank token. 
         """        
-        x = self(x)
+        x = self.forward(x)
         x = x.transpose(0, 1)  # (T, B, output_dim) for CTC loss
-        x = x.log_softmax(dim=-1)  # Log probabilities for CTC loss
-        ctc_loss = F.ctc_loss(
-            x,
-            linguistic_targets,
-            input_lengths=input_lengths,
-            target_lengths=target_lengths,
-            blank=0,  # Assuming 0 is the blank token ID
-            reduction='mean',
-        )
+        ctc_loss = self.ctc_loss(x, linguistic_targets, input_lengths, target_lengths)
         return ctc_loss
 
 
@@ -66,7 +57,8 @@ class LinguisticConformerCTCHead(nn.Module):
             conv_kernel_size: int = 31, 
             bias: bool = True, 
             num_heads: int = 4, 
-            ffn_dim: int = None
+            ffn_dim: int = None,
+            loss: CTCLoss = CTCLoss(),
         ):
         super().__init__()
         if ffn_dim is None:
@@ -92,13 +84,12 @@ class LinguisticConformerCTCHead(nn.Module):
             dropout=dropout_p,
             bias=bias,
         )
-        self.linear_ctc = nn.Linear(hidden_dim, output_dim)
+        self.ctc_loss = loss
 
     def forward(self, x: torch.Tensor, padding_mask: torch.Tensor | None) -> torch.Tensor:
         x = self.ln(x)
         x = self.linear_1(x)
         x = self.conformer_block(x, padding_mask)
-        x = self.linear_ctc(x)
         return x
     
     def compute_loss(
@@ -116,14 +107,6 @@ class LinguisticConformerCTCHead(nn.Module):
         """
         x = self.forward(x, padding_mask)
         x = x.transpose(0, 1)  # (T, B, output_dim) for CTC loss
-        x = x.log_softmax(dim=-1)  # Log probabilities for CTC loss
-        ctc_loss = F.ctc_loss(
-            x,
-            linguistic_targets,
-            input_lengths=input_lengths,
-            target_lengths=target_lengths,
-            blank=0,  # Assuming 0 is the blank token ID
-            reduction='mean',
-        )
+        ctc_loss = self.ctc_loss(x, linguistic_targets, input_lengths, target_lengths)
         return ctc_loss
 
