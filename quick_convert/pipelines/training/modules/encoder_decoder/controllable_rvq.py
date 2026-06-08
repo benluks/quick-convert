@@ -81,6 +81,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         decoder_loss_weight: Optional[float] = None,
         optimizer: torch.optim.Optimizer = torch.optim.AdamW,
         lr_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
+        adv_loss_hold_off: int = 1000,
         *kwargs: Any,
     ) -> None:
         super().__init__(
@@ -91,6 +92,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         )
 
         self.tokenizer = tokenizer
+        self.adv_loss_hold_off = adv_loss_hold_off
 
         self.save_hyperparameters(ignore=["encoder", "decoder", "tokenizer"])
         self._validate_inputs(
@@ -200,10 +202,14 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
         # Weighted sum of adversarial losses that enforce cross-attribute disentanglement
         adv_loss = (
-            self.hparams.adv_loss_weights["spk_ling"] * loss_dict["adv_losses"]["adv_spk_loss_ling"]
-            + self.hparams.adv_loss_weights["spk_pros"] * loss_dict["adv_losses"]["adv_spk_loss_pros"]
-            + self.hparams.adv_loss_weights["ling_spk"] * loss_dict["adv_losses"]["adv_ling_loss_spk"]
-            + self.hparams.adv_loss_weights["ling_pros"] * loss_dict["adv_losses"]["adv_ling_loss_pros"]
+            (
+                self.hparams.adv_loss_weights["spk_ling"] * loss_dict["adv_losses"]["adv_spk_loss_ling"]
+                + self.hparams.adv_loss_weights["spk_pros"] * loss_dict["adv_losses"]["adv_spk_loss_pros"]
+                + self.hparams.adv_loss_weights["ling_spk"] * loss_dict["adv_losses"]["adv_ling_loss_spk"]
+                + self.hparams.adv_loss_weights["ling_pros"] * loss_dict["adv_losses"]["adv_ling_loss_pros"]
+            )
+            if self.global_step >= self.adv_loss_hold_off
+            else 0
         )
 
         # DECODING
@@ -282,7 +288,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         ) = self._shared_step(batch, "val")
 
         with torch.no_grad():
-            if batch_idx == 0 and self.global_step % self.media_log_interval == 0:
+            if batch_idx == 0:
                 # Log the first sample in the batch for qualitative monitoring
                 decoder_features = torch.cat([text_q, pros_emo_q], dim=-1)
                 max_len = batch.resources["content"].lengths.max().item()

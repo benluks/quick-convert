@@ -20,6 +20,7 @@ class ESPnetSpeakerEncoder(SpeakerEncoder):
         model_tag: str = "espnet/voxcelebs12_ecapa_wavlm_joint",
         device: str = None,
         sample_rate: int = 16000,
+        **kwargs,
     ) -> None:
         super().__init__(device=device)
         self.model_tag = model_tag
