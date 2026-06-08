@@ -12,7 +12,7 @@ columns:
   split: "{sample.split}"
   spk_id: "{sample.path.parent.parent.stem}"
   transcript: "{sample.resources.transcript.value}"
-  # content_path: "{sample.resources.w2vbert.path}"
+  spkid: "{sample.resources.spkid.value}"
 
 pipeline:
   overwrite: true
@@ -26,6 +26,7 @@ dataset:
     - ${split}
   resource_providers:
     - ${dataset.transcript_provider}
+    - ${dataset.spkid_provider}
     # - _target_: quick_convert.data.resources.PathResourceProvider
     #   name: w2vbert
     #   kind: torch_tensor

@@ -17,7 +17,7 @@ class TemplateResourceProvider(BaseResourceProvider):
         self.kind = kind
 
     def resolve(self, sample):
-        return SamplePathFormatter.format(sample, self.path_template)
+        return SamplePathFormatter.format_str(sample, self.template)
 
     def __call__(self, sample):
         return ResourceRef(name=self.name, kind=self.kind, value=self.resolve(sample))
@@ -39,7 +39,7 @@ class PathResourceProvider(TemplateResourceProvider):
         self.must_exist = must_exist
 
     def __call__(self, sample):
-        path = self.resolve(sample)
+        path = Path(self.resolve(sample))
 
         if self.must_exist and not path.exists():
             raise FileNotFoundError(f"Missing resource {self.name}: {path}")
