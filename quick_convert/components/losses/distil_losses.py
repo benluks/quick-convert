@@ -4,7 +4,6 @@ import torch.nn.functional as F
 
 from quick_convert.utils.masking import masked_loss
 
-
 class BaseDistilLoss(nn.Module):
     def __init__(self, reduction: str = 'mean'):
         super().__init__()
