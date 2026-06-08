@@ -3,13 +3,14 @@ resources allow you to pass arbitrary metadata or sidecar files associated with 
 """
 
 from .base import BaseResourceProvider, ResourceRef, ResourceCollection, Annotation, collate_resources
-from .paths import PathResourceProvider
+from .providers import PathResourceProvider, TemplateResourceProvider
 from .annotations import CSVTranscriptProvider
 from .loader import load_resource
 
 __all__ = [
     "BaseResourceProvider",
     "PathResourceProvider",
+    "TemplateResourceProvider",
     "CSVTranscriptProvider",
     "ResourceRef",
     "ResourceCollection",
