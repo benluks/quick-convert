@@ -27,6 +27,7 @@ trainer:
 data: &data
   resource_providers:
     # - ${source_dataset.transcript_provider}
+    - ${source_dataset.spkid_provider}
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: content
