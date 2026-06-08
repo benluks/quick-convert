@@ -11,7 +11,7 @@ defaults:
   - _self_
 
 # probably won't need more than 256
-encoder_dim: 128
+encoder_dim: 256
 
 tokenizer_model_path: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
 tokenizer_vocab_size: 1000

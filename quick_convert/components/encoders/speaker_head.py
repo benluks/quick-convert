@@ -58,6 +58,10 @@ class SpeakerASPHead(nn.Module):
         """Compute cosine distance loss between predicted speaker features and target speaker embeddings."""
         
         x = self.forward(speaker_features)
+        # only need padding if
+        if x.ndim == 3:
+            raise NotImplementedError("Loss padding not yet implemented for frame-wise speaker embeddings")
+
         
         if self.supervision == "cosine":
             if speaker_embs is None:

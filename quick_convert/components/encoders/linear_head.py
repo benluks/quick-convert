@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
 
+from quick_convert.utils.masking import masked_loss
+
+from quick_convert.utils.masking import masked_loss
+
 from quick_convert.components.losses.distil_losses import BaseDistilLoss, MSELoss
 
 class LinearHead(nn.Module):
@@ -29,7 +33,7 @@ class LinearHead(nn.Module):
         """
         return self.linear_head(self.ln(content_features))
 
-    def compute_loss(self, x: torch.FloatTensor, targets: torch.FloatTensor) -> torch.Tensor:
-        """Compute loss between predicted features and target features."""
+    def compute_loss(self, x: torch.FloatTensor, targets: torch.FloatTensor, mask: torch.LongTensor) -> torch.Tensor:
+        """Compute MSE loss between predicted prosody features and target prosody features."""
         x = self.forward(x)
         return self.loss(x, targets)
