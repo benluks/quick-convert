@@ -171,7 +171,7 @@ class RVQDisentangler(nn.Module):
         lengths: int["b"],
         linguistic_targets: int["b t_txt"],
         target_lengths: int["b"],
-        speaker_seq: float["b d_spk"],
+        speaker_seq: float["b d_spk"] | int["b"],
         emotion_seq: Optional[float["b t d_emo"]],
         emotion_lengths: Optional[int["b"]],
         prosody_seq: Optional[float["b t d_pro"]],
