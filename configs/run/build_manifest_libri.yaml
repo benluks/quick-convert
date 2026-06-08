@@ -17,13 +17,13 @@ columns:
 pipeline:
   overwrite: true
 
-suffix: ""
+split: train-clean-100
+
+suffix: /${split}
 resources_path: outputs/precomputed/${hydra:runtime.choices.dataset}
 dataset:
   splits:
-    - test-other
-  # load: false
-  # pattern: "**/1688*.flac"
+    - ${split}
   resource_providers:
     - ${dataset.transcript_provider}
     # - _target_: quick_convert.data.resources.PathResourceProvider

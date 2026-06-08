@@ -7,6 +7,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from quick_convert.utils.masking import make_padding_mask, masked_loss
+
 from .speaker_head import SpeakerASPHead
 from .linguistic_head import LinguisticCTCHead
 from .linear_head import LinearHead
@@ -124,7 +126,7 @@ class RVQDisentangler(nn.Module):
             lengths:         Updated lengths after feature extraction, shape (B,).
         """
 
-        padding_mask = self._make_padding_mask(lengths)  # (B, T_frames)
+        padding_mask = make_padding_mask(lengths)  # (B, T_frames)
 
         # 4. Content encoder: (B, T, L, F) -> (B, T, F)
         content = self.content_encoder(features, padding_mask=padding_mask)
@@ -135,7 +137,7 @@ class RVQDisentangler(nn.Module):
 
         # 6. Residual VQ
         # z_q, z_qs, codes, latents, commitment_loss, codebook_loss
-        z_q_flat, z_quantized, _, _, commitment_loss, codebook_loss = self.rvq(content)
+        z_q_flat, z_quantized, _, _, commitment_loss, codebook_loss = self.rvq(content, lengths=lengths)
 
         # 7. Reshape back to (B, T, F)
         z_q = z_q_flat.transpose(1, 2)  # (B, T, F)
@@ -173,6 +175,7 @@ class RVQDisentangler(nn.Module):
         emotion_seq: Optional[float["b t d_emo"]],
         emotion_lengths: Optional[int["b"]],
         prosody_seq: Optional[float["b t d_pro"]],
+        run_adv=True,
     ) -> List:
 
         min_max_feat_len = min([features.shape[1], emotion_seq.shape[1]])
@@ -182,11 +185,12 @@ class RVQDisentangler(nn.Module):
         z_q, z_quantized, spk_q, text_q, emo_pros_q, commitment_loss, codebook_loss, content, lengths = self.encode(
             features, lengths
         )
+        padding_mask = make_padding_mask(lengths)
 
         # MSE loss between RVQ output and content encoder output
         # to encourage the RVQ to capture the all of the information from the content encoder
-        rvq_mse_loss = F.mse_loss(
-            z_q, content.detach().transpose(1, 2)
+        rvq_mse_loss = masked_loss(
+            F.mse_loss, z_q, content.detach().transpose(1, 2), padding_mask
         )  # content is (B, F, T), z_q is (B, T, F) after transpose
 
         rvq_losses = {
@@ -199,7 +203,7 @@ class RVQDisentangler(nn.Module):
         spk_output, spk_loss = self.speaker_head.compute_loss(spk_q, speaker_seq)
 
         # Emotion loss: encourage emo_q to match the target emotion features (if provided)
-        emo_loss = self.emotion_head.compute_loss(emo_pros_q, emotion_seq)
+        emo_loss = self.emotion_head.compute_loss(emo_pros_q, emotion_seq, make_padding_mask(lengths))
 
         # Prosody loss: encourage pros_q to match the target prosody features (if provided)
         if self.prosody_head is not None and prosody_seq is not None:
@@ -223,27 +227,30 @@ class RVQDisentangler(nn.Module):
             "emo_loss": emo_loss,
         }
 
-        # Adversarial speaker loss over linguistic features: encourage spk_q to be uninformative about speaker identity
-        _, adv_spk_loss_ling = self.adv_speaker_head_ling.compute_loss(self.grl(text_q), speaker_seq)
+        if run_adv:
+            # Adversarial speaker loss over linguistic features: encourage spk_q to be uninformative about speaker identity
+            _, adv_spk_loss_ling = self.adv_speaker_head_ling.compute_loss(self.grl(text_q), speaker_seq)
 
-        # Adversarial speaker loss over prosody features: encourage pros_q to be uninformative about speaker identity
-        _, adv_spk_loss_pros = self.adv_speaker_head_pros.compute_loss(self.grl(emo_pros_q), speaker_seq)
+            # Adversarial speaker loss over prosody features: encourage pros_q to be uninformative about speaker identity
+            _, adv_spk_loss_pros = self.adv_speaker_head_pros.compute_loss(self.grl(emo_pros_q), speaker_seq)
 
-        # Adversarial linguistic loss over speaker features: encourage text_q to be uninformative about linguistic content
-        adv_ling_loss_spk = self.adv_linguistic_head_spk.compute_loss(
-            self.grl(spk_q),
-            linguistic_targets,
-            input_lengths=lengths,
-            target_lengths=target_lengths,
-        )
+            # Adversarial linguistic loss over speaker features: encourage text_q to be uninformative about linguistic content
+            adv_ling_loss_spk = self.adv_linguistic_head_spk.compute_loss(
+                self.grl(spk_q),
+                linguistic_targets,
+                input_lengths=lengths,
+                target_lengths=target_lengths,
+            )
 
-        # Adversarial linguistic loss over prosody features: encourage text_q to be uninformative about linguistic content
-        adv_ling_loss_pros = self.adv_linguistic_head_pros.compute_loss(
-            self.grl(emo_pros_q),
-            linguistic_targets,
-            input_lengths=lengths,
-            target_lengths=target_lengths,
-        )
+            # Adversarial linguistic loss over prosody features: encourage text_q to be uninformative about linguistic content
+            adv_ling_loss_pros = self.adv_linguistic_head_pros.compute_loss(
+                self.grl(emo_pros_q),
+                linguistic_targets,
+                input_lengths=lengths,
+                target_lengths=target_lengths,
+            )
+        else:
+            adv_spk_loss_ling, adv_spk_loss_pros, adv_ling_loss_spk, adv_ling_loss_pros = (0, 0, 0, 0)
 
         adv_losses = {
             "adv_spk_loss_ling": adv_spk_loss_ling,

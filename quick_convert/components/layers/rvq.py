@@ -6,6 +6,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from einops import rearrange
+
+from quick_convert.utils.masking import make_padding_mask, masked_loss
 from .conv import WNConv1d
 
 # from DAC: https://github.com/descriptinc/descript-audio-codec/blob/main/dac/nn/quantize.py
@@ -33,7 +35,7 @@ class VectorQuantize(nn.Module):
         self.out_proj = WNConv1d(codebook_dim, input_dim, kernel_size=1)
         self.codebook = nn.Embedding(codebook_size, codebook_dim)
 
-    def forward(self, z):
+    def forward(self, z, lengths):
         """Quantized the input tensor using a fixed codebook and returns
         the corresponding codebook vectors
 
@@ -60,8 +62,13 @@ class VectorQuantize(nn.Module):
         z_e = self.in_proj(z)  # z_e : (B x D x T)
         z_q, indices = self.decode_latents(z_e)
 
-        commitment_loss = F.mse_loss(z_e, z_q.detach(), reduction="none").mean([1, 2])
-        codebook_loss = F.mse_loss(z_q, z_e.detach(), reduction="none").mean([1, 2])
+        padding_mask = make_padding_mask(lengths)
+        commitment_loss = masked_loss(
+            F.mse_loss, z_e.transpose(1, 2), z_q.detach().transpose(1, 2), mask=padding_mask, reduction="sample"
+        )
+        codebook_loss = masked_loss(
+            F.mse_loss, z_q.transpose(1, 2), z_e.detach().transpose(1, 2), mask=padding_mask, reduction="sample"
+        )
 
         z_q = z_e + (z_q - z_e).detach()  # noop in forward pass, straight-through gradient estimator in backward pass
 
@@ -121,7 +128,12 @@ class ResidualVectorQuantizer(nn.Module):
         )
         self.quantizer_dropout = quantizer_dropout
 
-    def forward(self, z, n_quantizers: int = None):
+    def forward(
+        self,
+        z,
+        lengths,
+        n_quantizers: int = None,
+    ):
         """Quantized the input tensor using a fixed set of `n` codebooks and returns
         the corresponding codebook vectors
         Parameters
@@ -172,7 +184,7 @@ class ResidualVectorQuantizer(nn.Module):
             if self.training is False and i >= n_quantizers:
                 break
 
-            z_q_i, commitment_loss_i, codebook_loss_i, indices_i, z_e_i = quantizer(residual)
+            z_q_i, commitment_loss_i, codebook_loss_i, indices_i, z_e_i = quantizer(residual, lengths)
 
             # Create mask to apply quantizer dropout
             mask = torch.full((z.shape[0],), fill_value=i, device=z.device) < n_quantizers

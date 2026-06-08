@@ -12,7 +12,9 @@ out_dir_suffix: _${trainer.module.vocab_size}_tokens
 
 train_dataset:
   splits:
-    - test-other
+    - train-clean-100
+    - train-clean-360
+    - train-other-500
   load: false
   resource_providers:
     - ${dataset.transcript_provider}

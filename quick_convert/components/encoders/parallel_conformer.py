@@ -85,4 +85,4 @@ class ParallelConformerEncoder(nn.Module):
         # Down-project back to D
         x = self.down_proj_out(x)  # (B, T, D)
 
-        return x
+        return x * padding_mask.unsqueeze(-1)

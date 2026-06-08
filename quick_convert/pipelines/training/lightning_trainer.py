@@ -22,11 +22,11 @@ class LightningTrainer(BaseTrainer):
         self,
         train_dataset: BaseDataset,
         val_dataset: Optional[BaseDataset] = None,
-        output_dir=None,
+        out_dir=None,
         kwargs: Optional[dict] = {},
     ):
 
-        self.pl_trainer = L.Trainer(default_root_dir=output_dir, **kwargs)
+        self.pl_trainer = L.Trainer(default_root_dir=out_dir, **kwargs)
 
         train_loader = train_dataset.make_dataloader(**self.train_dataloader_kwargs)
         val_loader = val_dataset.make_dataloader(**self.val_dataloader_kwargs) if val_dataset else None

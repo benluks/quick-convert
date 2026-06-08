@@ -2,3 +2,5 @@ _target_: quick_convert.pipelines.build_manifest.BuildManifestPipeline
 dataset: ${dataset}
 columns: ${columns}
 out_path: ${out_root}/${hydra:runtime.choices.dataset}${suffix}/manifest.csv
+out_dir: ${out_root}/${hydra:runtime.choices.dataset}${suffix}
+

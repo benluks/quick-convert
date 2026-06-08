@@ -39,4 +39,8 @@ class SpeakerASPHead(nn.Module):
     def compute_loss(self, speaker_features: torch.FloatTensor, speaker_embs: torch.FloatTensor) -> torch.Tensor:
         """Compute cosine distance loss between predicted speaker features and target speaker embeddings."""
         x = self.forward(speaker_features)
+        # only need padding if
+        if x.ndim == 3:
+            raise NotImplementedError("Loss padding not yet implemented for frame-wise speaker embeddings")
+
         return x, 1 - torch.cosine_similarity(x, speaker_embs, dim=1).mean()
