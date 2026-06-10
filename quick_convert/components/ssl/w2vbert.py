@@ -7,7 +7,6 @@ from typing import Optional
 import torch
 import torchaudio
 from transformers import AutoFeatureExtractor, AutoModel
-from torch.nn.utils.rnn import pad_packed_sequence
 
 from quick_convert.data.types import AudioBatch
 
@@ -133,18 +132,13 @@ class W2VBertContentEncoder(ContentEncoder):
             selected = selected.transpose(2, 3)
             selected = selected.reshape(B * T, D, L)
 
-            selected = selected.permute(0, 1, 3, 2)  # (B, T, D, L)
-
             selected = torch.nn.functional.avg_pool1d(
                 selected.reshape(B * T, D, L),
                 kernel_size=4,
                 stride=4,
             )
 
-            selected = selected.reshape(B, T, D, -1).permute(0, 1, 3, 2)
-            # (B, T, L', D)
-
-            # output_layers = (output_lengths - 1) // self.downsample_factor + 1
+            selected = selected.reshape(B, T, D, -1).transpose(2, 3)
 
         return ContentFeatures(
             values=selected,
