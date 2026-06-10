@@ -173,8 +173,8 @@ class RVQDisentangler(nn.Module):
         target_lengths: int["b"],
         speaker_seq: float["b d_spk"],
         emotion_seq: Optional[float["b t d_emo"]],
-        emotion_lengths: Optional[int["b"]],
-        prosody_seq: Optional[float["b t d_pro"]],
+        speaker_targets: Optional[int["b"]] = None,
+        prosody_seq: Optional[float["b t d_pro"]] = None,
         run_adv=True,
     ) -> List:
 
@@ -229,10 +229,14 @@ class RVQDisentangler(nn.Module):
 
         if run_adv:
             # Adversarial speaker loss over linguistic features: encourage spk_q to be uninformative about speaker identity
-            _, adv_spk_loss_ling, adv_spk_acc_ling, _ = self.adv_speaker_head_ling.compute_loss(self.grl(text_q), speaker_seq)
+            _, adv_spk_loss_ling, adv_spk_acc_ling, _ = self.adv_speaker_head_ling.compute_loss(
+                self.grl(text_q), speaker_seq
+            )
 
             # Adversarial speaker loss over prosody features: encourage pros_q to be uninformative about speaker identity
-            _, adv_spk_loss_pros, adv_spk_acc_pros, _ = self.adv_speaker_head_pros.compute_loss(self.grl(emo_pros_q), speaker_seq)
+            _, adv_spk_loss_pros, adv_spk_acc_pros, _ = self.adv_speaker_head_pros.compute_loss(
+                self.grl(emo_pros_q), speaker_seq
+            )
 
             # Adversarial linguistic loss over speaker features: encourage text_q to be uninformative about linguistic content
             adv_ling_loss_spk = self.adv_linguistic_head_spk.compute_loss(

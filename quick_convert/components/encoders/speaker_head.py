@@ -1,15 +1,16 @@
-from typing import Tuple
+from typing import Any, Tuple
 
 import torch
 import torch.nn as nn
 
 from quick_convert.components.losses import (
     BaseSpeakerLoss,
-    AAMSoftmaxLoss, 
+    AAMSoftmaxLoss,
     CosineDistanceLoss,
 )
 
 from quick_convert.components.layers import AttentiveStatisticsPooling
+
 
 class SpeakerASPHead(nn.Module):
     """
@@ -22,10 +23,10 @@ class SpeakerASPHead(nn.Module):
         hidden_dim: int = 128,
         output_dim: int = 192,
         supervision: str = "cosine",
-        classification_dim: int = 2484, # Number of speaker in LS
-        loss: BaseSpeakerLoss = CosineDistanceLoss(),
+        loss_index_key="speaker",
     ):
         super().__init__()
+        self.ln = nn.LayerNorm(input_dim)
         self.speaker_head = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
@@ -33,11 +34,33 @@ class SpeakerASPHead(nn.Module):
             nn.BatchNorm1d(hidden_dim * 2),
             nn.Linear(hidden_dim * 2, output_dim),
         )
-        self.ln = nn.LayerNorm(input_dim)
+
+        self.output_dim = output_dim
+        self.loss_index_key = loss_index_key
 
         if supervision not in ["cosine", "aam"]:
             raise ValueError(f"Unsupported supervision type: {supervision}")
         self.supervision = supervision
+
+    def build_loss(self, indexers: dict[str, Any]):
+        """
+        A function for modules whose losses depend on a specific output shape.
+        `indexers` is a dictionary of the dimenstion-bearing objects passed recursively
+        through the root module. The key to access the correct object is defined in the constructor.
+        You'll need to know how to determine the desired dimension from the object beforehand. This avoids needing
+        to redundantly pass the loss dim in the hydra config (before the index is built).
+        --
+        This isn't ideal. Maybe in the future th ewprk should go towards pre-building the index in the first place
+        so we know the number of speakers beforehand.
+        """
+        if self.supervision == "aam":
+            num_speakers = len(indexers[self.loss_index_key])
+            self.loss = AAMSoftmaxLoss(
+                in_dim=self.output_dim,
+                num_classes=num_speakers,
+            )
+        elif self.supervision == "cosine":
+            self.loss = CosineDistanceLoss()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -51,18 +74,18 @@ class SpeakerASPHead(nn.Module):
         return x
 
     def compute_loss(
-            self, 
-            speaker_features: torch.FloatTensor, 
-            speaker_embs: torch.FloatTensor = None, 
-            speaker_labels: torch.LongTensor = None) -> Tuple:
+        self,
+        speaker_features: torch.FloatTensor,
+        speaker_embs: torch.FloatTensor = None,
+        speaker_labels: torch.LongTensor = None,
+    ) -> Tuple:
         """Compute cosine distance loss between predicted speaker features and target speaker embeddings."""
-        
+
         x = self.forward(speaker_features)
         # only need padding if
         if x.ndim == 3:
             raise NotImplementedError("Loss padding not yet implemented for frame-wise speaker embeddings")
 
-        
         if self.supervision == "cosine":
             if speaker_embs is None:
                 raise ValueError("Speaker embeddings must be provided for cosine supervision.")
@@ -78,5 +101,5 @@ class SpeakerASPHead(nn.Module):
 
         else:
             raise ValueError(f"Unsupported supervision type: {self.supervision}")
-        
+
         return x, loss, accuracy, preds

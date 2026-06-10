@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Iterable, Optional
 
 import lightning as L
 
 from quick_convert.data import BaseDataset
+from quick_convert.data.index.base import Indexer
 from .base_trainer import BaseTrainer
 
 
@@ -25,6 +26,18 @@ class LightningTrainer(BaseTrainer):
         out_dir=None,
         kwargs: Optional[dict] = {},
     ):
+        for index in self.module.indexers.values():
+            index.fit(train_dataset.rows)
+
+        # build the losses that are dependent on some other indexed value, and therefore 
+        # couldn't be passed in the hydra config. For example, if the speaker identification
+        # index is only build in the line above, then we wouldn't know the number of output classes
+        # needed until now. The output projection layer is built in the loss (e.g. `AAMSoftmaxLoss()`)
+        for module in self.module.modules():
+            if module is self:
+                continue
+            if hasattr(module, "build_loss"):
+                module.build_loss(self.module.indexers)
 
         self.pl_trainer = L.Trainer(default_root_dir=out_dir, **kwargs)
 
