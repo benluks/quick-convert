@@ -5,16 +5,8 @@ https://github.com/eurecom-asp/spk_anon_nac_lm/blob/dev/anonymizer.py
 import os
 from typing import List, Optional, Union
 
-from TTS.tts.configs.bark_config import BarkConfig
-from TTS.tts.models.bark import Bark
-from encodec.utils import convert_audio
-
-from TTS.tts.layers.bark.inference_funcs import load_voice
 import torch
 import torchaudio
-from TTS.tts.layers.bark.hubert.hubert_manager import HubertManager
-from TTS.tts.layers.bark.hubert.kmeans_hubert import CustomHubert
-from TTS.tts.layers.bark.hubert.tokenizer import HubertTokenizer
 
 from .base_anonymizer import BaseAnonymizer
 from .targets import NACTarget
@@ -23,6 +15,16 @@ from .targets import NACTarget
 class NACAnonymizer(BaseAnonymizer[NACTarget]):
     def __init__(self, checkpoint_dir: str, voice_dirs: Union[list[str], None] = None):
         super().__init__()
+
+        from TTS.tts.configs.bark_config import BarkConfig
+        from TTS.tts.models.bark import Bark
+        from encodec.utils import convert_audio
+
+        from TTS.tts.layers.bark.inference_funcs import load_voice
+
+        from TTS.tts.layers.bark.hubert.hubert_manager import HubertManager
+        from TTS.tts.layers.bark.hubert.kmeans_hubert import CustomHubert
+        from TTS.tts.layers.bark.hubert.tokenizer import HubertTokenizer
 
         if not os.path.exists(checkpoint_dir):
             print(f"Checkpoint directory {checkpoint_dir} not found, creating it")
@@ -36,12 +38,10 @@ class NACAnonymizer(BaseAnonymizer[NACTarget]):
 
         # 2. initialize the awesome, bark-distilled, unlikely-yet-functioning audio tokenizer
         hubert_manager = HubertManager()
-        hubert_manager.make_sure_tokenizer_installed(
-            model_path=self.model.config.LOCAL_MODEL_PATHS["hubert_tokenizer"]
+        hubert_manager.make_sure_tokenizer_installed(model_path=self.model.config.LOCAL_MODEL_PATHS["hubert_tokenizer"])
+        self.hubert_model = CustomHubert(checkpoint_path=self.model.config.LOCAL_MODEL_PATHS["hubert"]).to(
+            self.model.device
         )
-        self.hubert_model = CustomHubert(
-            checkpoint_path=self.model.config.LOCAL_MODEL_PATHS["hubert"]
-        ).to(self.model.device)
         self.tokenizer = HubertTokenizer.load_from_checkpoint(
             self.model.config.LOCAL_MODEL_PATHS["hubert_tokenizer"],
             map_location=self.model.device,
@@ -61,17 +61,13 @@ class NACAnonymizer(BaseAnonymizer[NACTarget]):
         # batched inference is currently not supported, sorry
         if isinstance(audio, str):
             audio, sr = torchaudio.load(audio)
-            audio = convert_audio(
-                audio, sr, self.model.config.sample_rate, self.model.encodec.channels
-            )
+            audio = convert_audio(audio, sr, self.model.config.sample_rate, self.model.encodec.channels)
             audio = audio.to(
                 self.model.device
             )  # there used to be an unsqueeze here but then they squeeze it back so it's useless
 
         # 1. Extraction of semantic tokens
-        semantic_vectors = self.hubert_model.forward(
-            audio, input_sample_hz=self.model.config.sample_rate
-        )
+        semantic_vectors = self.hubert_model.forward(audio, input_sample_hz=self.model.config.sample_rate)
         semantic_tokens = self.tokenizer.get_token(semantic_vectors)
         semantic_tokens = semantic_tokens.cpu().numpy()  # they must be shifted to cpu
         # this probably slows things down, but the following api function from bark specifically requires numpy
@@ -79,9 +75,7 @@ class NACAnonymizer(BaseAnonymizer[NACTarget]):
 
         # 2. Load voice as a history prompt as a tuple (semantic_prompt, coarse_prompt, fine_prompt)
         if not self.voice_dirs:
-            assert (
-                target_voice_id == "random"
-            ), """If no voice dirs are given, the target voice must be 'random'.
+            assert target_voice_id == "random", """If no voice dirs are given, the target voice must be 'random'.
             Note that, regardless of this, 'random' always means 'use an empty semantic and coarse prompts'.
             So even if target_voice_id == 'random', the voice_dirs will be ignored (it does NOT mean it will pick a
             random voice from there).

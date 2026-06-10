@@ -13,7 +13,6 @@ import torch
 from quick_convert.data import AudioSample
 
 from .base_anonymizer import BaseAnonymizer
-from ...external.emotion_compensation import latentGenerator, AttrDict
 
 
 @dataclass(frozen=True)
@@ -36,6 +35,7 @@ class EmotionCompensationAnonymizer(BaseAnonymizer):
     ) -> None:
         super().__init__(feature_providers=feature_providers)
         self.checkpoint_file = Path(checkpoint_file)
+        from ...external.emotion_compensation import latentGenerator, AttrDict
 
         config_path = (
             self.checkpoint_file / "config.json"
