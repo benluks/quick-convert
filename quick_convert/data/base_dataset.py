@@ -135,7 +135,7 @@ class BaseDataset(Dataset):
                     )
 
         self.sort_key = sort_key
-        self.rows = sorted(rows, key=lambda row: TemplateFormatter.format_str(sort_key, row))
+        self.rows = sorted(rows, key=lambda row: TemplateFormatter.format_str(sort_key, row=row))
 
     @classmethod
     def _normalize_and_validate_format(cls, file_format: Optional[Union[str, Iterable[str]]]) -> Optional[set[str]]:
