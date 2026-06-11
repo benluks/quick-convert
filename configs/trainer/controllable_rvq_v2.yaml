@@ -4,7 +4,7 @@
 defaults:
   - /global: default
   - /components/encoders@module.encoder: rvq_disentangler
-  - /architecture: controllable_rvq
+  - /architecture: controllable_rvq_v2
   - /trainer/optimizer@module.optimizer: adamw
   - /trainer/lr_scheduler@module.lr_scheduler: cosine_annealing
   - _self_
@@ -51,10 +51,9 @@ compile:
 module:
   _target_: quick_convert.pipelines.training.modules.ControllableRVQTrainingModule
   decoder: ${architecture.decoder}
-  # tokenizer:
-  #   _target_: sentencepiece.SentencePieceProcessor
-  #   model_file: ${architecture.tokenizer_model_path}
-  tokenizer_pad_id: 0
+  tokenizer:
+    _target_: sentencepiece.SentencePieceProcessor
+    model_file: ${architecture.tokenizer_model_path}
   decoder_loss_weight: 1.0
   rvq_loss_weights:
     commitment_loss: 0.25

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import copy
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from quick_convert.components.encoders.conformer_encoder import ConformerEncoderSSL
 from quick_convert.utils.masking import make_padding_mask, masked_loss
 
 from .speaker_head import SpeakerASPHead
@@ -41,7 +42,8 @@ class RVQDisentangler(nn.Module):
     def __init__(
         self,
         # feature_extractor: W2VBertContentEncoder,  # TODO - ideally this would be an interface that could support multiple SSL models
-        content_encoder: ParallelConformerEncoder,
+        content_encoder: ParallelConformerEncoder
+        | ConformerEncoderSSL,  # ParallelConformerEncoder, ConformerEncoderSSL #TODO create base class for encoders
         rvq: ResidualVectorQuantizer,
         linguistic_head: LinguisticCTCHead,
         speaker_head: SpeakerASPHead,
@@ -171,12 +173,10 @@ class RVQDisentangler(nn.Module):
         lengths: int["b"],
         linguistic_targets: int["b t_txt"],
         target_lengths: int["b"],
-        # the target ssl speaker sequence (e.g. from espnet-ecapa joint)
-        speaker_seq: float["b d_spk"],
-        # the target emotion sequence (e.g. from emotion2vec)
+        speaker_seq: float["b d_spk"] | int["b"],
         emotion_seq: Optional[float["b t d_emo"]],
         # the target speaker indices encoded from their string ids, e.g. `16`, not `spk11`
-        speaker_targets: Optional[int["b"]] = None,
+        # speaker_targets: Optional[int["b"]] = None,
         prosody_seq: Optional[float["b t d_pro"]] = None,
         run_adv=True,
     ) -> List:
@@ -203,9 +203,7 @@ class RVQDisentangler(nn.Module):
         }
 
         # Speaker loss: encourage spk_q to match the target speaker embedding
-        spk_output, spk_loss, spk_acc, _ = self.speaker_head.compute_loss(
-            spk_q, speaker_seq, speaker_labels=speaker_targets
-        )
+        spk_output, spk_loss, spk_acc, _ = self.speaker_head.compute_loss(spk_q, speaker_seq)
 
         # Emotion loss: encourage emo_q to match the target emotion features (if provided)
         emo_loss = self.emotion_head.compute_loss(emo_pros_q, emotion_seq, make_padding_mask(lengths))

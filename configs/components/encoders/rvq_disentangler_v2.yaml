@@ -1,0 +1,16 @@
+# configs/components/encoders/rvq_disentangler.yaml
+defaults:
+  - /components/encoders@content_encoder: conformer_encoder_ssl
+  - /components/encoders@linguistic_head: linguistic_head
+  - /components/encoders@speaker_head: speaker_head
+  - _self_
+
+_target_: quick_convert.components.encoders.RVQDisentangler
+rvq: ${architecture.rvq}
+emotion_head: ${architecture.emotion_head}
+prosody_head: ${architecture.prosody_head}
+rvq_idx:
+  speaker: 0
+  content: 1
+  emo_pros: 2
+  

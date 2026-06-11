@@ -165,14 +165,14 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             Scalar total loss tensor passed to the Lightning optimiser.
         """
         # lengths = batch.lengths  # (B,)
-        spk_targets = torch.LongTensor(self.indexers["speaker"].encode_many(batch.resources["spkid"])).to(self.device)
 
         features = batch.resources["content"].values
         lengths = batch.resources["content"].lengths
 
-        target_spk_seq = batch.resources["spk"].values
         emo_targets = batch.resources["emo2vec"].values
-        emo_lengths = batch.resources["emo2vec"].lengths
+
+        spk_targets = torch.LongTensor(self.indexers["speaker"].encode_many(batch.resources["spkid"])).to(self.device)
+
         pros_targets = (
             batch.resources["pros"].values
             if "pros" in batch.resources and batch.resources["pros"] is not None
@@ -188,9 +188,8 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             lengths,
             linguistic_targets=token_ids.values,
             target_lengths=token_ids.lengths,
-            speaker_seq=target_spk_seq,
+            speaker_seq=spk_targets,
             emotion_seq=emo_targets,
-            speaker_targets=spk_targets,
             prosody_seq=pros_targets,
             run_adv=self.global_step > self.hparams.adv_loss_hold_off,
         )

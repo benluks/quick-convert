@@ -1,0 +1,5 @@
+_target_: quick_convert.components.encoders.ConformerEncoder
+num_blocks: 4
+num_ssl_layers: ${architecture.content_encoder.num_ssl_layers}
+use_flash_attention: ${use_flash_attention}
+pre_norm: false
