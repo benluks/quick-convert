@@ -173,9 +173,6 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
         spk_targets = torch.LongTensor(self.indexers["speaker"].encode_many(batch.resources["spkid"])).to(self.device)
 
-        target_spk_seq = (
-            batch.resources["spk"].values if "spk" in batch.resources and batch.resources["spk"] is not None else None
-        )
         pros_targets = (
             batch.resources["pros"].values
             if "pros" in batch.resources and batch.resources["pros"] is not None
