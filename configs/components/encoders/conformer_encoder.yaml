@@ -1,5 +1,6 @@
 _target_: quick_convert.components.encoders.ConformerEncoder
-num_blocks: ???
-input_dim: ???
-embed_dim: ???
-use_flash_attention: true
+num_blocks: ${architecture.decoder.flow.encoder.num_blocks}
+input_dim: ${architecture.decoder.flow.encoder.input_dim}
+embed_dim: ${architecture.decoder.flow.encoder.embed_dim}
+use_flash_attention: ${use_flash_attention}
+pre_norm: false

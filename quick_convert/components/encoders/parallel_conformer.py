@@ -43,6 +43,7 @@ class ParallelConformerEncoder(nn.Module):
         bias: bool = True,
         pos_emb_base: float = 10000.0,
         use_flash_attention: bool = True,
+        pre_norm: bool = False,
     ):
         super().__init__()
 
@@ -59,6 +60,7 @@ class ParallelConformerEncoder(nn.Module):
                     bias=bias,
                     pos_emb_base=pos_emb_base,
                     use_flash_attention=use_flash_attention,
+                    pre_norm=pre_norm,
                 )
                 for _ in range(num_meta_heads)
             ]

@@ -9,4 +9,5 @@ conv_kernel_size: 31
 dropout: 0.1
 bias: true
 pos_emb_base: 10000.0
-use_flash_attention: true
+use_flash_attention: ${use_flash_attention}
+pre_norm: false

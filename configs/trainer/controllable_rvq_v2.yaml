@@ -1,0 +1,80 @@
+# this is the one system where the target is an abstraction, i.e. it takes a base trainer type (e.g. `lightning_trainer`)
+# and then passes the specific class. It's because these types are redundant, i.e. `controllable_rvq` is always a lightning trainer.
+
+defaults:
+  - /global: default
+  - /components/encoders@module.encoder: rvq_disentangler
+  - /architecture: controllable_rvq_v2
+  - /trainer/optimizer@module.optimizer: adamw
+  - /trainer/lr_scheduler@module.lr_scheduler: cosine_annealing
+  - _self_
+
+_target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
+cudnn_benchmark: null
+# Precision for mixed-precision training.
+# Options: "32", "16-mixed" (fp16), "bf16-mixed" (bf16, recommended for flash attention)
+precision: null
+
+ddp:
+  enabled: false
+  accelerator: gpu
+  devices: auto
+  num_nodes: 1
+  strategy: ddp
+  sync_batchnorm: false
+
+train_dataloader_kwargs:
+  batch_size: ${pipeline.batch_size}
+  shuffle: true
+  num_workers: ${pipeline.dataloader.num_workers}
+  pin_memory: ${pipeline.dataloader.pin_memory}
+  drop_last: ${pipeline.dataloader.drop_last}
+
+val_dataloader_kwargs:
+  batch_size: ${pipeline.val_batch_size}
+  shuffle: false
+  num_workers: ${pipeline.dataloader.num_workers}
+  pin_memory: ${pipeline.dataloader.pin_memory}
+  drop_last: ${pipeline.dataloader.drop_last}
+  persistent_workers: true
+
+compile:
+  enabled: false
+  backend: inductor
+  mode: default
+  fullgraph: false
+  dynamic: true
+  targets:
+    - encoder
+    - decoder
+
+module:
+  _target_: quick_convert.pipelines.training.modules.ControllableRVQTrainingModule
+  decoder: ${architecture.decoder}
+  tokenizer:
+    _target_: sentencepiece.SentencePieceProcessor
+    model_file: ${architecture.tokenizer_model_path}
+  decoder_loss_weight: 1.0
+  rvq_loss_weights:
+    commitment_loss: 0.25
+    codebook_loss: 1.0
+    mse_loss: 0.01
+  distillation_loss_weights:
+    ling: 1.0
+    spk: 10.0
+    emo: 1.0
+    pros: 1.0
+  adv_loss_weights:
+    spk_ling: 1.0
+    spk_pros: 1.0
+    ling_spk: 1.0
+    ling_pros: 1.0
+
+  optimizer:
+    lr: 1e-4
+    weight_decay: 1e-2
+  lr_scheduler:
+    _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+    _partial_: true
+    T_max: 10000
+  adv_loss_hold_off: 1000

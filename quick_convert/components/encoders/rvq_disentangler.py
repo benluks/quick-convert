@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 import torch
 import torch.nn as nn
@@ -41,7 +41,7 @@ class RVQDisentangler(nn.Module):
     def __init__(
         self,
         # feature_extractor: W2VBertContentEncoder,  # TODO - ideally this would be an interface that could support multiple SSL models
-        content_encoder: ParallelConformerEncoder,
+        content_encoder: Any,  # ParallelConformerEncoder, ConformerEncoderSSL #TODO create base class for encoders
         rvq: ResidualVectorQuantizer,
         linguistic_head: LinguisticCTCHead,
         speaker_head: SpeakerASPHead,

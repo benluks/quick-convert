@@ -3,12 +3,6 @@ from typing import Tuple
 import torch
 import torch.nn as nn
 
-from quick_convert.components.losses import (
-    BaseSpeakerLoss,
-    AAMSoftmaxLoss, 
-    CosineDistanceLoss,
-)
-
 from quick_convert.components.layers import AttentiveStatisticsPooling
 
 class SpeakerASPHead(nn.Module):
@@ -22,8 +16,6 @@ class SpeakerASPHead(nn.Module):
         hidden_dim: int = 128,
         output_dim: int = 192,
         supervision: str = "cosine",
-        classification_dim: int = 2484, # Number of speaker in LS
-        loss: BaseSpeakerLoss = CosineDistanceLoss(),
     ):
         super().__init__()
         self.speaker_head = nn.Sequential(

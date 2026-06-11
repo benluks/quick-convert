@@ -19,6 +19,7 @@ class ConformerBlock(nn.Module):
         bias: bool = True,
         pos_emb_base: float = 10000.0,
         use_flash_attention: bool = True,
+        pre_norm: bool = False,
     ):
 
         super(ConformerBlock, self).__init__()
@@ -39,8 +40,12 @@ class ConformerBlock(nn.Module):
         self.ffn1 = PositionwiseFeedForward(embed_dim=embed_dim, ffn_dim=ffn_dim, bias=bias, dropout=dropout)
         self.ffn2 = PositionwiseFeedForward(embed_dim=embed_dim, ffn_dim=ffn_dim, bias=bias, dropout=dropout)
         self.ln = nn.RMSNorm(embed_dim)
+        self.pre_norm = pre_norm
 
     def forward(self, x: torch.Tensor, padding_mask: torch.Tensor) -> torch.Tensor:
+        if self.pre_norm:
+            x = self.ln(x)
+
         # First FFN
         x = mask_pad(x, padding_mask)
 
@@ -56,9 +61,9 @@ class ConformerBlock(nn.Module):
         # Second FFN
         x = x + 0.5 * self.ffn2(x)
 
-        # Final layer norm (post norm is the default in Conformer,
-        # but we should consider to update it to pre-norm)
-        x = self.ln(x)
+        if not self.pre_norm:
+            # Post-norm is kept as default for backward compatibility.
+            x = self.ln(x)
 
         x = mask_pad(x, padding_mask)
         return x
