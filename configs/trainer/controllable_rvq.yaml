@@ -10,6 +10,18 @@ defaults:
   - _self_
 
 _target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
+cudnn_benchmark: null
+# Precision for mixed-precision training.
+# Options: "32", "16-mixed" (fp16), "bf16-mixed" (bf16, recommended for flash attention)
+precision: null
+
+ddp:
+  enabled: false
+  accelerator: gpu
+  devices: auto
+  num_nodes: 1
+  strategy: ddp
+  sync_batchnorm: false
 
 train_dataloader_kwargs:
   batch_size: ${pipeline.batch_size}
@@ -25,6 +37,16 @@ val_dataloader_kwargs:
   pin_memory: ${pipeline.dataloader.pin_memory}
   drop_last: ${pipeline.dataloader.drop_last}
   persistent_workers: true
+
+compile:
+  enabled: false
+  backend: inductor
+  mode: default
+  fullgraph: false
+  dynamic: true
+  targets:
+    - encoder
+    - decoder
 
 module:
   _target_: quick_convert.pipelines.training.modules.ControllableRVQTrainingModule

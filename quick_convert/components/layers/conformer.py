@@ -18,6 +18,7 @@ class ConformerBlock(nn.Module):
         dropout: float = 0.1,
         bias: bool = True,
         pos_emb_base: float = 10000.0,
+        use_flash_attention: bool = True,
     ):
 
         super(ConformerBlock, self).__init__()
@@ -25,7 +26,12 @@ class ConformerBlock(nn.Module):
         # All blocks implemented with RMSNorm instead of LayerNorm (let's see how it works)
         # Implemented with RoPE
         self.mha = MultiHeadAttention(
-            embed_dim=embed_dim, num_heads=num_heads, bias=bias, dropout=dropout, pos_emb_base=pos_emb_base
+            embed_dim=embed_dim,
+            num_heads=num_heads,
+            bias=bias,
+            dropout=dropout,
+            pos_emb_base=pos_emb_base,
+            use_sdpa=use_flash_attention,
         )
 
         self.conv = DepthWiseConvolution(channels=embed_dim, kernel_size=conv_kernel_size, bias=bias, dropout=dropout)

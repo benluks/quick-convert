@@ -37,6 +37,7 @@ class ConformerEncoder(nn.Module):
         dropout: float = 0.1,
         bias: bool = True,
         pos_emb_base: float = 10000.0,
+        use_flash_attention: bool = True,
     ):
         super().__init__()
 
@@ -52,6 +53,7 @@ class ConformerEncoder(nn.Module):
                     dropout=dropout,
                     bias=bias,
                     pos_emb_base=pos_emb_base,
+                    use_flash_attention=use_flash_attention,
                 )
                 for _ in range(num_blocks)
             ]
