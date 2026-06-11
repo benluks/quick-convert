@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from quick_convert.utils.masking import make_padding_mask, masked_loss
+from quick_convert.utils.masking import make_padding_mask, masked_loss, trim_to_min
 
 from ...external.chatterbox.bridges.load_vocoder import load_vocoder
 from ...external.chatterbox.s3gen.utils.mel import mel_spectrogram
@@ -82,18 +82,19 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         """
 
         target_mel, target_mel_lengths = self._compute_mels(target_wav, wav_lens, sampling_rate.item())
+
+        features, target_mel, lengths = trim_to_min(features.transpose(1, 2), target_mel, lengths, target_mel_lengths)
+
         batch = {
-            # bypass token embedding lookup entirely
-            "speech_token": features,
+            "speech_token": features.transpose(1, 2),
             "speech_token_len": lengths,
             "speech_feat": target_mel,
-            "speech_feat_len": target_mel_lengths,
+            # use legnths output from the trim function above
+            "speech_feat_len": lengths,
             "embedding": speaker_embedding,
         }
 
-        # if cond is not None:
-        #     batch["cond"] = cond
-        mask = make_padding_mask(target_mel_lengths)
+        mask = make_padding_mask(lengths)
 
         output = self.flow.compute_loss(
             batch=batch,
@@ -101,11 +102,12 @@ class ChatterboxSpectrogramGenerator(nn.Module):
             device=target_mel.device,
             cond_strategy=self.cond_strategy,
         )
-        
-        pred_mel = output["y"]
-        mae = masked_loss(F.l1_loss, pred_mel, target_mel, mask=mask)
 
-        return pred_mel, output["y"], mae
+        pred_mel = output["y"]
+
+        mae = masked_loss(F.l1_loss, pred_mel.transpose(1, 2), target_mel.transpose(1, 2), mask=mask)
+
+        return output["loss"], pred_mel, mae
 
     @torch.inference_mode()
     def forward(

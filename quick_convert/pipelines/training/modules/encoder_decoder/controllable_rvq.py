@@ -234,33 +234,31 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         )
 
         loss = rvq_loss + distil_loss + adv_loss + self.hparams.decoder_loss_weight * decoder_loss
-        log_dict = (
-            {
-                f"{stage}/loss": loss,
-                # RVQ losses
-                f"{stage}/rvq/loss": rvq_loss,
-                f"{stage}/rvq/commitment_loss": loss_dict["rvq_losses"]["commitment_loss"],
-                f"{stage}/rvq/codebook_loss": loss_dict["rvq_losses"]["codebook_loss"],
-                # Decoder loss
-                f"{stage}/decoder/loss": decoder_loss,
-                f"{stage}/decoder/mae": decoder_mae,
-                # Distillation losses
-                f"{stage}/distil/loss": distil_loss,
-                f"{stage}/distil/ctc_loss": loss_dict["distill_losses"]["ctc_loss"],
-                f"{stage}/distil/spk_loss": loss_dict["distill_losses"]["spk_loss"],
-                f"{stage}/distil/emo_loss": loss_dict["distill_losses"]["emo_loss"],
-                f"{stage}/distil/pros_loss": loss_dict["distill_losses"]["pros_loss"],
-                # Adversarial losses
-                f"{stage}/adv/loss": adv_loss,
-                f"{stage}/adv/spk_loss_ling": loss_dict["adv_losses"]["adv_spk_loss_ling"],
-                f"{stage}/adv/spk_loss_pros": loss_dict["adv_losses"]["adv_spk_loss_pros"],
-                f"{stage}/adv/ling_loss_spk": loss_dict["adv_losses"]["adv_ling_loss_spk"],
-                f"{stage}/adv/ling_loss_pros": loss_dict["adv_losses"]["adv_ling_loss_pros"],
-                # spk accuracy
-                f"{stage}/adv_spk_acc_ling": spk_acc_dict["adv_spk_acc_ling"],
-                f"{stage}/adv_spk_acc_pros": spk_acc_dict["adv_spk_acc_pros"],
-            },
-        )
+        log_dict = {
+            f"{stage}/loss": loss,
+            # RVQ losses
+            f"{stage}/rvq/loss": rvq_loss,
+            f"{stage}/rvq/commitment_loss": loss_dict["rvq_losses"]["commitment_loss"],
+            f"{stage}/rvq/codebook_loss": loss_dict["rvq_losses"]["codebook_loss"],
+            # Decoder loss
+            f"{stage}/decoder/loss": decoder_loss,
+            f"{stage}/decoder/mae": decoder_mae,
+            # Distillation losses
+            f"{stage}/distil/loss": distil_loss,
+            f"{stage}/distil/ctc_loss": loss_dict["distill_losses"]["ctc_loss"],
+            f"{stage}/distil/spk_loss": loss_dict["distill_losses"]["spk_loss"],
+            f"{stage}/distil/emo_loss": loss_dict["distill_losses"]["emo_loss"],
+            f"{stage}/distil/pros_loss": loss_dict["distill_losses"]["pros_loss"],
+            # Adversarial losses
+            f"{stage}/adv/loss": adv_loss,
+            f"{stage}/adv/spk_loss_ling": loss_dict["adv_losses"]["adv_spk_loss_ling"],
+            f"{stage}/adv/spk_loss_pros": loss_dict["adv_losses"]["adv_spk_loss_pros"],
+            f"{stage}/adv/ling_loss_spk": loss_dict["adv_losses"]["adv_ling_loss_spk"],
+            f"{stage}/adv/ling_loss_pros": loss_dict["adv_losses"]["adv_ling_loss_pros"],
+            # spk accuracy
+            f"{stage}/adv_spk_acc_ling": spk_acc_dict["adv_spk_acc_ling"],
+            f"{stage}/adv_spk_acc_pros": spk_acc_dict["adv_spk_acc_pros"],
+        }
 
         self.log_dict(
             log_dict,

@@ -133,7 +133,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
         embedding = F.normalize(embedding, dim=1)
         embedding = self.spk_embed_affine_layer(embedding)
 
-        mask = mask.unsqueeze(-1)  # (B, T, 1)
+        # mask = (~make_pad_mask(token_len)).to(device)
 
         if self.input_embedding is not None:
             # if `token` is token indices, project them by input embedding
