@@ -1,0 +1,24 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: build_manifest
+  - /dataset: librispeech
+  - _self_
+
+columns:
+  utt_id: "{sample.utt_id}"
+  path: "{sample.path}"
+  split: "{sample.split}"
+  spk_id: "{sample.path.parent.parent.stem}"
+  spkid: "{sample.resources.spkid.value}"
+
+pipeline:
+  overwrite: true
+
+suffix: ""
+resources_path: outputs/precomputed/${hydra:runtime.choices.dataset}
+dataset:
+  resource_providers:
+    - ${dataset.spkid_provider}
+  sort_key: "{row.utt_id}"
