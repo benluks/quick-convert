@@ -5,11 +5,11 @@ import torch
 from .. import ResourceRef
 
 
-def load_torch_tensor(ref):
+def load_torch(ref):
     return torch.load(ref.path)
 
 
-LOADER_REGISTRY = {"torch_tensor": load_torch_tensor}
+LOADER_REGISTRY = {"torch_tensor": load_torch, "token_ids": load_torch}
 
 
 def load_resource(ref: ResourceRef):

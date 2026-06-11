@@ -75,10 +75,12 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         self,
         encoder: RVQDisentangler,
         decoder: CSG,
-        tokenizer: spm.SentencePieceProcessor,
+        # either pass `tokenizer` or `tokenizer_pad_id`
         rvq_loss_weights: dict[str, float],
         distillation_loss_weights: dict[str, float],
         adv_loss_weights: dict[str, float],
+        tokenizer: Optional[spm.SentencePieceProcessor] = None,
+        tokenizer_pad_id: Optional[int] = None,
         decoder_loss_weight: Optional[float] = None,
         optimizer: torch.optim.Optimizer = torch.optim.AdamW,
         lr_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
@@ -93,6 +95,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         )
 
         self.tokenizer = tokenizer
+        self.tokenizer_pad_id = tokenizer_pad_id if tokenizer_pad_id is not None else tokenizer.pad_id()
         self.adv_loss_hold_off = adv_loss_hold_off
 
         self.save_hyperparameters(ignore=["encoder", "decoder", "tokenizer"])
@@ -162,7 +165,6 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             Scalar total loss tensor passed to the Lightning optimiser.
         """
         # lengths = batch.lengths  # (B,)
-        targets = batch.resources["transcript"]  # transcript token ids, shape (B, T_text) or None
         spk_targets = torch.LongTensor(self.indexers["speaker"].encode_many(batch.resources["spkid"])).to(self.device)
 
         features = batch.resources["content"].values
@@ -177,14 +179,15 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             else None
         )
 
-        tokenized_transcripts = self.tokenizer.encode(targets)
-        ling_targets = collate_token_sequences(tokenized_transcripts, padding_value=self.tokenizer.pad_id())
+        # tokenized_transcripts = self.tokenizer.encode(targets)
+        token_ids = batch.resources["token_ids"]  # transcript token ids, shape (B, T_text) or None
+        # ling_targets = collate_token_sequences(token_ids, padding_value=self.tokenizer_pad_id)
 
         z_q, spk_q, spk_output, text_q, pros_emo_q, loss_dict, spk_acc_dict = self.encoder.compute_loss(
             features,
             lengths,
-            linguistic_targets=ling_targets.values,
-            target_lengths=ling_targets.lengths,
+            linguistic_targets=token_ids.values,
+            target_lengths=token_ids.lengths,
             speaker_seq=target_spk_seq,
             emotion_seq=emo_targets,
             speaker_targets=spk_targets,

@@ -32,6 +32,10 @@ data: &data
     # - ${source_dataset.transcript_provider}
     # - ${source_dataset.spkid_provider}
     - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: token_ids
+      name: token_ids
+      path_template: ${resources_path}/tokenizer/{sample.split}/{sample.utt_id}.pt
+    - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: content
       path_template: ${resources_path}/w2vbert_6layer/{sample.split}/{sample.utt_id}.pt
@@ -46,7 +50,7 @@ data: &data
 
   load:
     - audio
-    - transcript
+    - token_ids
     - content
     - emo2vec
     - spk
@@ -59,10 +63,10 @@ train_dataset:
   resources:
     # intended resource name : column name
     # key is the name of the desired resource
-    transcript:
-      # name of column in csv
-      column: transcript
-      kind: text
+    # transcript:
+    #   # name of column in csv
+    #   column: transcript
+    #   kind: text
     spkid:
       # name of column in csv
       column: spkid
