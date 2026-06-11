@@ -6,8 +6,6 @@ import torch
 import torchaudio
 
 
-from funasr import AutoModel
-
 from quick_convert.data.types import AudioBatch
 from .base import ContentEncoder, ContentFeatures
 
@@ -49,6 +47,8 @@ class EmotionEncoder(ContentEncoder):
         self.local_files_only = local_files_only
         self.granularity = granularity
         self.layer = layer
+
+        from funasr import AutoModel
 
         self.model = AutoModel(model=model_name, device=str(self.device))
         # technically unneessary, funasr does this under the hood
