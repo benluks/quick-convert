@@ -18,15 +18,17 @@ dataloader:
 train_kwargs:
   # in the future, have the lightning_trainer class interpret more implementation-agnostic
   # param names and translate them into L.Trainer kwargs
-  max_steps: 100000
-  val_check_interval: 1000
+  max_steps: -1
+  # for step-based validation
+  # val_check_interval: 1000
   accelerator: auto
   devices: auto
   precision: 32
-  log_every_n_steps: 10
+  log_every_n_steps: 200
   enable_checkpointing: true
   enable_progress_bar: true
   enable_model_summary: true
+  
 
 # test_dataset: null
 # test_dataloader_kwargs: {}

@@ -12,6 +12,7 @@ defaults:
 
 # probably won't need more than 256
 encoder_dim: 256
+num_feature_layers: 6
 
 tokenizer_model_path: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
 tokenizer_vocab_size: 1000
@@ -46,6 +47,7 @@ speaker_head:
   input_dim: ${architecture.rvq.input_dim}
   hidden_dim: 256
   output_dim: ${architecture.feature_extractors.speaker.feature_dim}
+  supervision: aam
 
 prosody_head: null
 # _target_: quick_convert.components.encoders.LinearHead

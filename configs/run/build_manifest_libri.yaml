@@ -17,7 +17,7 @@ columns:
 pipeline:
   overwrite: true
 
-split: train-clean-100
+split: test-other
 
 suffix: /${split}
 resources_path: outputs/precomputed/${hydra:runtime.choices.dataset}

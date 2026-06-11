@@ -16,7 +16,10 @@ dataset_path: ${out_root}/${dataset_name}
 pipeline:
   batch_size: 2
   train_kwargs:
-    val_check_interval: null 
+    val_check_interval: null
+    callbacks:
+      - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+        monitor: val/decoder_mae
 
 trainer:
   train_dataloader_kwargs:
@@ -27,11 +30,11 @@ trainer:
 data: &data
   resource_providers:
     # - ${source_dataset.transcript_provider}
-    - ${source_dataset.spkid_provider}
+    # - ${source_dataset.spkid_provider}
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: content
-      path_template: ${resources_path}/w2vbert/{sample.split}/{sample.utt_id}.pt
+      path_template: ${resources_path}/w2vbert_6layer/{sample.split}/{sample.utt_id}.pt
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: emo2vec
@@ -59,6 +62,10 @@ train_dataset:
     transcript:
       # name of column in csv
       column: transcript
+      kind: text
+    spkid:
+      # name of column in csv
+      column: spkid
       kind: text
 
 val_dataset: null

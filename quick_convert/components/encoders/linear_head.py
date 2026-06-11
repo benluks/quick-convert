@@ -4,7 +4,8 @@ import torch.nn as nn
 from quick_convert.utils.masking import masked_loss
 
 from quick_convert.utils.masking import masked_loss
-from quick_convert.components.losses.distil_losses import BaseDistilLoss, MSELoss
+from quick_convert.components.losses.distil_losses import BaseDistilLoss, MSELoss, MaskedMSELoss
+
 
 class LinearHead(nn.Module):
     """
@@ -15,7 +16,7 @@ class LinearHead(nn.Module):
         self,
         input_dim: int = 512,
         output_dim: int = 128,
-        loss: BaseDistilLoss = MSELoss(),
+        loss: BaseDistilLoss = MaskedMSELoss("frame"),
     ):
         super().__init__()
         self.ln = nn.LayerNorm(input_dim)
