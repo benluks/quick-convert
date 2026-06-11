@@ -27,5 +27,4 @@ feature_extractor:
 
 pipeline:
   out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/ssl@encoder}_6layer
-  skip_existing: true
   batch_size: 64
