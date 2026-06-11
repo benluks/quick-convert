@@ -29,9 +29,10 @@ val_dataloader_kwargs:
 module:
   _target_: quick_convert.pipelines.training.modules.ControllableRVQTrainingModule
   decoder: ${architecture.decoder}
-  tokenizer:
-    _target_: sentencepiece.SentencePieceProcessor
-    model_file: ${architecture.tokenizer_model_path}
+  # tokenizer:
+  #   _target_: sentencepiece.SentencePieceProcessor
+  #   model_file: ${architecture.tokenizer_model_path}
+  tokenizer_pad_id: 0
   decoder_loss_weight: 1.0
   rvq_loss_weights:
     commitment_loss: 0.25

@@ -221,6 +221,11 @@ def _collate_resource_refs(
             refs,
             squeeze_single_frame=squeeze_single_frame_tensors,
         )
+    if kind == "token_ids":
+        return collate_token_sequences(
+            [ref.value for ref in refs],
+            padding_value=0,
+        )
 
     raise NotImplementedError(f"Collation for resource kind {kind!r} is not implemented.")
 
