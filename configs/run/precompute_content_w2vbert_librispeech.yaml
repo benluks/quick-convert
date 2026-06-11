@@ -10,10 +10,12 @@ defaults:
 
 dataset:
   splits:
-    # - train-clean-100
-    # - train-other-500
-    # - dev-other
-    # - test-clean
+    - train-clean-100
+    - train-clean-360
+    - train-other-500
+    - dev-clean
+    - dev-other
+    - test-clean
     - test-other
 
   load: true
@@ -25,4 +27,5 @@ feature_extractor:
 
 pipeline:
   out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/ssl@encoder}_6layer
-  skip_existing: false
+  skip_existing: true
+  batch_size: 64
