@@ -14,9 +14,12 @@ resources_path: outputs/precomputed/${dataset_name}
 dataset_path: ${out_root}/${dataset_name}
 
 pipeline:
-  batch_size: 4
+  batch_size: 2
   train_kwargs:
     val_check_interval: null
+    callbacks:
+      - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+        monitor: val/decoder_mae
 
 trainer:
   train_dataloader_kwargs:

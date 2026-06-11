@@ -163,12 +163,12 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         """
         # lengths = batch.lengths  # (B,)
         targets = batch.resources["transcript"]  # transcript token ids, shape (B, T_text) or None
-        spk_targets = torch.long(self.indexers["speaker"].encode_many(batch.resources["spkid"])).to(self.device)
+        spk_targets = torch.LongTensor(self.indexers["speaker"].encode_many(batch.resources["spkid"])).to(self.device)
 
         features = batch.resources["content"].values
         lengths = batch.resources["content"].lengths
 
-        spk_targets = batch.resources["spk"].values
+        target_spk_seq = batch.resources["spk"].values
         emo_targets = batch.resources["emo2vec"].values
         emo_lengths = batch.resources["emo2vec"].lengths
         pros_targets = (
@@ -180,15 +180,15 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         tokenized_transcripts = self.tokenizer.encode(targets)
         ling_targets = collate_token_sequences(tokenized_transcripts, padding_value=self.tokenizer.pad_id())
 
-        z_q, spk_q, spk_output, text_q, pros_emo_q, loss_dict = self.encoder.compute_loss(
+        z_q, spk_q, spk_output, text_q, pros_emo_q, loss_dict, spk_acc_dict = self.encoder.compute_loss(
             features,
             lengths,
-            ling_targets.values,
-            ling_targets.lengths,
-            spk_targets,
-            emo_targets,
-            emo_lengths,
-            pros_targets,
+            linguistic_targets=ling_targets.values,
+            target_lengths=ling_targets.lengths,
+            speaker_seq=target_spk_seq,
+            emotion_seq=emo_targets,
+            speaker_targets=spk_targets,
+            prosody_seq=pros_targets,
             run_adv=self.global_step > self.hparams.adv_loss_hold_off,
         )
 
@@ -222,7 +222,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         # TODO
         decoder_features = torch.cat([text_q, pros_emo_q], dim=-1)
 
-        decoder_loss, decoder_output = self.decoder.compute_loss(
+        decoder_loss, decoder_output, decoder_mae = self.decoder.compute_loss(
             features=decoder_features,
             # feature lengths
             lengths=lengths,
@@ -234,27 +234,33 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         )
 
         loss = rvq_loss + distil_loss + adv_loss + self.hparams.decoder_loss_weight * decoder_loss
-        log_dict = {
-            f"{stage}/loss": loss,
-            # RVQ losses
-            f"{stage}/rvq_loss": rvq_loss,
-            f"{stage}/commitment_loss": loss_dict["rvq_losses"]["commitment_loss"],
-            f"{stage}/codebook_loss": loss_dict["rvq_losses"]["codebook_loss"],
-            # Decoder loss
-            f"{stage}/decoder_loss": decoder_loss,
-            # Distillation losses
-            f"{stage}/distil_loss": distil_loss,
-            f"{stage}/ctc_loss": loss_dict["distill_losses"]["ctc_loss"],
-            f"{stage}/spk_loss": loss_dict["distill_losses"]["spk_loss"],
-            f"{stage}/emo_loss": loss_dict["distill_losses"]["emo_loss"],
-            f"{stage}/pros_loss": loss_dict["distill_losses"]["pros_loss"],
-            # Adversarial losses
-            f"{stage}/adv_loss": adv_loss,
-            f"{stage}/adv_spk_loss_ling": loss_dict["adv_losses"]["adv_spk_loss_ling"],
-            f"{stage}/adv_spk_loss_pros": loss_dict["adv_losses"]["adv_spk_loss_pros"],
-            f"{stage}/adv_ling_loss_spk": loss_dict["adv_losses"]["adv_ling_loss_spk"],
-            f"{stage}/adv_ling_loss_pros": loss_dict["adv_losses"]["adv_ling_loss_pros"],
-        }
+        log_dict = (
+            {
+                f"{stage}/loss": loss,
+                # RVQ losses
+                f"{stage}/rvq/loss": rvq_loss,
+                f"{stage}/rvq/commitment_loss": loss_dict["rvq_losses"]["commitment_loss"],
+                f"{stage}/rvq/codebook_loss": loss_dict["rvq_losses"]["codebook_loss"],
+                # Decoder loss
+                f"{stage}/decoder/loss": decoder_loss,
+                f"{stage}/decoder/mae": decoder_mae,
+                # Distillation losses
+                f"{stage}/distil/loss": distil_loss,
+                f"{stage}/distil/ctc_loss": loss_dict["distill_losses"]["ctc_loss"],
+                f"{stage}/distil/spk_loss": loss_dict["distill_losses"]["spk_loss"],
+                f"{stage}/distil/emo_loss": loss_dict["distill_losses"]["emo_loss"],
+                f"{stage}/distil/pros_loss": loss_dict["distill_losses"]["pros_loss"],
+                # Adversarial losses
+                f"{stage}/adv/loss": adv_loss,
+                f"{stage}/adv/spk_loss_ling": loss_dict["adv_losses"]["adv_spk_loss_ling"],
+                f"{stage}/adv/spk_loss_pros": loss_dict["adv_losses"]["adv_spk_loss_pros"],
+                f"{stage}/adv/ling_loss_spk": loss_dict["adv_losses"]["adv_ling_loss_spk"],
+                f"{stage}/adv/ling_loss_pros": loss_dict["adv_losses"]["adv_ling_loss_pros"],
+                # spk accuracy
+                f"{stage}/adv_spk_acc_ling": spk_acc_dict["adv_spk_acc_ling"],
+                f"{stage}/adv_spk_acc_pros": spk_acc_dict["adv_spk_acc_pros"],
+            },
+        )
 
         self.log_dict(
             log_dict,
@@ -315,7 +321,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
                     # compute vocoder output, log audio
                     self.logger.experiment.add_audio(
                         f"{tag_prefix}/generated_waveform",
-                        gen_audio[i].unsqueeze(-1).detach().cpu(),
+                        gen_audio[i].unsqueeze(-1).detach().cpu()[..., : sample.length],
                         self.global_step,
                         sample_rate=self.decoder.vocoder.sampling_rate,
                     )

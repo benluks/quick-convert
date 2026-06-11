@@ -81,7 +81,7 @@ class AAMSoftmaxLoss(BaseSpeakerLoss):
 
         # Get predictions and accuracy for monitoring
         preds = torch.argmax(cosine, dim=1)
-        speaker_labels = speaker_labels.squeeze(1)
+        speaker_labels = speaker_labels
         accuracy = (preds == speaker_labels).float().mean()
 
         # Convert cosine similarities to sine values using the identity sin^2 + cos^2 = 1
