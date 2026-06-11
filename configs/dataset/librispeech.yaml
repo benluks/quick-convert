@@ -1,7 +1,7 @@
 # configs/dataset/librispeech.yaml
 
 _target_: quick_convert.data.BaseDataset
-root: /cfs/collections/librispeech/LibriSpeech
+root: /Users/ben/LibriSpeech
 
 splits:
   - train-clean-100
@@ -25,3 +25,9 @@ transcript_provider:
   text_column: 1
   delimiter: " "
   join_text_columns: true
+
+spkid_provider:
+  _target_: quick_convert.data.resources.TemplateResourceProvider
+  kind: text
+  name: spkid
+  template: "{path.parent.parent.name}"

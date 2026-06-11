@@ -14,7 +14,7 @@ resources_path: outputs/precomputed/${dataset_name}
 dataset_path: ${out_root}/${dataset_name}
 
 pipeline:
-  batch_size: 4
+  batch_size: 2
   train_kwargs:
     val_check_interval: null 
 
@@ -27,6 +27,7 @@ trainer:
 data: &data
   resource_providers:
     # - ${source_dataset.transcript_provider}
+    - ${source_dataset.spkid_provider}
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: content
