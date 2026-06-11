@@ -46,16 +46,18 @@ class LinguisticCTCHead(nn.Module):
 
 class LinguisticConformerCTCHead(nn.Module):
     def __init__(
-        self,
-        hidden_dim: int,
-        output_dim: int,
-        loss: CTCLoss,
-        dropout_p: float = 0.1,
-        conv_kernel_size: int = 31,
-        bias: bool = True,
-        num_heads: int = 4,
-        ffn_dim: int = None,
-    ):
+            self, 
+            hidden_dim: int, 
+            output_dim: int, 
+            loss: CTCLoss = CTCLoss,
+            dropout_p: float = 0.1, 
+            conv_kernel_size: int = 31, 
+            bias: bool = True, 
+            num_heads: int = 4, 
+            ffn_dim: int = None,
+            use_flash_attention: bool = True,
+            
+        ):
         super().__init__()
         if ffn_dim is None:
             ffn_dim = hidden_dim * 4
@@ -68,6 +70,7 @@ class LinguisticConformerCTCHead(nn.Module):
             conv_kernel_size=conv_kernel_size,
             dropout=dropout_p,
             bias=bias,
+            use_flash_attention=use_flash_attention,
         )
         """
         self.ln = nn.LayerNorm(hidden_dim)
@@ -79,6 +82,7 @@ class LinguisticConformerCTCHead(nn.Module):
             conv_kernel_size=conv_kernel_size,
             dropout=dropout_p,
             bias=bias,
+            use_flash_attention=use_flash_attention,
         )
         self.ctc_loss = loss
 

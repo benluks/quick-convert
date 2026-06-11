@@ -29,8 +29,6 @@ trainer:
 
 data: &data
   resource_providers:
-    # - ${source_dataset.transcript_provider}
-    # - ${source_dataset.spkid_provider}
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: token_ids
       name: token_ids
@@ -43,10 +41,6 @@ data: &data
       kind: torch_tensor
       name: emo2vec
       path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
-    - _target_: quick_convert.data.resources.PathResourceProvider
-      kind: torch_tensor
-      name: spk
-      path_template: ${resources_path}/spk_espnet/{sample.split}/{sample.utt_id}.pt
 
   load:
     - audio
@@ -61,14 +55,7 @@ train_dataset:
   splits:
     - test-other
   resources:
-    # intended resource name : column name
-    # key is the name of the desired resource
-    # transcript:
-    #   # name of column in csv
-    #   column: transcript
-    #   kind: text
     spkid:
-      # name of column in csv
       column: spkid
       kind: text
 

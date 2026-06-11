@@ -4,10 +4,11 @@
 defaults:
   - /components/ssl@emotion_ssl: emo2vec
   - /components/ssl@content_ssl: w2vbert
-  - /components/speaker_encoder@speaker_ssl: espnet
   - /components/decoders@decoder: chatterbox
   - /components/layers@rvq: rvq
   - /components/encoders@decoder.flow.encoder: conformer_encoder
+  - /components/encoders@content_encoder: conformer_encoder_ssl
+  - /components/losses@losses.mse_loss: mse_loss
   - _self_
 
 # probably won't need more than 256
@@ -20,11 +21,11 @@ tokenizer_vocab_size: 1000
 feature_extractors:
   content: ${architecture.content_ssl}
   emotion: ${architecture.emotion_ssl}
-  speaker: ${architecture.speaker_ssl}
 
 content_encoder:
   input_dim: ${architecture.content_ssl.feature_dim}
   embed_dim: ${architecture.encoder_dim}
+  num_ssl_layers: 6 # 24 /4 because we use the output of every 4th layer
 
 rvq:
   input_dim: ${architecture.content_encoder.embed_dim}
@@ -39,14 +40,16 @@ emotion_head:
   _target_: quick_convert.components.encoders.LinearHead
   input_dim: ${architecture.rvq.input_dim}
   output_dim: ${architecture.feature_extractors.emotion.feature_dim}
+  loss: ${architecture.losses.mse_loss}
 
 linguistic_head:
   hidden_dim: ${architecture.rvq.input_dim}
   output_dim: ${architecture.tokenizer_vocab_size}
+
 speaker_head:
   input_dim: ${architecture.rvq.input_dim}
   hidden_dim: 256
-  output_dim: ${architecture.feature_extractors.speaker.feature_dim}
+  output_dim: 128 #Number of speakers#${architecture.feature_extractors.speaker.feature_dim}
   supervision: aam
 
 prosody_head: null
@@ -61,6 +64,7 @@ mel_dim: 80
 decoder:
   cond_strategy: null
   flow:
+    spk_embed_dim: ${architecture.speaker_head.output_dim}
     vocab_size: null
     encoder:
       num_blocks: 6

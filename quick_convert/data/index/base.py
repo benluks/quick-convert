@@ -5,8 +5,6 @@ from typing import Iterable, Any
 
 import torch
 
-from quick_convert.utils.paths import TemplateFormatter
-
 
 class Indexer:
     """
