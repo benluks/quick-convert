@@ -1,7 +1,7 @@
 _target_: quick_convert.components.encoders.ParallelConformerEncoder
 input_dim: ${architecture.content_encoder.input_dim}
 embed_dim: ${architecture.content_encoder.embed_dim}
-num_layers: 24
+num_layers: ${architecture.num_feature_layers}
 num_meta_heads: 4
 num_sub_heads: 4
 ffn_dim: 512
