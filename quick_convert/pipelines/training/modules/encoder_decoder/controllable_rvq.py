@@ -9,7 +9,6 @@ from quick_convert.components.encoders import RVQDisentangler
 from quick_convert.components.decoders import ChatterboxSpectrogramGenerator as CSG
 
 from quick_convert.data.index.base import Indexer
-from quick_convert.data.resources.base import collate_token_sequences
 from quick_convert.data.types import AudioBatch
 from quick_convert.pipelines.training.modules.encoder_decoder.base import BaseEncoderDecoderTrainingModule
 
@@ -106,7 +105,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         )
         self.media_log_interval = 500
 
-        # has tp be declared like this, since the parent lightning trainer has
+        # has to be declared like this, since the parent lightning trainer has
         # access to the datasets, which are used to fit the indexer
         self.indexers = {"speaker": Indexer("{sample.resources.spkid.value}")}
 
@@ -181,7 +180,6 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
         # tokenized_transcripts = self.tokenizer.encode(targets)
         token_ids = batch.resources["token_ids"]  # transcript token ids, shape (B, T_text) or None
-        # ling_targets = collate_token_sequences(token_ids, padding_value=self.tokenizer_pad_id)
 
         z_q, spk_q, spk_output, text_q, pros_emo_q, loss_dict, spk_acc_dict = self.encoder.compute_loss(
             features,
