@@ -3,7 +3,7 @@
 
 defaults:
   - /global: default
-  - /components/encoders@module.encoder: rvq_disentangler
+  - /components/encoders@module.encoder: rvq_disentangler_v2
   - /architecture: controllable_rvq_v2
   - /trainer/optimizer@module.optimizer: adamw
   - /trainer/lr_scheduler@module.lr_scheduler: cosine_annealing

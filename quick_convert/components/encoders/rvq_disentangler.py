@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from quick_convert.components.encoders.conformer_encoder import ConformerEncoderSSL
-from quick_convert.utils.masking import make_padding_mask, masked_loss
+from quick_convert.utils.masking import make_padding_mask, masked_loss, trim_to_min
 
 from .speaker_head import SpeakerASPHead
 from .linguistic_head import LinguisticCTCHead
@@ -77,18 +77,6 @@ class RVQDisentangler(nn.Module):
         self.grl = GradientReversalLayer()  # For adversarial loss on speaker features
 
     # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    def _make_padding_mask(
-        self,
-        frame_lengths: torch.Tensor,  # (B,)
-    ) -> torch.Tensor:
-        """Returns (B, T) bool mask — True marks padding positions."""
-        idx = torch.arange(frame_lengths.max(), device=frame_lengths.device)  # (T,)
-        return idx.unsqueeze(0) >= frame_lengths.unsqueeze(1)  # (B, T)
-
-    # ------------------------------------------------------------------
     # Forward
     # ------------------------------------------------------------------
 
@@ -102,7 +90,7 @@ class RVQDisentangler(nn.Module):
     def encode(
         self,
         features: torch.Tensor,  # (B, T_samples)
-        lengths: torch.Tensor,  # (B,)  — number of valid samples per item
+        padding_mask: torch.Tensor,  # (B,)  — number of valid samples per item
     ) -> Tuple[
         torch.Tensor,  # z_q            (B, T, F)
         List[torch.Tensor],  # indices_list   [num_codebooks × (B·T,)]
@@ -128,8 +116,6 @@ class RVQDisentangler(nn.Module):
             lengths:         Updated lengths after feature extraction, shape (B,).
         """
 
-        padding_mask = make_padding_mask(lengths)  # (B, T_frames)
-
         # 4. Content encoder: (B, T, L, F) -> (B, T, F)
         content = self.content_encoder(features, padding_mask=padding_mask)
 
@@ -139,7 +125,7 @@ class RVQDisentangler(nn.Module):
 
         # 6. Residual VQ
         # z_q, z_qs, codes, latents, commitment_loss, codebook_loss
-        z_q_flat, z_quantized, _, _, commitment_loss, codebook_loss = self.rvq(content, lengths=lengths)
+        z_q_flat, z_quantized, _, _, commitment_loss, codebook_loss = self.rvq(content, padding_mask)
 
         # 7. Reshape back to (B, T, F)
         z_q = z_q_flat.transpose(1, 2)  # (B, T, F)
@@ -164,7 +150,6 @@ class RVQDisentangler(nn.Module):
             commitment_loss,
             codebook_loss,
             content,
-            lengths,
         )
 
     def compute_loss(
@@ -175,20 +160,19 @@ class RVQDisentangler(nn.Module):
         target_lengths: int["b"],
         speaker_seq: float["b d_spk"] | int["b"],
         emotion_seq: Optional[float["b t d_emo"]],
+        emotion_lengths: Optional[int["b"]],
         # the target speaker indices encoded from their string ids, e.g. `16`, not `spk11`
         # speaker_targets: Optional[int["b"]] = None,
         prosody_seq: Optional[float["b t d_pro"]] = None,
         run_adv=True,
     ) -> List:
 
-        min_max_feat_len = min([features.shape[1], emotion_seq.shape[1]])
-        features, emotion_seq = features[:, :min_max_feat_len], emotion_seq[:, :min_max_feat_len]
-        lengths = torch.minimum(lengths, torch.tensor(min_max_feat_len, device=lengths.device))
+        features, emotion_seq, lengths = trim_to_min(features, emotion_seq, lengths, emotion_lengths, time_dim=1)
+        padding_mask = make_padding_mask(lengths, max_length=features.shape[1])  # (B, T_frames)
 
-        z_q, z_quantized, spk_q, text_q, emo_pros_q, commitment_loss, codebook_loss, content, lengths = self.encode(
-            features, lengths
+        z_q, z_quantized, spk_q, text_q, emo_pros_q, commitment_loss, codebook_loss, content = self.encode(
+            features, padding_mask
         )
-        padding_mask = make_padding_mask(lengths)
 
         # MSE loss between RVQ output and content encoder output
         # to encourage the RVQ to capture the all of the information from the content encoder
@@ -206,7 +190,7 @@ class RVQDisentangler(nn.Module):
         spk_output, spk_loss, spk_acc, _ = self.speaker_head.compute_loss(spk_q, speaker_seq)
 
         # Emotion loss: encourage emo_q to match the target emotion features (if provided)
-        emo_loss = self.emotion_head.compute_loss(emo_pros_q, emotion_seq, make_padding_mask(lengths))
+        emo_loss = self.emotion_head.compute_loss(emo_pros_q, emotion_seq, padding_mask)
 
         # Prosody loss: encourage pros_q to match the target prosody features (if provided)
         if self.prosody_head is not None and prosody_seq is not None:
@@ -218,7 +202,6 @@ class RVQDisentangler(nn.Module):
         ctc_loss = self.linguistic_head.compute_loss(
             text_q,
             linguistic_targets,
-            # padding_mask=self._make_padding_mask(lengths),
             input_lengths=lengths,
             target_lengths=target_lengths,
         )

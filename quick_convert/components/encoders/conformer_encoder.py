@@ -151,7 +151,7 @@ class ConformerEncoderSSL(nn.Module):
         padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         layer_weights = F.softmax(self.layer_weights, dim=-1)  # (1, L)
-        x = torch.einsum("btlc,1l->btc", x, layer_weights)  # (B, T, H, D_in)
+        x = torch.einsum("btlc,kl->btc", x, layer_weights)  # (B, T, H, D_in)
         x = self.input_proj(x)
         for block in self.blocks:
             x = block(x, padding_mask=padding_mask)

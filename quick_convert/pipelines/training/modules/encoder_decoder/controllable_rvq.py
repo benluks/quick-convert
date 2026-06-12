@@ -169,6 +169,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         lengths = batch.resources["content"].lengths
 
         emo_targets = batch.resources["emo2vec"].values
+        emo_lengths = batch.resources["emo2vec"].lengths
 
         spk_targets = torch.LongTensor(self.indexers["speaker"].encode_many(batch.resources["spkid"])).to(self.device)
 
@@ -188,6 +189,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             target_lengths=token_ids.lengths,
             speaker_seq=spk_targets,
             emotion_seq=emo_targets,
+            emotion_lengths=emo_lengths,
             prosody_seq=pros_targets,
             run_adv=self.global_step > self.hparams.adv_loss_hold_off,
         )
