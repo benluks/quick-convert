@@ -82,6 +82,11 @@ class DACContentEncoder(ContentEncoder):
             self.dac_encoder.eval().requires_grad_(False)
 
     @classmethod
+    def from_pretrained(cls, model_type: str = "16khz", *, trainable: bool = False, **kwargs) -> "DACContentEncoder":
+        """Load an official pretrained DAC checkpoint and keep its encoder (frozen by default)."""
+        return cls(pretrained=model_type, trainable=trainable, **kwargs)
+
+    @classmethod
     def from_scratch(
         cls,
         *,
