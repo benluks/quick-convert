@@ -28,6 +28,11 @@ trainer:
 #     batch_size: 2
 
 data: &data
+  resources:
+    spkid:
+      # name of column in csv
+      column: spkid
+      kind: text
   resource_providers:
     # - ${source_dataset.transcript_provider}
     # - ${source_dataset.spkid_provider}
@@ -57,18 +62,9 @@ data: &data
 train_dataset:
   <<: *data
   manifest_path: ${dataset_path}/test-other/manifest.csv
-  splits:
-    - test-other
-  resources:
-    # intended resource name : column name
-    # key is the name of the desired resource
-    # transcript:
-    #   # name of column in csv
-    #   column: transcript
-    #   kind: text
-    spkid:
-      # name of column in csv
-      column: spkid
-      kind: text
+  # splits:
+  #   - test-other
 
-val_dataset: null
+val_dataset:
+  <<: *data
+  manifest_path: ${dataset_path}/test-other/manifest.csv
