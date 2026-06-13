@@ -43,7 +43,7 @@ compile:
   backend: inductor
   mode: default
   fullgraph: false
-  dynamic: true
+  dynamic: false
   targets:
     - encoder
     - decoder
