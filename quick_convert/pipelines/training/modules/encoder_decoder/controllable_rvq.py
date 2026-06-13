@@ -312,19 +312,30 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
                 # log spectrograms
                 for i, sample in enumerate(batch):
-                    tag_prefix = f"{sample.split}/{sample.utt_id}"
+                    # only log up to 16 samples. Anything more is overkills
+                    if i >= 16:
+                        break
+
+                    tag_name = sample.utt_id
 
                     # self.logger.experiment.add_image(f"{tag_prefix}/target_spectrogram")
                     self.logger.experiment.add_image(
-                        f"{tag_prefix}/generated_spectrogram", mel[i].unsqueeze(0).detach().cpu(), self.global_step
+                        f"generated/{tag_name}", mel[i].unsqueeze(0).detach().cpu(), self.global_step
                     )
                     # compute vocoder output, log audio
                     self.logger.experiment.add_audio(
-                        f"{tag_prefix}/generated_waveform",
+                        f"generated/{tag_name}",
                         gen_audio[i].unsqueeze(-1).detach().cpu()[..., : sample.length],
                         self.global_step,
                         sample_rate=self.decoder.vocoder.sampling_rate,
                     )
+                    if self.global_step == 0:
+                        self.logger.experiment.add_audio(
+                            f"original/{tag_name}",
+                            sample.waveform.detach().cpu()[..., : sample.length],
+                            self.global_step,
+                            sample_rate=sample.sample_rate,
+                        )
 
         return loss
 
