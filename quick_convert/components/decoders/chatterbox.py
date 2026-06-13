@@ -43,7 +43,7 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         pad = (n_fft - hop_size) // 2
         return ((lengths + 2 * pad - n_fft) // hop_size) + 1
 
-    def _compute_mels(self, wav: torch.Tensor, lengths: torch.Tensor, sampling_rate: int):
+    def _compute_mels(self, wav: torch.Tensor, lengths: torch.Tensor, sampling_rate: int, max_len=None):
         n_fft = int(sampling_rate / 12.5)
         hop_size = int(sampling_rate / 50)
 
@@ -59,6 +59,9 @@ class ChatterboxSpectrogramGenerator(nn.Module):
             center=False,
         )
         mel_lengths = self._mel_lengths(lengths, n_fft=n_fft, hop_size=hop_size)
+        if max_len is not None:
+            if max_len > mel.shape[-1]:
+                mel = F.pad(mel, (0, max_len - mel.shape[-1]))
         return mel, mel_lengths
 
     def mel2wav(self, mel: torch.Tensor) -> torch.Tensor:
@@ -75,13 +78,16 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         wav_lens: torch.Tensor,
         sampling_rate: int,
         speaker_embedding: torch.Tensor,
+        mask: torch.Tensor = None,
         # cond: Optional[torch.Tensor] = None,
     ):
         """
         Thin wrapper around donor compute_loss.
         """
 
-        target_mel, target_mel_lengths = self._compute_mels(target_wav, wav_lens, sampling_rate.item())
+        target_mel, target_mel_lengths = self._compute_mels(
+            target_wav, wav_lens, sampling_rate.item(), max_len=features.shape[1]
+        )
 
         features, target_mel, lengths = trim_to_min(features.transpose(1, 2), target_mel, lengths, target_mel_lengths)
 
@@ -94,7 +100,7 @@ class ChatterboxSpectrogramGenerator(nn.Module):
             "embedding": speaker_embedding,
         }
 
-        mask = make_padding_mask(lengths)
+        mask = make_padding_mask(lengths, max_length=features.shape[-1])
 
         output = self.flow.compute_loss(
             batch=batch,

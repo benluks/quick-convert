@@ -8,20 +8,15 @@ from typing import Callable, Iterable, Literal, Optional, Union, Any
 
 import torch
 import torchaudio
+import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 
-from .resources import collate_resources
 
-from .resources import load_resource, ResourceRef
+from .resources import collate_resources, load_resource, ResourceRef, BaseResourceProvider, ResourceCollection
 
-from .resources import BaseResourceProvider, ResourceCollection
 from quick_convert.utils.paths import TemplateFormatter
-
-# from .features import PatternSidecarFeatureResolver
-
 from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
-
 from ..utils.audio import get_supported_formats
 
 
@@ -48,6 +43,9 @@ class BaseDataset(Dataset):
         exclude_patterns: Optional[Iterable[str]] = None,
         resource_providers: Iterable[BaseResourceProvider] = [],
         sort_key: Optional[str] = "{row.path}",
+        # length to extend collated audio files to beyond the maximum sample length. This is used in 
+        # cudnn benchmark where all batches must have the same shape. Expressed in number of samples after resampling
+        max_length: Optional[int] = None,
         **kwargs,
     ):
         sources = [
@@ -82,6 +80,7 @@ class BaseDataset(Dataset):
         self.resource_providers = resource_providers
 
         self.load = self._normalize_load(load)
+        self.max_length = max_length
 
         if rows is not None:
             self.rows = rows
@@ -271,6 +270,10 @@ class BaseDataset(Dataset):
         waveforms = [item.waveform.squeeze(0) for item in batch]
         lengths = torch.tensor([w.shape[-1] for w in waveforms], dtype=torch.long)
 
+        if self.max_length is not None:
+            if (lengths > self.max_length).any():
+                raise NotImplementedError("dataset `max_length` must be greater than the maximum length of your audio.")
+            waveforms[0] = F.pad(waveforms[0], (0, self.max_length - waveforms[0].shape[-1]))
         padded = pad_sequence(waveforms, batch_first=True)
 
         sample_rates = torch.tensor([item.sample_rate for item in batch], dtype=torch.int)
