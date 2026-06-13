@@ -300,7 +300,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             if batch_idx == 0:
                 # Log the first sample in the batch for qualitative monitoring
                 decoder_features = torch.cat([text_q, pros_emo_q], dim=-1)
-                max_len = batch.resources["content"].lengths.max().item()
+                max_len = batch.resources["content"].values.shape[1]
                 mel = torch.cat(
                     [
                         self.decoder(feat.unsqueeze(0), length.unsqueeze(0), spk.unsqueeze(0), max_len=max_len)
