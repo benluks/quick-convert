@@ -27,16 +27,16 @@ class RVQLayerRouter(nn.Module):
     Routes the output of the RVQ to different heads for disentanglement.
     """
 
-    def __init__(self, n_classes: int, codebook_dim: int):
+    def __init__(self, n_classes: int, codebook_dim: int, gumbel_tau: float = 1.0):
         super().__init__()
         self.n_classes = n_classes
         self.codebook_dim = codebook_dim
+        self.gumbel_tau = gumbel_tau
 
         # Learnable class embeddings for routing
         # output shape: (n_classes, 1)
         self.classifier = nn.Sequential(
             nn.Linear(codebook_dim, n_classes),
-            nn.Softmax(dim=-1),
         )   
 
     def _compute_mask(self, quantizers: List[VectorQuantize], compute_loss: bool = False) -> None:
@@ -48,16 +48,20 @@ class RVQLayerRouter(nn.Module):
             layer_probabilities: Probabilities of each layer being selected for each class, shape (num_codebooks, n_classes).
         """
 
-        if self.layer_mask is not None and not compute_loss:
+        if self.layer_mask is not None and not self.training:
             return self.layer_mask, None
         
         weights = torch.stack([q.codebook.weight.mean(dim=0) for q in quantizers], dim=0)  # (num_codebooks, codebook_dim)
-        layer_probabilities = self.classifier(weights)  # (num_codebooks, n_classes)
-        mask = torch.argmax(layer_probabilities, dim=-1)  # (num_codebooks,)
+        layer_logits = self.classifier(weights)  # (num_codebooks, n_classes)
+        layer_probabilities = F.softmax(layer_logits, dim=-1)
 
-        # Mask to one hot encode the selected layers for each class
-        # shape: (num_codebooks, n_classes)
-        layer_mask = F.one_hot(mask, num_classes=self.n_classes).float()
+        if self.training:
+            # Hard one-hot routing in forward pass with straight-through gradients in backward pass.
+            layer_mask = F.gumbel_softmax(layer_logits, tau=self.gumbel_tau, hard=True, dim=-1)
+        else:
+            # Deterministic routing at evaluation time.
+            mask = torch.argmax(layer_logits, dim=-1)
+            layer_mask = torch.zeros_like(layer_probabilities).scatter_(1, mask.unsqueeze(-1), 1.0)
 
         if compute_loss:
             loss = self.compute_loss(layer_probabilities, layer_mask)
