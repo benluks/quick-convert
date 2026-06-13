@@ -325,14 +325,14 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
                     # compute vocoder output, log audio
                     self.logger.experiment.add_audio(
                         f"generated/{tag_name}",
-                        gen_audio[i].unsqueeze(-1).detach().cpu()[..., : sample.length],
+                        gen_audio[i].unsqueeze(-1).detach().cpu()[..., : batch.lengths[i]],
                         self.global_step,
                         sample_rate=self.decoder.vocoder.sampling_rate,
                     )
                     if self.global_step == 0:
                         self.logger.experiment.add_audio(
                             f"original/{tag_name}",
-                            sample.waveform.detach().cpu()[..., : sample.length],
+                            sample.waveform.detach().cpu()[..., : batch.lengths[i]],
                             self.global_step,
                             sample_rate=sample.sample_rate,
                         )
