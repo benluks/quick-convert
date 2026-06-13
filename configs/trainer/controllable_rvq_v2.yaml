@@ -20,7 +20,7 @@ ddp:
   accelerator: gpu
   devices: auto
   num_nodes: 1
-  strategy: ddp
+  strategy: ddp_find_unused_parameters_true
   sync_batchnorm: false
 
 train_dataloader_kwargs:
