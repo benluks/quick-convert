@@ -13,7 +13,7 @@ _target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
 cudnn_benchmark: true
 # Precision for mixed-precision training.
 # Options: "32", "16-mixed" (fp16), "bf16-mixed" (bf16, recommended for flash attention)
-precision: null
+precision: bf16-mixed
 
 ddp:
   enabled: true
