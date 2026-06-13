@@ -10,13 +10,13 @@ defaults:
   - _self_
 
 _target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
-cudnn_benchmark: null
+cudnn_benchmark: true
 # Precision for mixed-precision training.
 # Options: "32", "16-mixed" (fp16), "bf16-mixed" (bf16, recommended for flash attention)
 precision: null
 
 ddp:
-  enabled: false
+  enabled: true
   accelerator: gpu
   devices: auto
   num_nodes: 1
@@ -39,7 +39,7 @@ val_dataloader_kwargs:
   persistent_workers: true
 
 compile:
-  enabled: false
+  enabled: true
   backend: inductor
   mode: default
   fullgraph: false
@@ -51,9 +51,10 @@ compile:
 module:
   _target_: quick_convert.pipelines.training.modules.ControllableRVQTrainingModule
   decoder: ${architecture.decoder}
-  tokenizer:
-    _target_: sentencepiece.SentencePieceProcessor
-    model_file: ${architecture.tokenizer_model_path}
+  # tokenizer:
+  #   _target_: sentencepiece.SentencePieceProcessor
+  #   model_file: ${architecture.tokenizer_model_path}
+  tokenizer_pad_id: 0
   decoder_loss_weight: 1.0
   rvq_loss_weights:
     commitment_loss: 0.25
