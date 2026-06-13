@@ -115,7 +115,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         """Raise ``ValueError`` if any loss-weight dict is missing required keys."""
         distil_keys = {"ling", "spk", "emo"}
         checks = [
-            ("rvq_loss_weights", rvq_loss_weights, {"commitment_loss", "codebook_loss", "mse_loss"}),
+            ("rvq_loss_weights", rvq_loss_weights, {"commitment_loss", "codebook_loss", "load_balancing_loss", "mse_loss"}),
             ("distillation_loss_weights", distillation_loss_weights, distil_keys),
             ("adv_loss_weights", adv_loss_weights, {"spk_ling", "spk_pros", "ling_spk", "ling_pros"}),
         ]
@@ -191,6 +191,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             self.hparams.rvq_loss_weights["commitment_loss"] * loss_dict["rvq_losses"]["commitment_loss"]
             + self.hparams.rvq_loss_weights["codebook_loss"] * loss_dict["rvq_losses"]["codebook_loss"]
             + self.hparams.rvq_loss_weights["mse_loss"] * loss_dict["rvq_losses"]["mse_loss"]
+            + self.hparams.rvq_loss_weights["load_balancing_loss"] * loss_dict["rvq_losses"]["load_balancing_loss"]
         )
 
         # Weighted sum of per-attribute distillation losses from frozen teacher encoders
@@ -235,6 +236,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             f"{stage}/commitment_loss": loss_dict["rvq_losses"]["commitment_loss"],
             f"{stage}/codebook_loss": loss_dict["rvq_losses"]["codebook_loss"],
             f"{stage}/mse_loss": loss_dict["rvq_losses"]["mse_loss"],
+            f"{stage}/load_balancing_loss": loss_dict["rvq_losses"]["load_balancing_loss"],
             # Decoder loss
             f"{stage}/decoder_loss": decoder_loss,
             # Distillation losses
@@ -303,8 +305,8 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
                 for i, sample in enumerate(batch):
                     tag_prefix = f"{sample.split}/{sample.utt_id}"
 
-                    # TODO: remove padding from the target mel spectrogram and waveform before logging
-                    
+                    # TODO: Remove padding from the target mel spectrogram before logging
+
                     # self.logger.experiment.add_image(f"{tag_prefix}/target_spectrogram")
                     self.logger.experiment.add_image(
                         f"{tag_prefix}/generated_spectrogram", mel[i].unsqueeze(0).detach().cpu(), self.global_step
