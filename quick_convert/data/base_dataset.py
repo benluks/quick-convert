@@ -47,6 +47,7 @@ class BaseDataset(Dataset):
         pattern: Optional[str] = None,
         exclude_patterns: Optional[Iterable[str]] = None,
         resource_providers: Iterable[BaseResourceProvider] = [],
+        sort_key: Optional[str] = "{row.path}",
         **kwargs,
     ):
         sources = [
@@ -133,7 +134,8 @@ class BaseDataset(Dataset):
                         )
                     )
 
-        self.rows = sorted(rows, key=lambda row: str(row.path))
+        self.sort_key = sort_key
+        self.rows = sorted(rows, key=lambda row: TemplateFormatter.format_str(sort_key, row=row))
 
     @classmethod
     def _normalize_and_validate_format(cls, file_format: Optional[Union[str, Iterable[str]]]) -> Optional[set[str]]:

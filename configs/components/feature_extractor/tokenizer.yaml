@@ -1,0 +1,6 @@
+# configs/component/feature_extractor/speaker_embedding.yaml
+_target_: quick_convert.components.feature_extractors.TokenizerFeatureExtractor
+encoder:
+  _target_: sentencepiece.SentencePieceProcessor
+  model_file: ???
+device: ${device}

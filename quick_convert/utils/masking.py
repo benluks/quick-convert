@@ -21,6 +21,7 @@ def make_padding_mask(frame_lengths: torch.Tensor, max_length: Optional[int] = N
 
 def masked_loss(loss_fn, preds, targets, mask, reduction: Literal["frame", "batch_by_sample", "sample"] = "frame"):
     """
+    NOTE: `preds` and `targets` should be [B, T, C]
     reduction:
       "frame"  = scalar, average over all valid elements in batch
       "batch_by_sample" = scalar, average per sample, then across batch
@@ -48,3 +49,26 @@ def masked_loss(loss_fn, preds, targets, mask, reduction: Literal["frame", "batc
         return loss.sum(dim=reduce_dims) / mask.sum(dim=reduce_dims).clamp_min(1.0)
 
     raise ValueError(f"Unknown reduction: {reduction}")
+
+
+def trim_to_min(tensor_a, tensor_b, lengths_a, lengths_b, time_dim=-1, strict=True):
+    """
+    Take 2 feature tensors and their lengths, and trim them to the smallest
+    values. This is necessary when feature extractors with the same time resolution
+    operate on the same audio. Although the output lengths should match up, some extractors have different padding
+    and rounding rules
+    `strict`: Raise an error if the difference  is greater than 1 for any sample.
+    """
+
+    if strict:
+        diffs = torch.abs(lengths_a - lengths_b)
+        if (diffs > 1).any():
+            raise RuntimeError(
+                f"`strict` mode doesn't allow length differences greater than 1 for any sample. Found length differences={diffs.tolist()}"
+            )
+
+    T_min = min([tensor_a.shape[time_dim], tensor_b.shape[time_dim]])
+    output_a, output_b = tensor_a[..., :T_min], tensor_b[..., :T_min]
+    lengths = torch.minimum(lengths_a, lengths_b)
+
+    return output_a, output_b, lengths

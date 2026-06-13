@@ -3,7 +3,7 @@ from os import PathLike
 from pathlib import Path
 from typing import Iterable
 
-from quick_convert.data.resources.base import ResourceRef
+from quick_convert.data.resources.base import ResourceCollection, ResourceRef
 
 from .base_dataset import BaseDataset
 from .types import MetadataSample
@@ -49,14 +49,16 @@ class ManifestDataset(BaseDataset):
                                 path=Path(row[path_column]) if row.get(path_column) else None,
                                 split=row.get(split_column),
                                 spk_id=row.get(spk_id_column),
-                                resources=[
-                                    ResourceRef(
-                                        name=name,
-                                        kind=spec["kind"],
-                                        value=row[spec["column"]],
-                                    )
-                                    for name, spec in resources.items()
-                                ],
+                                resources=ResourceCollection.from_refs(
+                                    [
+                                        ResourceRef(
+                                            name=name,
+                                            kind=spec["kind"],
+                                            value=row[spec["column"]],
+                                        )
+                                        for name, spec in resources.items()
+                                    ]
+                                ),
                             )
                         )
                 except csv.Error:

@@ -12,6 +12,7 @@ defaults:
 
 # probably won't need more than 256
 encoder_dim: 256
+num_feature_layers: 6
 
 tokenizer_model_path: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
 tokenizer_vocab_size: 1000
@@ -46,6 +47,7 @@ speaker_head:
   input_dim: ${architecture.rvq.input_dim}
   hidden_dim: 256
   output_dim: ${architecture.feature_extractors.speaker.feature_dim}
+  supervision: aam
 
 prosody_head: null
 # _target_: quick_convert.components.encoders.LinearHead
@@ -53,22 +55,6 @@ prosody_head: null
 # output_dim: ${architecture.emotion_dim}
 
 sample_rate: 16000
-
-# content:
-#   input_dim: ${architecture.content_ssl.feature_dim}
-#   embed_dim: ${architecture.encoder_dim}
-
-# ssl_dim: 1024
-# content_dim: 512
-# hidden_dim: 512
-
-# num_quantizers: 8
-# codebook_size: 1024
-
-# linguistic_dim: 512
-# speaker_dim: 192
-# emotion_dim: 768
-# prosody_dim: 128
 
 mel_dim: 80
 
