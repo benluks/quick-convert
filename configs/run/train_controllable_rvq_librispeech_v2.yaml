@@ -3,9 +3,9 @@
 defaults:
   - /global: default
   - /pipeline: training
-  - /trainer: controllable_rvq
+  - /trainer: controllable_rvq_v2
   - /dataset@train_dataset: manifest
-  - /dataset@val_dataset: null
+  - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
   - _self_
 
@@ -14,7 +14,7 @@ resources_path: outputs/precomputed/${dataset_name}
 dataset_path: ${out_root}/${dataset_name}
 
 pipeline:
-  batch_size: 2
+  batch_size: 64
   train_kwargs:
     val_check_interval: null
     callbacks:
@@ -24,47 +24,44 @@ pipeline:
 trainer:
   train_dataloader_kwargs:
     shuffle: false
-#   val_dataloader_kwargs:
-#     batch_size: 2
 
 data: &data
+  #
+  # read info from manifest csv
   resources:
     spkid:
-      # name of column in csv
       column: spkid
       kind: text
+  max_length: 562480
+  # compute info from sample
   resource_providers:
-    # - ${source_dataset.transcript_provider}
-    # - ${source_dataset.spkid_provider}
-    # precomputed transcript token ids
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: token_ids
       name: token_ids
       path_template: ${resources_path}/tokenizer/{sample.split}/{sample.utt_id}.pt
-    # ssl features for content
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: content
       path_template: ${resources_path}/w2vbert_6layer/{sample.split}/{sample.utt_id}.pt
-    # emotion vectors
+      # precomputed value
+      max_length: 1757
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: emo2vec
       path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
+      max_length: 1757
 
   load:
     - audio
     - token_ids
     - content
     - emo2vec
-    - spk
+    - spkid
 
 train_dataset:
   <<: *data
-  manifest_path: ${dataset_path}/test-other/manifest.csv
-  # splits:
-  #   - test-other
+  manifest_path: ${dataset_path}/speaker_split/train.csv
 
 val_dataset:
   <<: *data
-  manifest_path: ${dataset_path}/test-other/manifest.csv
+  manifest_path: ${dataset_path}/speaker_split/val.csv

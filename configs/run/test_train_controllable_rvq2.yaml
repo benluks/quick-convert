@@ -5,7 +5,7 @@ defaults:
   - /pipeline: training
   - /trainer: controllable_rvq_v2
   - /dataset@train_dataset: manifest
-  - /dataset@val_dataset: null
+  - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
   - _self_
 
@@ -24,10 +24,17 @@ pipeline:
 trainer:
   train_dataloader_kwargs:
     shuffle: false
+  ddp:
+    enabled: false
 #   val_dataloader_kwargs:
 #     batch_size: 2
 
 data: &data
+  resources:
+    spkid:
+      column: spkid
+      kind: text
+  max_length: 500000
   resource_providers:
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: token_ids
@@ -37,10 +44,12 @@ data: &data
       kind: torch_tensor
       name: content
       path_template: ${resources_path}/w2vbert_6layer/{sample.split}/{sample.utt_id}.pt
+      max_length: 1000
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: emo2vec
       path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
+      max_length: 1000
 
   load:
     - audio
@@ -54,9 +63,7 @@ train_dataset:
   manifest_path: ${dataset_path}/test-other/manifest.csv
   splits:
     - test-other
-  resources:
-    spkid:
-      column: spkid
-      kind: text
 
-val_dataset: null
+val_dataset:
+  <<: *data
+  manifest_path: ${dataset_path}/test-other/manifest.csv
