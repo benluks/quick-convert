@@ -297,7 +297,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         ) = self._shared_step(batch, "val")
 
         with torch.no_grad():
-            if batch_idx == 0:
+            if self.trainer.is_global_zero and batch_idx == 0:
                 # Log the first sample in the batch for qualitative monitoring
                 decoder_features = torch.cat([text_q, pros_emo_q], dim=-1)
                 max_len = batch.resources["content"].values.shape[1]
@@ -316,6 +316,8 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
                     if i >= 16:
                         break
 
+                    gen_sample_rate = int(self.decoder.vocoder.sampling_rate)
+                    orig_sample_rate = int(sample.sample_rate)
                     tag_name = sample.utt_id
 
                     # self.logger.experiment.add_image(f"{tag_prefix}/target_spectrogram")
@@ -327,14 +329,14 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
                         f"generated/{tag_name}",
                         gen_audio[i].unsqueeze(-1).detach().cpu()[..., : batch.lengths[i]],
                         self.global_step,
-                        sample_rate=self.decoder.vocoder.sampling_rate,
+                        sample_rate=gen_sample_rate,
                     )
                     if self.global_step == 0:
                         self.logger.experiment.add_audio(
                             f"original/{tag_name}",
                             sample.waveform.detach().cpu()[..., : batch.lengths[i]],
                             self.global_step,
-                            sample_rate=sample.sample_rate,
+                            sample_rate=orig_sample_rate,
                         )
 
         return loss
