@@ -19,7 +19,7 @@ pipeline:
     val_check_interval: null
     callbacks:
       - _target_: lightning.pytorch.callbacks.ModelCheckpoint
-        monitor: val/decoder_mae
+        monitor: val/decoder/mae
 
 trainer:
   train_dataloader_kwargs:
