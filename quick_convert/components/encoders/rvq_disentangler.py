@@ -30,9 +30,7 @@ class RVQLayerRouter(nn.Module):
 
         # Learnable class embeddings for routing
         # output shape: (n_classes, 1)
-        self.classifier = nn.Sequential(
-            nn.Linear(codebook_dim, n_classes),
-        )
+        self.classifier = nn.Linear(codebook_dim, n_classes)
 
     def _compute_mask(
         self,
