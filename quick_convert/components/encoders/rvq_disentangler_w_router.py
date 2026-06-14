@@ -51,7 +51,8 @@ class RVQLayerRouter(nn.Module):
         if self.layer_mask is not None and not self.training:
             return self.layer_mask, None
         
-        weights = torch.stack([q.codebook.weight.mean(dim=0) for q in quantizers], dim=0)  # (num_codebooks, codebook_dim)
+        # Detach to ensure the router doesn't backprop through the quantizer weights when computing the routing loss.
+        weights = torch.stack([q.codebook.weight.mean(dim=0).detach() for q in quantizers], dim=0)  # (num_codebooks, codebook_dim)
         layer_logits = self.classifier(weights)  # (num_codebooks, n_classes)
         layer_probabilities = F.softmax(layer_logits, dim=-1)
 
