@@ -1,0 +1,10 @@
+# configs/components/ssl/dac.yaml
+# Pretrained, frozen DAC-16k content encoder — in place of for w2vbert.yaml.
+# Hydra instantiates DACContentEncoder(pretrained="16khz", trainable=False, ...),
+# i.e. the frozen pretrained path (equivalent to DACContentEncoder.from_pretrained).
+_target_: quick_convert.components.ssl.DACContentEncoder
+pretrained: 16khz
+trainable: false
+sample_rate: 16000
+device: ${device}
+feature_dim: 1024   # consumed by Hydra wiring (architecture.content_ssl.feature_dim)

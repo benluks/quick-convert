@@ -1,0 +1,72 @@
+# @package _global_
+# configs/run/train_controllable_rvq_dac_librispeech.yaml
+# Phase 2: train the anonymiser on the precomputed frozen DAC-16k features.
+# Same as train_controllable_rvq_librispeech.yaml, with two DAC changes:
+#   (1) the `content` resource points at the dac16k features, and
+#   (2) the conformer uses num_layers=1 (DAC emits one latent).
+
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: controllable_rvq
+  - /dataset@train_dataset: manifest
+  - /dataset@val_dataset: manifest
+  - /dataset@source_dataset: librispeech
+  - _self_
+
+dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
+resources_path: outputs/precomputed/${dataset_name}
+dataset_path: ${out_root}/${dataset_name}
+
+pipeline:
+  batch_size: 32
+
+trainer:
+  train_dataloader_kwargs:
+    shuffle: true
+  # (2) DAC latent has a single "layer" axis -> conformer num_layers = 1
+  module:
+    encoder:
+      content_encoder:
+        num_layers: 1
+
+data: &data
+  resource_providers:
+    - ${source_dataset.spkid_provider}
+    # (1) content now comes from the DAC-16k precompute, not w2vbert
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: content
+      path_template: ${resources_path}/dac16k/{sample.split}/{sample.utt_id}.pt
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: emo2vec
+      path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: spk
+      path_template: ${resources_path}/espnet_wavlm-ecapa-joint/{sample.split}/{sample.utt_id}.pt
+  resources:
+    transcript:
+      column: transcript
+      kind: text
+
+  load:
+    - audio
+    - transcript
+    - content
+    - emo2vec
+    - spk
+
+train_dataset:
+  <<: *data
+  manifest_path:
+    - ${dataset_path}/train-clean-100/manifest.csv
+    - ${dataset_path}/train-clean-360/manifest.csv
+    - ${dataset_path}/train-other-500/manifest.csv
+
+val_dataset:
+  <<: *data
+  manifest_path:
+    - ${dataset_path}/dev-clean/manifest.csv
+    - ${dataset_path}/dev-other/manifest.csv
