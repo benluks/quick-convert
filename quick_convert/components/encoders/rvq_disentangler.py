@@ -50,8 +50,9 @@ class RVQLayerRouter(nn.Module):
 
         # Always compute probabilities/logits, even if we may reuse a cached eval mask,
         # because compute_loss=True needs layer_probabilities.
+        # detach the codebook weights to avoid backprop through the quantizers
         weights = torch.stack(
-            [q.codebook.weight.mean(dim=0) for q in quantizers],
+            [q.codebook.weight.mean(dim=0).detach() for q in quantizers],
             dim=0,
         )  # (num_codebooks, codebook_dim)
 
