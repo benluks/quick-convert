@@ -26,6 +26,7 @@ trainer:
     shuffle: false
   ddp:
     enabled: false
+  compile: false
 #   val_dataloader_kwargs:
 #     batch_size: 2
 
