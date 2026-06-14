@@ -1,4 +1,4 @@
-from .rvq import ResidualVectorQuantizer
+from .rvq import ResidualVectorQuantizer, VectorQuantize
 from .activations import Swish
 from .conformer import ConformerBlock
 from .conv import DepthWiseConvolution, WNConv1d
@@ -7,6 +7,7 @@ from .grl import GradientReversalLayer
 
 __all__ = [
     "ResidualVectorQuantizer",
+    "VectorQuantize",
     "Swish",
     "ConformerBlock",
     "DepthWiseConvolution",
