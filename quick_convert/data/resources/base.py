@@ -45,7 +45,9 @@ class ResourceRef:
     kind: Optional[ResourceKind] = None
     path: Optional[Path] = None
     value: Optional[Any] = None
-    # metadata: dict[str, Any] = field(default_factory=dict)
+
+    # Only set if using cudnn benchmark
+    max_length: Optional[int] = None
 
 
 @dataclass
@@ -171,9 +173,13 @@ def _normalize_tensor_resource(x: torch.Tensor) -> torch.Tensor:
 
 
 def _collate_tensor_resources(
-    refs: list[ResourceRef],
-    squeeze_single_frame: bool = False,
+    refs: list[ResourceRef], squeeze_single_frame: bool = False, max_length: Optional[int] = None
 ) -> TensorResourceBatch:
+    """
+    max_length: An optional arbitrary max length to pad or trim batch. Useful in the case of cudnn, which needs
+    all batches to have the same input shape.
+    """
+
     tensors = []
     for ref in refs:
         if ref.value is None:
@@ -195,6 +201,14 @@ def _collate_tensor_resources(
             )
 
     lengths = torch.tensor([x.shape[0] for x in tensors], dtype=torch.long)
+    if max_length is not None:
+        if lengths.max() > max_length:
+            raise NotImplementedError("This function is only implemented to increase the maximum length. ")
+        T, *d_rest = tensors[0].shape
+        padded_tensor = torch.zeros((max_length, *d_rest), dtype=tensors[0].dtype, device=tensors[0].device)
+        padded_tensor[:T] = tensors[0]
+        tensors[0] = padded_tensor
+
     padded = pad_sequence(tensors, batch_first=True)
 
     if squeeze_single_frame and padded.shape[1] == 1:
@@ -220,6 +234,8 @@ def _collate_resource_refs(
         return _collate_tensor_resources(
             refs,
             squeeze_single_frame=squeeze_single_frame_tensors,
+            # very much not a fan of doing it this way. Hopefully we'll update it down the line
+            max_length=refs[0].max_length,
         )
     if kind == "token_ids":
         return collate_token_sequences(

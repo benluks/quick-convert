@@ -172,7 +172,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
                 logger.error("It looks like your encoder doesn't output lengths in the forward pass.")
 
         loss, y = self.decoder.compute_loss(
-            feat.contiguous()[..., : token_len.max()],  # (B, mel_dim, T) -> (B, mel_dim, T')
+            feat.contiguous()[..., : token.shape[1]],  # (B, mel_dim, T) -> (B, mel_dim, T')
             mask.unsqueeze(1),
             h.transpose(1, 2).contiguous(),
             embedding,

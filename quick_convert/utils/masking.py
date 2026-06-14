@@ -15,7 +15,7 @@ def make_padding_mask(frame_lengths: torch.Tensor, max_length: Optional[int] = N
 
     max_length = max_length or frame_lengths.max()
 
-    idx = torch.arange(frame_lengths.max(), device=frame_lengths.device)  # (T,)
+    idx = torch.arange(max_length, device=frame_lengths.device)  # (T,)
     return idx.unsqueeze(0) < frame_lengths.unsqueeze(1)  # (B, T)
 
 
@@ -67,8 +67,14 @@ def trim_to_min(tensor_a, tensor_b, lengths_a, lengths_b, time_dim=-1, strict=Tr
                 f"`strict` mode doesn't allow length differences greater than 1 for any sample. Found length differences={diffs.tolist()}"
             )
 
-    T_min = min([tensor_a.shape[time_dim], tensor_b.shape[time_dim]])
-    output_a, output_b = tensor_a[..., :T_min], tensor_b[..., :T_min]
-    lengths = torch.minimum(lengths_a, lengths_b)
+    time_dim_a = time_dim % tensor_a.ndim
+    time_dim_b = time_dim % tensor_b.ndim
+
+    T_min = min(tensor_a.shape[time_dim_a], tensor_b.shape[time_dim_b])
+
+    output_a = tensor_a.narrow(dim=time_dim_a, start=0, length=T_min)
+    output_b = tensor_b.narrow(dim=time_dim_b, start=0, length=T_min)
+
+    lengths = torch.minimum(lengths_a, lengths_b).clamp(max=T_min)
 
     return output_a, output_b, lengths
