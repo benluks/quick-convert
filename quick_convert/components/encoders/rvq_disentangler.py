@@ -34,38 +34,66 @@ class RVQLayerRouter(nn.Module):
             nn.Linear(codebook_dim, n_classes),
         )
 
-    def _compute_mask(self, quantizers: List[VectorQuantize], compute_loss: bool = False) -> None:
+    def _compute_mask(
+        self,
+        quantizers: List[VectorQuantize],
+        compute_loss: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """
-        Args:
             quantizers: List of VectorQuantize modules from the RVQ, length = num_codebooks.
+            compute_loss: If True, compute and return the load-balancing loss.
 
         Returns:
-            layer_probabilities: Probabilities of each layer being selected for each class, shape (num_codebooks, n_classes).
+            layer_mask: Hard routing mask, shape (num_codebooks, n_classes).
+            loss: Load-balancing loss if compute_loss=True, otherwise None.
         """
 
-        if getattr(self, "layer_mask", None) is not None and not self.training:
-            return self.layer_mask, None
-
+        # Always compute probabilities/logits, even if we may reuse a cached eval mask,
+        # because compute_loss=True needs layer_probabilities.
         weights = torch.stack(
-            [q.codebook.weight.mean(dim=0) for q in quantizers], dim=0
+            [q.codebook.weight.mean(dim=0) for q in quantizers],
+            dim=0,
         )  # (num_codebooks, codebook_dim)
+
         layer_logits = self.classifier(weights)  # (num_codebooks, n_classes)
         layer_probabilities = F.softmax(layer_logits, dim=-1)
 
+        cached_mask = getattr(self, "layer_mask", None)
+
         if self.training:
-            # Hard one-hot routing in forward pass with straight-through gradients in backward pass.
-            layer_mask = F.gumbel_softmax(layer_logits, tau=self.gumbel_tau, hard=True, dim=-1)
+            # Training: always sample a fresh hard mask with straight-through gradients.
+            layer_mask = F.gumbel_softmax(
+                layer_logits,
+                tau=self.gumbel_tau,
+                hard=True,
+                dim=-1,
+            )
+
+            # Don't detach in training; the straight-through mask participates in routing.
+            self.layer_mask = layer_mask
+
         else:
-            # Deterministic routing at evaluation time.
-            mask = torch.argmax(layer_logits, dim=-1)
-            layer_mask = torch.zeros_like(layer_probabilities).scatter_(1, mask.unsqueeze(-1), 1.0)
+            if cached_mask is not None:
+                # Eval/inference: reuse the cached deterministic mask.
+                layer_mask = cached_mask.to(
+                    device=layer_logits.device,
+                    dtype=layer_logits.dtype,
+                )
+            else:
+                # Eval/inference with no cache: make deterministic argmax mask.
+                selected = torch.argmax(layer_logits, dim=-1)
+                layer_mask = torch.zeros_like(layer_probabilities).scatter_(
+                    1,
+                    selected.unsqueeze(-1),
+                    1.0,
+                )
+
+                self.layer_mask = layer_mask.detach()
 
         if compute_loss:
             loss = self.compute_loss(layer_probabilities, layer_mask)
-            self.layer_mask = layer_mask
         else:
             loss = None
-            self.layer_mask = layer_mask.detach()
 
         return layer_mask, loss
 
