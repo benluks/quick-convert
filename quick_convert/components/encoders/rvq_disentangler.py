@@ -30,9 +30,7 @@ class RVQLayerRouter(nn.Module):
 
         # Learnable class embeddings for routing
         # output shape: (n_classes, 1)
-        self.classifier = nn.Sequential(
-            nn.Linear(codebook_dim, n_classes),
-        )
+        self.classifier = nn.Linear(codebook_dim, n_classes)
 
     def _compute_mask(
         self,
@@ -50,8 +48,9 @@ class RVQLayerRouter(nn.Module):
 
         # Always compute probabilities/logits, even if we may reuse a cached eval mask,
         # because compute_loss=True needs layer_probabilities.
+        # detach the codebook weights to avoid backprop through the quantizers
         weights = torch.stack(
-            [q.codebook.weight.mean(dim=0) for q in quantizers],
+            [q.codebook.weight.mean(dim=0).detach() for q in quantizers],
             dim=0,
         )  # (num_codebooks, codebook_dim)
 
@@ -333,7 +332,7 @@ class RVQDisentangler(nn.Module):
         }
 
         # Speaker loss: encourage spk_q to match the target speaker embedding
-        spk_output, spk_loss, spk_acc, _ = self.speaker_head.compute_loss(z_spk, speaker_seq)
+        spk_output, spk_loss, spk_acc, _ = self.speaker_head.compute_loss(z_spk, speaker_seq, padding_mask)
 
         # Emotion loss: encourage emo_q to match the target emotion features (if provided)
         emo_loss = self.emotion_head.compute_loss(z_pros, emotion_seq, padding_mask)

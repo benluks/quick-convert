@@ -37,10 +37,9 @@ class AttentiveStatisticsPooling(nn.Module):
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(hidden_dim),
             nn.Conv1d(hidden_dim, self.feature_dim, kernel_size=1),
-            nn.Softmax(dim=2),
         )
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, padding_mask: torch.Tensor | None = None):
         # W2V: [B, T, D]
         # WeSpeaker: [B, C, F, T]
         if x.dim() == 4:
@@ -48,7 +47,16 @@ class AttentiveStatisticsPooling(nn.Module):
         elif x.dim() == 3 and x.shape[1] != self.feature_dim:
             x = x.transpose(1, 2)
 
-        w = self.attention(x)
+        # x: [B, D, T]
+        e = self.attention(x)  # [B, D, T]
+
+        if padding_mask is not None:
+            # padding_mask: [B, T], 1 = valid frame, 0 = padding frame
+            mask = (padding_mask == 0).unsqueeze(1)  # [B, 1, T]
+            e = e.masked_fill(mask, float("-inf"))
+
+        w = torch.softmax(e, dim=2)
+
         mu = torch.sum(x * w, dim=2)
         sg = torch.sqrt(
             (
