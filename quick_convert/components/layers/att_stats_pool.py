@@ -3,6 +3,7 @@ import torch.nn as nn
 
 # From WeSpeaker: https://github.com/wenet-e2e/wespeaker/blob/master/wespeaker/models/pooling_layers.py
 
+
 class AttentiveStatisticsPooling(nn.Module):
     """Attentive Statistics Pooling (compatible with WeSpeaker and
     W2V-BERT/WavLM)."""
@@ -24,10 +25,7 @@ class AttentiveStatisticsPooling(nn.Module):
             outmap_size = int(acoustic_dim / 8)
             self.feature_dim = in_planes * 8 * outmap_size
         else:
-            raise ValueError(
-                "Specify either (in_planes, acoustic_dim) or "
-                "(input_dim, hidden_dim)."
-            )
+            raise ValueError("Specify either (in_planes, acoustic_dim) or (input_dim, hidden_dim).")
 
         self.out_dim = self.feature_dim * 2
         hidden_dim = hidden_dim or 128
@@ -58,10 +56,5 @@ class AttentiveStatisticsPooling(nn.Module):
         w = torch.softmax(e, dim=2)
 
         mu = torch.sum(x * w, dim=2)
-        sg = torch.sqrt(
-            (
-                torch.sum((x**2) * w, dim=2)
-                - mu**2
-            ).clamp(min=1e-5)
-        )
+        sg = torch.sqrt((torch.sum((x**2) * w, dim=2) - mu**2).clamp(min=1e-5))
         return torch.cat([mu, sg], dim=1)
