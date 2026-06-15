@@ -266,6 +266,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             # spk accuracy
             f"{stage}/adv_spk_acc_ling": spk_acc_dict["adv_spk_acc_ling"],
             f"{stage}/adv_spk_acc_pros": spk_acc_dict["adv_spk_acc_pros"],
+            f"{stage}/spk_acc": spk_acc_dict["spk_acc"],
         }
 
         self.log_dict(

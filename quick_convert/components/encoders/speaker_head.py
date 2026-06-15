@@ -23,10 +23,13 @@ class SpeakerASPHead(nn.Module):
     ):
         super().__init__()
         self.ln = nn.LayerNorm(input_dim)
-        self.speaker_head = nn.Sequential(
+        
+        self.pre_pool = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
-            AttentiveStatisticsPooling(input_dim=hidden_dim, hidden_dim=hidden_dim),
+        )
+        self.pool = AttentiveStatisticsPooling(input_dim=hidden_dim, hidden_dim=hidden_dim)
+        self.post_pool = nn.Sequential(
             nn.BatchNorm1d(hidden_dim * 2),
             nn.Linear(hidden_dim * 2, output_dim),
         )
@@ -60,7 +63,7 @@ class SpeakerASPHead(nn.Module):
                 num_classes=num_speakers,
             )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, padding_mask: torch.LongTensor = None) -> torch.Tensor:
         """
         Args:
             x: (B, T, output_dim) output of the content encoder
@@ -68,17 +71,20 @@ class SpeakerASPHead(nn.Module):
             speaker_features: (B, output_dim)
         """
         x = self.ln(x)
-        x = self.speaker_head(x)
+        x = self.pre_pool(x)
+        x = self.pool(x, padding_mask=padding_mask)
+        x = self.post_pool(x)
         return x
 
     def compute_loss(
         self,
         speaker_features: torch.FloatTensor,
         speaker_labels: torch.LongTensor = None,
+        padding_mask: torch.LongTensor = None,
     ) -> Tuple:
         """Compute cosine distance loss between predicted speaker features and target speaker embeddings."""
 
-        x = self.forward(speaker_features)
+        x = self.forward(speaker_features, padding_mask=padding_mask)
         # only need padding if
         if x.ndim == 3:
             raise NotImplementedError("Loss padding not yet implemented for frame-wise speaker embeddings")

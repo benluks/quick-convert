@@ -3,6 +3,7 @@ import torch.nn as nn
 
 # From WeSpeaker: https://github.com/wenet-e2e/wespeaker/blob/master/wespeaker/models/pooling_layers.py
 
+
 class AttentiveStatisticsPooling(nn.Module):
     """Attentive Statistics Pooling (compatible with WeSpeaker and
     W2V-BERT/WavLM)."""
@@ -24,10 +25,7 @@ class AttentiveStatisticsPooling(nn.Module):
             outmap_size = int(acoustic_dim / 8)
             self.feature_dim = in_planes * 8 * outmap_size
         else:
-            raise ValueError(
-                "Specify either (in_planes, acoustic_dim) or "
-                "(input_dim, hidden_dim)."
-            )
+            raise ValueError("Specify either (in_planes, acoustic_dim) or (input_dim, hidden_dim).")
 
         self.out_dim = self.feature_dim * 2
         hidden_dim = hidden_dim or 128
@@ -37,10 +35,9 @@ class AttentiveStatisticsPooling(nn.Module):
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(hidden_dim),
             nn.Conv1d(hidden_dim, self.feature_dim, kernel_size=1),
-            nn.Softmax(dim=2),
         )
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, padding_mask: torch.Tensor | None = None):
         # W2V: [B, T, D]
         # WeSpeaker: [B, C, F, T]
         if x.dim() == 4:
@@ -48,12 +45,16 @@ class AttentiveStatisticsPooling(nn.Module):
         elif x.dim() == 3 and x.shape[1] != self.feature_dim:
             x = x.transpose(1, 2)
 
-        w = self.attention(x)
+        # x: [B, D, T]
+        e = self.attention(x)  # [B, D, T]
+
+        if padding_mask is not None:
+            # padding_mask: [B, T], 1 = valid frame, 0 = padding frame
+            mask = (padding_mask == 0).unsqueeze(1)  # [B, 1, T]
+            e = e.masked_fill(mask, float("-inf"))
+
+        w = torch.softmax(e, dim=2)
+
         mu = torch.sum(x * w, dim=2)
-        sg = torch.sqrt(
-            (
-                torch.sum((x**2) * w, dim=2)
-                - mu**2
-            ).clamp(min=1e-5)
-        )
+        sg = torch.sqrt((torch.sum((x**2) * w, dim=2) - mu**2).clamp(min=1e-5))
         return torch.cat([mu, sg], dim=1)

@@ -47,7 +47,7 @@ speaker_head:
   input_dim: ${architecture.rvq.input_dim}
   hidden_dim: 256
   output_dim: ${architecture.feature_extractors.speaker.feature_dim}
-  supervision: aam
+  supervision: cosine
 
 prosody_head: null
 # _target_: quick_convert.components.encoders.LinearHead
