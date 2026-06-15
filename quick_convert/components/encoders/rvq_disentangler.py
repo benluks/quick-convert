@@ -332,7 +332,7 @@ class RVQDisentangler(nn.Module):
         }
 
         # Speaker loss: encourage spk_q to match the target speaker embedding
-        spk_output, spk_loss, spk_acc, _ = self.speaker_head.compute_loss(z_spk, speaker_seq)
+        spk_output, spk_loss, spk_acc, _ = self.speaker_head.compute_loss(z_spk, speaker_seq, padding_mask)
 
         # Emotion loss: encourage emo_q to match the target emotion features (if provided)
         emo_loss = self.emotion_head.compute_loss(z_pros, emotion_seq, padding_mask)

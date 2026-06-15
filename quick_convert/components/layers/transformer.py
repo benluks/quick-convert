@@ -23,6 +23,7 @@ class TransformerBlock(nn.Module):
         num_attention_heads: int,
         dropout: float = 0.0,
         attention_bias: bool = False,
+        activation_fn: str = "snakebeta",
     ):
         super().__init__()
 
@@ -42,7 +43,7 @@ class TransformerBlock(nn.Module):
         self.ffn = DecoderFeedForward(
             dim, 
             dropout=dropout, 
-            activation_fn='snakebeta'
+            activation_fn=activation_fn
         )
 
     def forward(
