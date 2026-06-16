@@ -9,9 +9,14 @@ _target_: quick_convert.components.encoders.RVQDisentangler
 rvq: ${architecture.rvq}
 emotion_head: ${architecture.emotion_head}
 prosody_head: ${architecture.prosody_head}
+
+# Learned RVQ-layer router (the new mechanism): a small classifier learns which
+# codebooks feed each attribute, producing routed outputs [speaker, content,
+# prosody] (n_classes=3) plus a load-balancing loss. Swap this block for a fixed
+# dict ({content,speaker,prosody,emotion} -> codebook idx) to use manual routing.
 router:
-  content: 0
-  speaker: 1
-  prosody: 2
-  emotion: 2
-  
+  _target_: quick_convert.components.encoders.RVQLayerRouter
+  n_classes: 3
+  codebook_dim: ${architecture.rvq.codebook_dim}
+  gumbel_tau: 1.0
+
