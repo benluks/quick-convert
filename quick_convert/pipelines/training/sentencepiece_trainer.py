@@ -36,13 +36,13 @@ class TokenizerTrainer(BaseTrainer):
         train_dataset: Any | None = None,
         val_dataset: Any | None = None,
         test_dataset: Any | None = None,
-        output_dir: str | Path | None = None,
+        out_dir: str | Path | None = None,
         **kwargs: Any,
     ) -> Path:
         if train_dataset is None:
             raise ValueError(f"{self.__class__.__name__} requires `train_dataset`.")
 
-        resolved_output_dir = self.resolve_output_dir(output_dir)
+        resolved_output_dir = self.resolve_output_dir(out_dir)
         if resolved_output_dir is None:
             raise ValueError("No output_dir was provided.")
 

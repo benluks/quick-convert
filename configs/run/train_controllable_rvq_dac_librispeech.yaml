@@ -62,11 +62,11 @@ train_dataset:
   <<: *data
   manifest_path:
     - ${dataset_path}/train-clean-100/manifest.csv
-    - ${dataset_path}/train-clean-360/manifest.csv
-    - ${dataset_path}/train-other-500/manifest.csv
+    #- ${dataset_path}/train-clean-360/manifest.csv
+    #- ${dataset_path}/train-other-500/manifest.csv
 
 val_dataset:
   <<: *data
   manifest_path:
-    - ${dataset_path}/dev-clean/manifest.csv
+  #  - ${dataset_path}/dev-clean/manifest.csv
     - ${dataset_path}/dev-other/manifest.csv

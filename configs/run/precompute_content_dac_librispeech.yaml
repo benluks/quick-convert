@@ -12,7 +12,7 @@ defaults:
 
 dataset:
   splits:
-  #  - train-clean-100
+    - train-clean-100
   #  - train-clean-360
   #  - train-other-500
   #  - dev-clean

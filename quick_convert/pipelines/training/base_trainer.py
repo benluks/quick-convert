@@ -73,4 +73,4 @@ class BaseTrainer(ABC):
         if out_dir is not None:
             return Path(out_dir)
 
-        return self.out_dir
+        return self.output_dir
