@@ -51,20 +51,23 @@ def masked_loss(loss_fn, preds, targets, mask, reduction: Literal["frame", "batc
     raise ValueError(f"Unknown reduction: {reduction}")
 
 
-def trim_to_min(tensor_a, tensor_b, lengths_a, lengths_b, time_dim=-1, strict=True):
+def trim_to_min(tensor_a, tensor_b, lengths_a, lengths_b, time_dim=-1, strict=True, max_diff=1):
     """
     Take 2 feature tensors and their lengths, and trim them to the smallest
     values. This is necessary when feature extractors with the same time resolution
     operate on the same audio. Although the output lengths should match up, some extractors have different padding
     and rounding rules
-    `strict`: Raise an error if the difference  is greater than 1 for any sample.
+    `strict`: Raise an error if the difference is greater than `max_diff` for any sample.
+    `max_diff`: Max tolerated per-sample length difference under strict mode. Defaults to 1
+        (same-family extractors). Cross-family pairs (e.g. DAC content vs emo2vec) frame
+        audio differently and legitimately differ by a couple of frames, so pass a larger value.
     """
 
     if strict:
         diffs = torch.abs(lengths_a - lengths_b)
-        if (diffs > 1).any():
+        if (diffs > max_diff).any():
             raise RuntimeError(
-                f"`strict` mode doesn't allow length differences greater than 1 for any sample. Found length differences={diffs.tolist()}"
+                f"`strict` mode doesn't allow length differences greater than {max_diff} for any sample. Found length differences={diffs.tolist()}"
             )
 
     time_dim_a = time_dim % tensor_a.ndim
