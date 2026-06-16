@@ -27,10 +27,12 @@ pipeline:
 trainer:
   train_dataloader_kwargs:
     shuffle: true
-  module:
-    encoder:
-      content_encoder:
-        num_layers: 1      # DAC latent has a single "layer" axis
+
+# DAC emits a single latent "layer" (precomputed content is (T, 1, 1024)), so the
+# ConformerEncoderSSL layer-weighting collapses to one layer. W2V-BERT uses 6.
+architecture:
+  content_encoder:
+    num_ssl_layers: 1
 
 data: &data
   # read speaker id from the manifest csv (used to build the speaker index)
