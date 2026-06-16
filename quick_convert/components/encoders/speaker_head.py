@@ -1,15 +1,11 @@
-from typing import Tuple
+from typing import Any, Tuple
 
 import torch
 import torch.nn as nn
 
-from quick_convert.components.losses import (
-    BaseSpeakerLoss,
-    AAMSoftmaxLoss, 
-    CosineDistanceLoss,
-)
-
 from quick_convert.components.layers import AttentiveStatisticsPooling
+from quick_convert.components.losses.speaker_losses import BaseSpeakerLoss
+
 
 class SpeakerASPHead(nn.Module):
     """
@@ -18,28 +14,56 @@ class SpeakerASPHead(nn.Module):
 
     def __init__(
         self,
+        loss: BaseSpeakerLoss,
         input_dim: int = 512,
         hidden_dim: int = 128,
         output_dim: int = 192,
         supervision: str = "cosine",
-        classification_dim: int = 2484, # Number of speaker in LS
-        loss: BaseSpeakerLoss = CosineDistanceLoss(),
+        loss_index_key: str = "speaker",
     ):
         super().__init__()
-        self.speaker_head = nn.Sequential(
+        self.ln = nn.LayerNorm(input_dim)
+        
+        self.pre_pool = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
-            AttentiveStatisticsPooling(input_dim=hidden_dim, hidden_dim=hidden_dim),
+        )
+        self.pool = AttentiveStatisticsPooling(input_dim=hidden_dim, hidden_dim=hidden_dim)
+        self.post_pool = nn.Sequential(
             nn.BatchNorm1d(hidden_dim * 2),
             nn.Linear(hidden_dim * 2, output_dim),
         )
-        self.ln = nn.LayerNorm(input_dim)
+
+        self.output_dim = output_dim
 
         if supervision not in ["cosine", "aam"]:
             raise ValueError(f"Unsupported supervision type: {supervision}")
         self.supervision = supervision
+        self.loss_index_key = loss_index_key
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if supervision == "aam":
+            self.loss_partial = loss
+        else:
+            self.loss = loss
+
+    def build_loss(self, indexers: dict[str, Any]):
+        """
+        A function for modules whose losses depend on a specific output shape.
+        `indexers` is a dictionary of the dimenstion-bearing objects passed recursively
+        through the root module. The key to access the correct object is defined in the constructor.
+        You'll need to know how to determine the desired dimension from the object beforehand. This avoids needing
+        to redundantly pass the loss dim in the hydra config (before the index is built).
+        --
+        This isn't ideal. Maybe in the future th ewprk should go towards pre-building the index in the first place
+        so we know the number of speakers beforehand.
+        """
+        if self.supervision == "aam":
+            num_speakers = len(indexers[self.loss_index_key])
+            self.loss = self.loss_partial(
+                num_classes=num_speakers,
+            )
+
+    def forward(self, x: torch.Tensor, padding_mask: torch.LongTensor = None) -> torch.Tensor:
         """
         Args:
             x: (B, T, output_dim) output of the content encoder
@@ -47,26 +71,28 @@ class SpeakerASPHead(nn.Module):
             speaker_features: (B, output_dim)
         """
         x = self.ln(x)
-        x = self.speaker_head(x)
+        x = self.pre_pool(x)
+        x = self.pool(x, padding_mask=padding_mask)
+        x = self.post_pool(x)
         return x
 
     def compute_loss(
-            self, 
-            speaker_features: torch.FloatTensor, 
-            speaker_embs: torch.FloatTensor = None, 
-            speaker_labels: torch.LongTensor = None) -> Tuple:
+        self,
+        speaker_features: torch.FloatTensor,
+        speaker_labels: torch.LongTensor = None,
+        padding_mask: torch.LongTensor = None,
+    ) -> Tuple:
         """Compute cosine distance loss between predicted speaker features and target speaker embeddings."""
-        
-        x = self.forward(speaker_features)
+
+        x = self.forward(speaker_features, padding_mask=padding_mask)
         # only need padding if
         if x.ndim == 3:
             raise NotImplementedError("Loss padding not yet implemented for frame-wise speaker embeddings")
 
-        
         if self.supervision == "cosine":
-            if speaker_embs is None:
+            if speaker_labels is None:
                 raise ValueError("Speaker embeddings must be provided for cosine supervision.")
-            loss = self.loss(x, speaker_embs)
+            loss = self.loss(x, speaker_labels)
             accuracy = None
             preds = None
 
@@ -78,5 +104,5 @@ class SpeakerASPHead(nn.Module):
 
         else:
             raise ValueError(f"Unsupported supervision type: {self.supervision}")
-        
+
         return x, loss, accuracy, preds

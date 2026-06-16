@@ -3,9 +3,9 @@
 defaults:
   - /global: default
   - /pipeline: training
-  - /trainer: controllable_rvq
+  - /trainer: controllable_rvq_v2
   - /dataset@train_dataset: manifest
-  - /dataset@val_dataset: null
+  - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
   - _self_
 
@@ -24,33 +24,33 @@ pipeline:
 trainer:
   train_dataloader_kwargs:
     shuffle: false
+  ddp:
+    enabled: false
+  compile: false
 #   val_dataloader_kwargs:
 #     batch_size: 2
 
 data: &data
   resources:
     spkid:
-      # name of column in csv
       column: spkid
       kind: text
+  max_length: 500000
   resource_providers:
-    # - ${source_dataset.transcript_provider}
-    # - ${source_dataset.spkid_provider}
-    # precomputed transcript token ids
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: token_ids
       name: token_ids
       path_template: ${resources_path}/tokenizer/{sample.split}/{sample.utt_id}.pt
-    # ssl features for content
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: content
       path_template: ${resources_path}/w2vbert_6layer/{sample.split}/{sample.utt_id}.pt
-    # emotion vectors
+      max_length: 1000
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: emo2vec
       path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
+      max_length: 1000
 
   load:
     - audio
@@ -62,8 +62,8 @@ data: &data
 train_dataset:
   <<: *data
   manifest_path: ${dataset_path}/test-other/manifest.csv
-  # splits:
-  #   - test-other
+  splits:
+    - test-other
 
 val_dataset:
   <<: *data

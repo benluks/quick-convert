@@ -1,17 +1,12 @@
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 from .base import BaseResourceProvider, ResourceRef
 from ...utils.paths import SamplePathFormatter
 
 
 class TemplateResourceProvider(BaseResourceProvider):
-    def __init__(
-        self,
-        name: str,
-        template: str,
-        kind: str = "text",
-    ):
+    def __init__(self, name: str, template: str, kind: str = "text"):
         super().__init__(name)
         self.template = template
         self.kind = kind
@@ -29,13 +24,12 @@ class PathResourceProvider(TemplateResourceProvider):
         name,
         path_template,
         kind,
+        # only set `max_length` for tensor resources
+        max_length=None,
         must_exist=True,
     ):
-        super().__init__(
-            name=name,
-            template=path_template,
-            kind=kind,
-        )
+        super().__init__(name=name, template=path_template, kind=kind)
+        self.max_length = max_length
         self.must_exist = must_exist
 
     def __call__(self, sample):
@@ -44,4 +38,4 @@ class PathResourceProvider(TemplateResourceProvider):
         if self.must_exist and not path.exists():
             raise FileNotFoundError(f"Missing resource {self.name}: {path}")
 
-        return ResourceRef(name=self.name, kind=self.kind, path=path, value=None)
+        return ResourceRef(name=self.name, kind=self.kind, path=path, value=None, max_length=self.max_length)

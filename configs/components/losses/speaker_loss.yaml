@@ -1,0 +1,3 @@
+_target_: quick_convert.components.losses.AAMSoftmaxLoss
+in_dim: ${architecture.speaker_head.output_dim}
+num_classes: ???

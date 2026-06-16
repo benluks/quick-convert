@@ -18,6 +18,8 @@ class ConformerBlock(nn.Module):
         dropout: float = 0.1,
         bias: bool = True,
         pos_emb_base: float = 10000.0,
+        use_flash_attention: bool = True,
+        pre_norm: bool = False,
     ):
 
         super(ConformerBlock, self).__init__()
@@ -25,7 +27,12 @@ class ConformerBlock(nn.Module):
         # All blocks implemented with RMSNorm instead of LayerNorm (let's see how it works)
         # Implemented with RoPE
         self.mha = MultiHeadAttention(
-            embed_dim=embed_dim, num_heads=num_heads, bias=bias, dropout=dropout, pos_emb_base=pos_emb_base
+            embed_dim=embed_dim,
+            num_heads=num_heads,
+            bias=bias,
+            dropout=dropout,
+            pos_emb_base=pos_emb_base,
+            use_sdpa=use_flash_attention,
         )
 
         self.conv = DepthWiseConvolution(channels=embed_dim, kernel_size=conv_kernel_size, bias=bias, dropout=dropout)
@@ -33,8 +40,12 @@ class ConformerBlock(nn.Module):
         self.ffn1 = PositionwiseFeedForward(embed_dim=embed_dim, ffn_dim=ffn_dim, bias=bias, dropout=dropout)
         self.ffn2 = PositionwiseFeedForward(embed_dim=embed_dim, ffn_dim=ffn_dim, bias=bias, dropout=dropout)
         self.ln = nn.RMSNorm(embed_dim)
+        self.pre_norm = pre_norm
 
     def forward(self, x: torch.Tensor, padding_mask: torch.Tensor) -> torch.Tensor:
+        if self.pre_norm:
+            x = self.ln(x)
+
         # First FFN
         x = mask_pad(x, padding_mask)
 
@@ -50,9 +61,9 @@ class ConformerBlock(nn.Module):
         # Second FFN
         x = x + 0.5 * self.ffn2(x)
 
-        # Final layer norm (post norm is the default in Conformer,
-        # but we should consider to update it to pre-norm)
-        x = self.ln(x)
+        if not self.pre_norm:
+            # Post-norm is kept as default for backward compatibility.
+            x = self.ln(x)
 
         x = mask_pad(x, padding_mask)
         return x

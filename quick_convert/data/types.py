@@ -36,6 +36,22 @@ class MetadataBatch:
     spk_ids: list[str | None]
     resources: ResourceCollection
 
+    def __len__(self) -> int:
+        return len(self.paths)
+
+    def __getitem__(self, idx: int) -> AudioSample:
+        return AudioSample(
+            utt_id=self.utt_ids[idx],
+            path=self.paths[idx],
+            split=self.splits[idx],
+            spk_id=self.spk_ids[idx],
+            resources={key: value[idx] for key, value in self.resources.items()},
+        )
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
 
 @dataclass
 class LoadedBatch(MetadataBatch):

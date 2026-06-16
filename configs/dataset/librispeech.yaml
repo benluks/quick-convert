@@ -1,8 +1,8 @@
 # configs/dataset/librispeech.yaml
 
 _target_: quick_convert.data.BaseDataset
-root: /scratch/elec/t412-speechsynth/DATA/LibriSpeech/tarballs/LibriSpeech
-
+root: /cfs/collections/librispeech/LibriSpeech
+#root: /scratch/elec/t412-speechsynth/DATA/LibriSpeech/tarballs/LibriSpeech
 splits:
   - train-clean-100
   #- train-clean-360

@@ -8,7 +8,7 @@ import sentencepiece as spm
 from quick_convert.components.encoders import RVQDisentangler
 from quick_convert.components.decoders import ChatterboxSpectrogramGenerator as CSG
 
-from quick_convert.data.resources.base import collate_token_sequences
+from quick_convert.data.index.base import Indexer
 from quick_convert.data.types import AudioBatch
 from quick_convert.pipelines.training.modules.encoder_decoder.base import BaseEncoderDecoderTrainingModule
 
@@ -74,10 +74,12 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         self,
         encoder: RVQDisentangler,
         decoder: CSG,
-        tokenizer: spm.SentencePieceProcessor,
+        # either pass `tokenizer` or `tokenizer_pad_id`
         rvq_loss_weights: dict[str, float],
         distillation_loss_weights: dict[str, float],
         adv_loss_weights: dict[str, float],
+        tokenizer: Optional[spm.SentencePieceProcessor] = None,
+        tokenizer_pad_id: Optional[int] = None,
         decoder_loss_weight: Optional[float] = None,
         optimizer: torch.optim.Optimizer = torch.optim.AdamW,
         lr_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
@@ -92,6 +94,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         )
 
         self.tokenizer = tokenizer
+        self.tokenizer_pad_id = tokenizer_pad_id if tokenizer_pad_id is not None else tokenizer.pad_id()
         self.adv_loss_hold_off = adv_loss_hold_off
 
         self.save_hyperparameters(ignore=["encoder", "decoder", "tokenizer"])
@@ -100,7 +103,10 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             distillation_loss_weights=distillation_loss_weights,
             adv_loss_weights=adv_loss_weights,
         )
-        self.media_log_interval = 500
+
+        # has to be declared like this, since the parent lightning trainer has
+        # access to the datasets, which are used to fit the indexer
+        self.indexers = {"speaker": Indexer("{sample.resources.spkid.value}")}
 
     # ------------------------------------------------------------------
     # Setup helpers
@@ -115,7 +121,11 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         """Raise ``ValueError`` if any loss-weight dict is missing required keys."""
         distil_keys = {"ling", "spk", "emo"}
         checks = [
-            ("rvq_loss_weights", rvq_loss_weights, {"commitment_loss", "codebook_loss"}),
+            (
+                "rvq_loss_weights",
+                rvq_loss_weights,
+                {"commitment_loss", "codebook_loss", "load_balancing_loss", "mse_loss"},
+            ),
             ("distillation_loss_weights", distillation_loss_weights, distil_keys),
             ("adv_loss_weights", adv_loss_weights, {"spk_ling", "spk_pros", "ling_spk", "ling_pros"}),
         ]
@@ -157,32 +167,33 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             Scalar total loss tensor passed to the Lightning optimiser.
         """
         # lengths = batch.lengths  # (B,)
-        targets = batch.resources["transcript"]  # transcript token ids, shape (B, T_text) or None
 
         features = batch.resources["content"].values
         lengths = batch.resources["content"].lengths
 
-        spk_targets = batch.resources["spk"].values
         emo_targets = batch.resources["emo2vec"].values
         emo_lengths = batch.resources["emo2vec"].lengths
+
+        spk_targets = torch.LongTensor(self.indexers["speaker"].encode_many(batch.resources["spkid"])).to(self.device)
+
         pros_targets = (
             batch.resources["pros"].values
             if "pros" in batch.resources and batch.resources["pros"] is not None
             else None
         )
 
-        tokenized_transcripts = self.tokenizer.encode(targets)
-        ling_targets = collate_token_sequences(tokenized_transcripts, padding_value=self.tokenizer.pad_id())
+        # tokenized_transcripts = self.tokenizer.encode(targets)
+        token_ids = batch.resources["token_ids"]  # transcript token ids, shape (B, T_text) or None
 
-        z_q, spk_q, spk_output, text_q, pros_emo_q, loss_dict = self.encoder.compute_loss(
+        z_q, spk_q, spk_output, text_q, pros_emo_q, loss_dict, spk_acc_dict = self.encoder.compute_loss(
             features,
             lengths,
-            ling_targets.values,
-            ling_targets.lengths,
-            spk_targets,
-            emo_targets,
-            emo_lengths,
-            pros_targets,
+            linguistic_targets=token_ids.values,
+            target_lengths=token_ids.lengths,
+            speaker_seq=spk_targets,
+            emotion_seq=emo_targets,
+            emotion_lengths=emo_lengths,
+            prosody_seq=pros_targets,
             run_adv=self.global_step > self.hparams.adv_loss_hold_off,
         )
 
@@ -191,6 +202,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             self.hparams.rvq_loss_weights["commitment_loss"] * loss_dict["rvq_losses"]["commitment_loss"]
             + self.hparams.rvq_loss_weights["codebook_loss"] * loss_dict["rvq_losses"]["codebook_loss"]
             + self.hparams.rvq_loss_weights["mse_loss"] * loss_dict["rvq_losses"]["mse_loss"]
+            + self.hparams.rvq_loss_weights["load_balancing_loss"] * loss_dict["rvq_losses"]["load_balancing_loss"]
         )
 
         # Weighted sum of per-attribute distillation losses from frozen teacher encoders
@@ -216,7 +228,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         # TODO
         decoder_features = torch.cat([text_q, pros_emo_q], dim=-1)
 
-        decoder_loss, decoder_output = self.decoder.compute_loss(
+        decoder_loss, decoder_output, decoder_mae = self.decoder.compute_loss(
             features=decoder_features,
             # feature lengths
             lengths=lengths,
@@ -231,23 +243,30 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         log_dict = {
             f"{stage}/loss": loss,
             # RVQ losses
-            f"{stage}/rvq_loss": rvq_loss,
-            f"{stage}/commitment_loss": loss_dict["rvq_losses"]["commitment_loss"],
-            f"{stage}/codebook_loss": loss_dict["rvq_losses"]["codebook_loss"],
+            f"{stage}/rvq/loss": rvq_loss,
+            f"{stage}/rvq/commitment_loss": loss_dict["rvq_losses"]["commitment_loss"],
+            f"{stage}/rvq/codebook_loss": loss_dict["rvq_losses"]["codebook_loss"],
+            f"{stage}/mse_loss": loss_dict["rvq_losses"]["mse_loss"],
+            f"{stage}/load_balancing_loss": loss_dict["rvq_losses"]["load_balancing_loss"],
             # Decoder loss
-            f"{stage}/decoder_loss": decoder_loss,
+            f"{stage}/decoder/loss": decoder_loss,
+            f"{stage}/decoder/mae": decoder_mae,
             # Distillation losses
-            f"{stage}/distil_loss": distil_loss,
-            f"{stage}/ctc_loss": loss_dict["distill_losses"]["ctc_loss"],
-            f"{stage}/spk_loss": loss_dict["distill_losses"]["spk_loss"],
-            f"{stage}/emo_loss": loss_dict["distill_losses"]["emo_loss"],
-            f"{stage}/pros_loss": loss_dict["distill_losses"]["pros_loss"],
+            f"{stage}/distil/loss": distil_loss,
+            f"{stage}/distil/ctc_loss": loss_dict["distill_losses"]["ctc_loss"],
+            f"{stage}/distil/spk_loss": loss_dict["distill_losses"]["spk_loss"],
+            f"{stage}/distil/emo_loss": loss_dict["distill_losses"]["emo_loss"],
+            f"{stage}/distil/pros_loss": loss_dict["distill_losses"]["pros_loss"],
             # Adversarial losses
-            f"{stage}/adv_loss": adv_loss,
-            f"{stage}/adv_spk_loss_ling": loss_dict["adv_losses"]["adv_spk_loss_ling"],
-            f"{stage}/adv_spk_loss_pros": loss_dict["adv_losses"]["adv_spk_loss_pros"],
-            f"{stage}/adv_ling_loss_spk": loss_dict["adv_losses"]["adv_ling_loss_spk"],
-            f"{stage}/adv_ling_loss_pros": loss_dict["adv_losses"]["adv_ling_loss_pros"],
+            f"{stage}/adv/loss": adv_loss,
+            f"{stage}/adv/spk_loss_ling": loss_dict["adv_losses"]["adv_spk_loss_ling"],
+            f"{stage}/adv/spk_loss_pros": loss_dict["adv_losses"]["adv_spk_loss_pros"],
+            f"{stage}/adv/ling_loss_spk": loss_dict["adv_losses"]["adv_ling_loss_spk"],
+            f"{stage}/adv/ling_loss_pros": loss_dict["adv_losses"]["adv_ling_loss_pros"],
+            # spk accuracy
+            f"{stage}/adv_spk_acc_ling": spk_acc_dict["adv_spk_acc_ling"],
+            f"{stage}/adv_spk_acc_pros": spk_acc_dict["adv_spk_acc_pros"],
+            f"{stage}/spk_acc": spk_acc_dict["spk_acc"],
         }
 
         self.log_dict(
@@ -285,10 +304,10 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         ) = self._shared_step(batch, "val")
 
         with torch.no_grad():
-            if batch_idx == 0:
+            if self.trainer.is_global_zero and batch_idx == 0:
                 # Log the first sample in the batch for qualitative monitoring
                 decoder_features = torch.cat([text_q, pros_emo_q], dim=-1)
-                max_len = batch.resources["content"].lengths.max().item()
+                max_len = batch.resources["content"].values.shape[1]
                 mel = torch.cat(
                     [
                         self.decoder(feat.unsqueeze(0), length.unsqueeze(0), spk.unsqueeze(0), max_len=max_len)
@@ -300,19 +319,34 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
                 # log spectrograms
                 for i, sample in enumerate(batch):
-                    tag_prefix = f"{sample.split}/{sample.utt_id}"
+                    # only log up to 16 samples. Anything more is overkills
+                    if i >= 16:
+                        break
+
+                    gen_sample_rate = int(self.decoder.vocoder.sampling_rate)
+                    orig_sample_rate = int(sample.sample_rate)
+                    tag_name = sample.utt_id
+
+                    # TODO: remove padding from the target mel spectrogram and waveform before logging
 
                     # self.logger.experiment.add_image(f"{tag_prefix}/target_spectrogram")
                     self.logger.experiment.add_image(
-                        f"{tag_prefix}/generated_spectrogram", mel[i].unsqueeze(0).detach().cpu(), self.global_step
+                        f"generated/{tag_name}", mel[i].unsqueeze(0).detach().cpu(), self.global_step
                     )
                     # compute vocoder output, log audio
                     self.logger.experiment.add_audio(
-                        f"{tag_prefix}/generated_waveform",
-                        gen_audio[i].unsqueeze(-1).detach().cpu(),
+                        f"generated/{tag_name}",
+                        gen_audio[i].unsqueeze(-1).detach().cpu()[..., : batch.lengths[i]],
                         self.global_step,
-                        sample_rate=self.decoder.vocoder.sampling_rate,
+                        sample_rate=gen_sample_rate,
                     )
+                    if self.global_step == 0:
+                        self.logger.experiment.add_audio(
+                            f"original/{tag_name}",
+                            sample.waveform.detach().cpu()[..., : batch.lengths[i]],
+                            self.global_step,
+                            sample_rate=orig_sample_rate,
+                        )
 
         return loss
 

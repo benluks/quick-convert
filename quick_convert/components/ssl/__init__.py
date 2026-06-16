@@ -4,9 +4,10 @@ from .dac import DACContentEncoder
 from .emo2vec import EmotionEncoder
 from .pros2vec import ProsodyEncoder
 from .w2vbert import W2VBertContentEncoder
+from .base import ContentEncoder
 
 __all__ = [
-    "DACContentEncoder",
+    "ContentEncoder", #to be replaced by DACContentencoder when used
     "EmotionEncoder",
     "ProsodyEncoder",
     "W2VBertContentEncoder",
