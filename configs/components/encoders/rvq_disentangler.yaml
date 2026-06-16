@@ -9,8 +9,9 @@ _target_: quick_convert.components.encoders.RVQDisentangler
 rvq: ${architecture.rvq}
 emotion_head: ${architecture.emotion_head}
 prosody_head: ${architecture.prosody_head}
-rvq_idx:
-  speaker: 0
-  content: 1
-  emo_pros: 2
+router:
+  content: 0
+  speaker: 1
+  prosody: 2
+  emotion: 2
   
