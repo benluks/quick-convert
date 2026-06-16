@@ -1,0 +1,74 @@
+# @package _global_
+# configs/run/train_controllable_rvq_dac_librispeech_v2.yaml
+# DAC variant of train_controllable_rvq_librispeech_v2.yaml.
+# Two DAC changes vs the w2vbert v2 config:
+#   (1) the `content` resource points at the dac16k features, and
+#   (2) the content encoder uses num_layers=1 (DAC emits a single latent layer).
+# NOTE the v2 pipeline: loads precomputed `token_ids` (not transcript) and `spkid`
+# (manifest column, used for AAM-Softmax speaker classification). It does NOT use
+# the espnet `spk` embedding.
+
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: controllable_rvq_v2
+  - /dataset@train_dataset: manifest
+  - /dataset@val_dataset: manifest
+  - /dataset@source_dataset: librispeech
+  - _self_
+
+dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
+resources_path: outputs/precomputed/${dataset_name}
+dataset_path: ${out_root}/${dataset_name}
+
+pipeline:
+  batch_size: 32
+
+trainer:
+  train_dataloader_kwargs:
+    shuffle: true
+  module:
+    encoder:
+      content_encoder:
+        num_layers: 1      # DAC latent has a single "layer" axis
+
+data: &data
+  # read speaker id from the manifest csv (used to build the speaker index)
+  resources:
+    spkid:
+      column: spkid
+      kind: text
+  max_length: 562480
+  # precomputed per-utterance resources
+  resource_providers:
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: token_ids
+      name: token_ids
+      path_template: ${resources_path}/tokenizer/{sample.split}/{sample.utt_id}.pt
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: content
+      path_template: ${resources_path}/dac16k/{sample.split}/{sample.utt_id}.pt
+      max_length: 1757
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: emo2vec
+      path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
+      max_length: 1757
+
+  load:
+    - audio
+    - token_ids
+    - content
+    - emo2vec
+    - spkid
+
+train_dataset:
+  <<: *data
+  manifest_path:
+    - ${dataset_path}/train-clean-100/manifest.csv
+
+val_dataset:
+  <<: *data
+  manifest_path:
+    - ${dataset_path}/dev-other/manifest.csv
