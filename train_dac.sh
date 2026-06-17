@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=dac_train
-#SBATCH --partition=gpu           # adjust to your Triton GPU partition (see `sinfo -s`)
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a100:1
+#SBATCH --partition=gpu-debug
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=48G
-#SBATCH --time=24:00:00
-#SBATCH --output=logs/%x_%j.out
-#SBATCH --error=logs/%x_%j.err
+#SBATCH --mem=64G
+#SBATCH --time=00:30:00
+#SBATCH --output=/scratch/elec/t412-speechsynth/palp/vpc_collab/scripts/logs/trainwdac_%j.out
+#SBATCH --error=/scratch/elec/t412-speechsynth/palp/vpc_collab/scripts/logs/trainwdac_%j.err
 
 # ---------------------------------------------------------------------------
 # GPU training of the controllable-RVQ anonymiser on precomputed DAC features.
@@ -24,6 +24,12 @@ cd "$SLURM_SUBMIT_DIR"
 
 export UV_PROJECT_ENVIRONMENT=.venv-train
 export HF_HOME="${WRKDIR:-$HOME}/hf_cache"
+# Auth via `wandb login` on the login node (writes ~/.netrc) — no key in this file.
+
+OUT=/scratch/elec/t412-speechsynth/palp/vpc_collab/inesc-gitlab/quick-convert/outputs
 
 uv run --offline -m quick_convert.cli.train \
-    --config-name run/train_controllable_rvq_dac_librispeech
+    --config-name run/train_controllable_rvq_dac_librispeech_v2 \
+    out_root=$OUT \
+    +pipeline.train_kwargs.num_sanity_val_steps=0 \
+    +pipeline.train_kwargs.limit_val_batches=0

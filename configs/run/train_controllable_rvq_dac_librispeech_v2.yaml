@@ -23,6 +23,12 @@ dataset_path: ${out_root}/${dataset_name}
 
 pipeline:
   batch_size: 32
+  train_kwargs:
+    logger:
+      _target_: lightning.pytorch.loggers.WandbLogger
+      project: quick-convert-dac
+      name: dac_v2_train-clean-100
+      save_dir: ${out_root}
 
 trainer:
   train_dataloader_kwargs:
