@@ -13,13 +13,14 @@ defaults:
 dataset:
   splits:
     - train-clean-100
-  #  - train-clean-360
-  #  - train-other-500
-  #  - dev-clean
+    - train-clean-360
+    - train-other-500
+    - dev-clean
     - dev-other
   load: true
   target_sr: ${encoder.sample_rate}   # 16000 — DAC-16k
 
 pipeline:
   out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/dac16k
-  skip_existing: false
+  # idempotent: safe to resume timed-out jobs (already-written utts are skipped)
+  skip_existing: true

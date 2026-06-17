@@ -19,6 +19,15 @@ pipeline:
 suffix: ""
 resources_path: outputs/precomputed/${hydra:runtime.choices.dataset}
 dataset:
+  # all LibriSpeech splits except test-clean / test-other (unused for now).
+  # writes one flat manifest to ${out_root}/librispeech/manifest.csv;
+  # scripts/split_manifest_by_speaker.py then carves train/ and val/ from it.
+  splits:
+    - train-clean-100
+    - train-clean-360
+    - train-other-500
+    - dev-clean
+    - dev-other
   resource_providers:
     - ${dataset.spkid_provider}
   sort_key: "{row.utt_id}"
