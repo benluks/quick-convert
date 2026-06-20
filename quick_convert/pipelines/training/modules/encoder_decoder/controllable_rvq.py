@@ -329,15 +329,13 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
                 # log spectrograms
                 for i, sample in enumerate(batch):
-                    # only log up to 16 samples. Anything more is overkills
+                    # only log up to 16 samples. Anything more is overkill
                     if i >= 16:
                         break
 
                     gen_sample_rate = int(self.decoder.vocoder.sampling_rate)
                     orig_sample_rate = int(sample.sample_rate)
                     tag_name = sample.utt_id
-
-                    # TODO: remove padding from the target mel spectrogram and waveform before logging
 
                     # self.logger.experiment.add_image(f"{tag_prefix}/target_spectrogram")
                     self.logger.experiment.add_image(
@@ -346,7 +344,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
                     # compute vocoder output, log audio
                     self.logger.experiment.add_audio(
                         f"generated/{tag_name}",
-                        gen_audio[i].unsqueeze(-1).detach().cpu()[..., : batch.lengths[i]],
+                        gen_audio[i].detach().float().cpu()[..., : int(batch.lengths[i].item())].unsqueeze(0),
                         self.global_step,
                         sample_rate=gen_sample_rate,
                     )
