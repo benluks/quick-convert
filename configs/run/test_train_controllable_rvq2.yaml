@@ -7,6 +7,7 @@ defaults:
   - /dataset@train_dataset: manifest
   - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
+  - /components/ssl@trainer.module.content_encoder: w2vbert
   - _self_
 
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
@@ -19,7 +20,8 @@ pipeline:
     val_check_interval: null
     callbacks:
       - _target_: lightning.pytorch.callbacks.ModelCheckpoint
-        monitor: val/decoder_mae
+        monitor: train/loss
+        # save_top_k:
 
 trainer:
   train_dataloader_kwargs:
@@ -41,11 +43,11 @@ data: &data
       kind: token_ids
       name: token_ids
       path_template: ${resources_path}/tokenizer/{sample.split}/{sample.utt_id}.pt
-    - _target_: quick_convert.data.resources.PathResourceProvider
-      kind: torch_tensor
-      name: content
-      path_template: ${resources_path}/w2vbert_6layer/{sample.split}/{sample.utt_id}.pt
-      max_length: 1000
+    # - _target_: quick_convert.data.resources.PathResourceProvider
+    #   kind: torch_tensor
+    #   name: content
+    #   path_template: ${resources_path}/w2vbert_6layer/{sample.split}/{sample.utt_id}.pt
+    #   max_length: 1000
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: emo2vec
