@@ -20,8 +20,16 @@ pipeline:
     val_check_interval: null
     callbacks:
       - _target_: lightning.pytorch.callbacks.ModelCheckpoint
-        monitor: train/loss
+        save_top_k: 2
+        monitor: null
+        every_n_epochs: 1
+        save_last: true
         # save_top_k:
+      - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+        monitor: val/loss
+        mode: min
+        save_top_k: 1
+        save_last: false
 
 trainer:
   train_dataloader_kwargs:
