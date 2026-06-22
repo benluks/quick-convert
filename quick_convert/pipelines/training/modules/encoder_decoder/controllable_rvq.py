@@ -8,6 +8,7 @@ import sentencepiece as spm
 from quick_convert.components.encoders import RVQDisentangler
 from quick_convert.components.decoders import ChatterboxSpectrogramGenerator as CSG
 
+from quick_convert.components.ssl import ContentEncoder, ContentFeatures
 from quick_convert.data.index.base import Indexer
 from quick_convert.data.types import AudioBatch
 from quick_convert.pipelines.training.modules.encoder_decoder.base import BaseEncoderDecoderTrainingModule
@@ -84,6 +85,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         optimizer: torch.optim.Optimizer = torch.optim.AdamW,
         lr_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
         adv_loss_hold_off: int = 1000,
+        content_encoder: Optional[ContentEncoder] = None,
         *kwargs: Any,
     ) -> None:
         super().__init__(
@@ -107,6 +109,12 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         # has to be declared like this, since the parent lightning trainer has
         # access to the datasets, which are used to fit the indexer
         self.indexers = {"speaker": Indexer("{sample.resources.spkid.value}")}
+
+        # set encoders (frozen, instead of precomputed features)
+        if content_encoder is not None:
+            for p in content_encoder.parameters():
+                p.requires_grad = False
+        self.content_encoder = content_encoder or None
 
     # ------------------------------------------------------------------
     # Setup helpers
@@ -153,6 +161,24 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
     # Shared step logic
     # ------------------------------------------------------------------
 
+    def _get_resource(self, batch: AudioBatch, name, feature_encoder_name=None):
+        """
+        Method to optionally use precomputed features, otherwise rely on an encoder (must be passed to this class' __init__,
+        and referenced by name). If `feautre_encoder_name`
+        """
+        if batch.resources.get(name, None) is not None:
+            resource = batch.resources[name]
+            return resource.values, resource.lengths
+        elif (
+            feature_encoder_name is not None
+            and (feature_encoder := getattr(self, feature_encoder_name, None)) is not None
+        ):
+            content: ContentFeatures = feature_encoder(batch)
+            return content.values, content.lengths
+        else:
+            raise RuntimeError(f"""Ensure batch has resource named {name} or this value can be computed using the appropriate encoder.
+                               name='{name}', feature_encoder_name='{feature_encoder_name}'""")
+
     def _shared_step(self, batch: AudioBatch, stage: str) -> torch.Tensor:
         """Compute all losses, log them, and return the total loss.
 
@@ -166,13 +192,9 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         Returns:
             Scalar total loss tensor passed to the Lightning optimiser.
         """
-        # lengths = batch.lengths  # (B,)
-
-        features = batch.resources["content"].values
-        lengths = batch.resources["content"].lengths
-
-        emo_targets = batch.resources["emo2vec"].values
-        emo_lengths = batch.resources["emo2vec"].lengths
+        features, lengths = self._get_resource(batch, "content", "content_encoder")
+        # for now, only precomputed emo2vec
+        emo_targets, emo_lengths = self._get_resource(batch, "emo2vec")
 
         spk_targets = torch.LongTensor(self.indexers["speaker"].encode_many(batch.resources["spkid"])).to(self.device)
 
@@ -185,7 +207,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         # tokenized_transcripts = self.tokenizer.encode(targets)
         token_ids = batch.resources["token_ids"]  # transcript token ids, shape (B, T_text) or None
 
-        z_q, spk_q, spk_output, text_q, pros_emo_q, loss_dict, spk_acc_dict = self.encoder.compute_loss(
+        z_q, spk_q, spk_output, text_q, pros_emo_q, loss_dict, spk_acc_dict, lengths = self.encoder.compute_loss(
             features,
             lengths,
             linguistic_targets=token_ids.values,
@@ -246,8 +268,8 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             f"{stage}/rvq/loss": rvq_loss,
             f"{stage}/rvq/commitment_loss": loss_dict["rvq_losses"]["commitment_loss"],
             f"{stage}/rvq/codebook_loss": loss_dict["rvq_losses"]["codebook_loss"],
-            f"{stage}/mse_loss": loss_dict["rvq_losses"]["mse_loss"],
-            f"{stage}/load_balancing_loss": loss_dict["rvq_losses"]["load_balancing_loss"],
+            f"{stage}/rvq/mse_loss": loss_dict["rvq_losses"]["mse_loss"],
+            f"{stage}/rvq/load_balancing_loss": loss_dict["rvq_losses"]["load_balancing_loss"],
             # Decoder loss
             f"{stage}/decoder/loss": decoder_loss,
             f"{stage}/decoder/mae": decoder_mae,
@@ -278,40 +300,28 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             batch_size=len(batch.paths),
         )
 
-        return (
-            loss,
-            decoder_output,
-            spk_output,
-            text_q,
-            pros_emo_q,
-        )
+        return (loss, decoder_output, spk_output, text_q, pros_emo_q, lengths)
 
     # ------------------------------------------------------------------
     # Steps
     # ------------------------------------------------------------------
 
     def training_step(self, batch: AudioBatch, batch_idx: int) -> torch.Tensor:
-        loss, decoder_output, spk_output, text_q, pros_emo_q = self._shared_step(batch, "train")
+        loss, decoder_output, spk_output, text_q, pros_emo_q, lengths = self._shared_step(batch, "train")
         return loss
 
     def validation_step(self, batch: AudioBatch, batch_idx: int) -> torch.Tensor:
-        (
-            loss,
-            decoder_output,
-            spk_output,
-            text_q,
-            pros_emo_q,
-        ) = self._shared_step(batch, "val")
+        (loss, decoder_output, spk_output, text_q, pros_emo_q, lengths) = self._shared_step(batch, "val")
 
         with torch.no_grad():
             if self.trainer.is_global_zero and batch_idx == 0:
                 # Log the first sample in the batch for qualitative monitoring
                 decoder_features = torch.cat([text_q, pros_emo_q], dim=-1)
-                max_len = batch.resources["content"].values.shape[1]
+                max_len = lengths.max()
                 mel = torch.cat(
                     [
                         self.decoder(feat.unsqueeze(0), length.unsqueeze(0), spk.unsqueeze(0), max_len=max_len)
-                        for feat, length, spk in zip(decoder_features, batch.resources["content"].lengths, spk_output)
+                        for feat, length, spk in zip(decoder_features, lengths, spk_output)
                     ]
                 )
 
@@ -319,15 +329,13 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
                 # log spectrograms
                 for i, sample in enumerate(batch):
-                    # only log up to 16 samples. Anything more is overkills
+                    # only log up to 16 samples. Anything more is overkill
                     if i >= 16:
                         break
 
                     gen_sample_rate = int(self.decoder.vocoder.sampling_rate)
                     orig_sample_rate = int(sample.sample_rate)
                     tag_name = sample.utt_id
-
-                    # TODO: remove padding from the target mel spectrogram and waveform before logging
 
                     # self.logger.experiment.add_image(f"{tag_prefix}/target_spectrogram")
                     self.logger.experiment.add_image(
@@ -336,7 +344,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
                     # compute vocoder output, log audio
                     self.logger.experiment.add_audio(
                         f"generated/{tag_name}",
-                        gen_audio[i].unsqueeze(-1).detach().cpu()[..., : batch.lengths[i]],
+                        gen_audio[i].detach().float().cpu()[..., : int(batch.lengths[i].item())].unsqueeze(0),
                         self.global_step,
                         sample_rate=gen_sample_rate,
                     )
@@ -356,9 +364,8 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         batch: AudioBatch,
     ) -> torch.Tensor:
         """Run the decoder in inference mode on the provided features and speaker embedding."""
-        features = batch.resources["content"].values
-        lengths = batch.resources["content"].lengths
-        z_q, z_quantized, text_q, spk_q, spk_output, emo_pros_q = self.encoder(features, lengths)
+        features, lengths = self._get_resource(batch, "content", "content_encoder")
+        z_q, z_quantized, text_q, spk_q, spk_output, emo_pros_q, lengths = self.encoder(features, lengths)
         decoder_features = torch.cat([text_q, emo_pros_q], dim=-1)
         mel = torch.stack(
             [self.decoder(feat.unsqueeze(0), length, spk_output) for feat, length in zip(decoder_features, lengths)]

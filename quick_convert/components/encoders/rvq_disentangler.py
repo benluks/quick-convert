@@ -419,4 +419,4 @@ class RVQDisentangler(nn.Module):
             "adv_spk_acc_pros": adv_spk_acc_pros,
         }
 
-        return [z_quantized, z_spk, spk_output, z_ling, z_pros, loss_dict, spk_acc_dict]
+        return [z_quantized, z_spk, spk_output, z_ling, z_pros, loss_dict, spk_acc_dict, lengths]

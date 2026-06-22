@@ -13,7 +13,7 @@ defaults:
 
 # probably won't need more than 256
 encoder_dim: 256
-num_feature_layers: 6
+num_feature_layers: 24
 
 tokenizer_model_path: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
 tokenizer_vocab_size: 1000
@@ -25,7 +25,7 @@ feature_extractors:
 content_encoder:
   input_dim: ${architecture.content_ssl.feature_dim}
   embed_dim: ${architecture.encoder_dim}
-  num_ssl_layers: 6 # 24 /4 because we use the output of every 4th layer
+  num_ssl_layers: ${architecture.num_feature_layers}
 
 rvq:
   input_dim: ${architecture.content_encoder.embed_dim}
