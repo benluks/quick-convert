@@ -41,7 +41,7 @@ class BaseEncoderDecoderTrainingModule(L.LightningModule):
         lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
     ) -> None:
         super().__init__()
-        self.save_hyperparameters(ignore=["encoder", "decoder"])
+        self.save_hyperparameters(ignore=["encoder", "decoder", "tokenizer", "content_encoder"])
 
         self.encoder = encoder
         self.decoder = decoder

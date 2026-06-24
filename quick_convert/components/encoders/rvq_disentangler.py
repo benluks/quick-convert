@@ -311,7 +311,12 @@ class RVQDisentangler(nn.Module):
         run_adv=True,
     ) -> List:
 
-        features, emotion_seq, lengths = trim_to_min(features, emotion_seq, lengths, emotion_lengths, time_dim=1)
+        # DAC content frames vs emo2vec frames differ by a couple (different framing
+        # conventions across model families), so allow a looser tolerance than the
+        # default 1 used for same-family (w2v-bert / emo2vec) pairs.
+        features, emotion_seq, lengths = trim_to_min(
+            features, emotion_seq, lengths, emotion_lengths, time_dim=1, max_diff=4
+        )
         padding_mask = make_padding_mask(lengths, max_length=features.shape[1])  # (B, T_frames)
 
         z_q, z_quantized, z_spk, z_ling, z_pros, commitment_loss, codebook_loss, router_loss, content = self.encode(

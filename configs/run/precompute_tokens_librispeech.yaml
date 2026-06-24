@@ -10,6 +10,12 @@ defaults:
   - _self_
 
 dataset:
+  splits:
+    - train-clean-100
+    - train-clean-360
+    - train-other-500
+    - dev-clean
+    - dev-other   # val set loads token_ids too
   resource_providers:
     - ${dataset.transcript_provider}
   load: false
