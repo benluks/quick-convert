@@ -65,7 +65,10 @@ def load_checkpoint(module: torch.nn.Module, ckpt_path: Path) -> None:
     aren't needed for generation (the speaker *embedding* comes from the head's
     forward pass), so they legitimately show up as "unexpected".
     """
-    ckpt = torch.load(str(ckpt_path), map_location="cpu")
+    # weights_only=False: a Lightning checkpoint holds pickled optimizer/callback/
+    # hparams state (e.g. functools.partial), which the PyTorch>=2.6 default
+    # (weights_only=True) refuses to unpickle. Safe here — it's your own checkpoint.
+    ckpt = torch.load(str(ckpt_path), map_location="cpu", weights_only=False)
     state_dict = ckpt.get("state_dict", ckpt)
     state_dict = {k.replace("_orig_mod.", ""): v for k, v in state_dict.items()}
 
