@@ -98,8 +98,11 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         self.tokenizer = tokenizer
         self.tokenizer_pad_id = tokenizer_pad_id if tokenizer_pad_id is not None else tokenizer.pad_id()
         self.adv_loss_hold_off = adv_loss_hold_off
+        # render + log qualitative audio/mel every N train steps (0 disables);
+        # logged to wandb (or tensorboard) and saved under <out_dir>/samples/.
+        self.sample_log_every_n_steps = 2000
 
-        self.save_hyperparameters(ignore=["encoder", "decoder", "tokenizer"])
+        self.save_hyperparameters(ignore=["encoder", "decoder", "tokenizer", "content_encoder"])
         self._validate_inputs(
             rvq_loss_weights=rvq_loss_weights,
             distillation_loss_weights=distillation_loss_weights,
@@ -308,55 +311,108 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
     def training_step(self, batch: AudioBatch, batch_idx: int) -> torch.Tensor:
         loss, decoder_output, spk_output, text_q, pros_emo_q, lengths = self._shared_step(batch, "train")
+
+        if (
+            self.sample_log_every_n_steps
+            and self.trainer.is_global_zero
+            and self.global_step > 0
+            and self.global_step % self.sample_log_every_n_steps == 0
+        ):
+            try:
+                mel, gen_audio = self._generate_media(batch, text_q, pros_emo_q, spk_output, lengths)
+                self._log_media(batch, mel, gen_audio)
+            except Exception as exc:  # never let monitoring crash a run
+                import warnings
+
+                warnings.warn(f"sample logging failed at step {self.global_step}: {exc}")
+
         return loss
 
     def validation_step(self, batch: AudioBatch, batch_idx: int) -> torch.Tensor:
         (loss, decoder_output, spk_output, text_q, pros_emo_q, lengths) = self._shared_step(batch, "val")
 
-        with torch.no_grad():
-            if self.trainer.is_global_zero and batch_idx == 0:
-                # Log the first sample in the batch for qualitative monitoring
-                decoder_features = torch.cat([text_q, pros_emo_q], dim=-1)
-                max_len = lengths.max()
-                mel = torch.cat(
-                    [
-                        self.decoder(feat.unsqueeze(0), length.unsqueeze(0), spk.unsqueeze(0), max_len=max_len)
-                        for feat, length, spk in zip(decoder_features, lengths, spk_output)
-                    ]
-                )
+        if self.trainer.is_global_zero and batch_idx == 0:
+            try:
+                mel, gen_audio = self._generate_media(batch, text_q, pros_emo_q, spk_output, lengths)
+                self._log_media(batch, mel, gen_audio)
+            except Exception as exc:  # never let monitoring crash a run
+                import warnings
 
-                gen_audio = self.decoder.mel2wav(mel)
-
-                # log spectrograms
-                for i, sample in enumerate(batch):
-                    # only log up to 16 samples. Anything more is overkill
-                    if i >= 16:
-                        break
-
-                    gen_sample_rate = int(self.decoder.vocoder.sampling_rate)
-                    orig_sample_rate = int(sample.sample_rate)
-                    tag_name = sample.utt_id
-
-                    # self.logger.experiment.add_image(f"{tag_prefix}/target_spectrogram")
-                    self.logger.experiment.add_image(
-                        f"generated/{tag_name}", mel[i].unsqueeze(0).detach().cpu(), self.global_step
-                    )
-                    # compute vocoder output, log audio
-                    self.logger.experiment.add_audio(
-                        f"generated/{tag_name}",
-                        gen_audio[i].detach().float().cpu()[..., : int(batch.lengths[i].item())].unsqueeze(0),
-                        self.global_step,
-                        sample_rate=gen_sample_rate,
-                    )
-                    if self.global_step == 0:
-                        self.logger.experiment.add_audio(
-                            f"original/{tag_name}",
-                            sample.waveform.detach().cpu()[..., : batch.lengths[i]],
-                            self.global_step,
-                            sample_rate=orig_sample_rate,
-                        )
+                warnings.warn(f"sample logging failed at step {self.global_step}: {exc}")
 
         return loss
+
+    @torch.no_grad()
+    def _generate_media(self, batch, text_q, pros_emo_q, spk_output, lengths):
+        """Render mel-spectrograms + waveforms for the first samples of a batch,
+        for qualitative monitoring. Returns ``(mel, gen_audio)``."""
+        decoder_features = torch.cat([text_q.detach(), pros_emo_q.detach()], dim=-1)
+        spk_output = spk_output.detach()
+        max_len = lengths.max()
+        mel = torch.cat(
+            [
+                self.decoder(feat.unsqueeze(0), length.unsqueeze(0), spk.unsqueeze(0), max_len=max_len)
+                for feat, length, spk in zip(decoder_features, lengths, spk_output)
+            ]
+        )
+        gen_audio = self.decoder.mel2wav(mel)
+        return mel, gen_audio
+
+    def _log_media(self, batch, mel, gen_audio, max_samples: int = 16) -> None:
+        """Persist + log generated spectrograms and audio.
+
+        Always writes wavs to ``<trainer.default_root_dir>/samples/step_<N>/`` so the
+        results exist regardless of logger. Also logs to the active logger:
+        ``wandb.Audio`` / ``wandb.Image`` for a WandbLogger, or ``add_audio`` /
+        ``add_image`` for a TensorBoardLogger (so TensorBoard still works). Source audio
+        is logged once, at global_step 0. Audio is not trimmed, so trailing padding may
+        be silent.
+        """
+        import torchaudio
+        from pathlib import Path
+
+        step = int(self.global_step)
+        gen_sr = int(self.decoder.vocoder.sampling_rate)
+
+        out_dir = getattr(self.trainer, "default_root_dir", None) or "."
+        sample_dir = Path(out_dir) / "samples" / f"step_{step:08d}"
+        sample_dir.mkdir(parents=True, exist_ok=True)
+
+        logger_name = type(self.logger).__name__ if self.logger is not None else ""
+        experiment = getattr(self.logger, "experiment", None)
+        wandb_payload: dict = {}
+
+        for i, sample in enumerate(batch):
+            if i >= max_samples:
+                break
+            utt = sample.utt_id
+            wav = gen_audio[i].detach().cpu().float().reshape(-1)  # (T,)
+
+            # always persist to disk
+            torchaudio.save(str(sample_dir / f"{utt}.wav"), wav.unsqueeze(0), gen_sr)
+
+            mel_img = mel[i].detach().cpu().float()
+            mel_img = (mel_img - mel_img.min()) / (mel_img.max() - mel_img.min() + 1e-8)
+
+            if logger_name == "WandbLogger":
+                import wandb
+
+                wandb_payload[f"generated/{utt}"] = wandb.Audio(wav.numpy(), sample_rate=gen_sr)
+                wandb_payload[f"mel/{utt}"] = wandb.Image(mel_img.numpy())
+                if step == 0:
+                    orig = sample.waveform.detach().cpu().float().reshape(-1)
+                    wandb_payload[f"original/{utt}"] = wandb.Audio(orig.numpy(), sample_rate=int(sample.sample_rate))
+            elif logger_name == "TensorBoardLogger" and experiment is not None:
+                experiment.add_image(f"generated/{utt}", mel_img.unsqueeze(0), step)
+                experiment.add_audio(f"generated/{utt}", wav.unsqueeze(0), step, sample_rate=gen_sr)
+                if step == 0:
+                    orig = sample.waveform.detach().cpu().float().reshape(-1)
+                    experiment.add_audio(
+                        f"original/{utt}", orig.unsqueeze(0), step, sample_rate=int(sample.sample_rate)
+                    )
+
+        if wandb_payload and experiment is not None:
+            experiment.log(wandb_payload)
 
     @torch.inference_mode()
     def inference(

@@ -57,8 +57,6 @@ prosody_head: null
 # input_dim: ${architecture.ssl_dim}
 # output_dim: ${architecture.emotion_dim}
 
-sample_rate: 16000
-
 mel_dim: 80
 
 decoder:

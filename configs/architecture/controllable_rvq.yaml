@@ -61,6 +61,8 @@ mel_dim: 80
 decoder:
   cond_strategy: null
   flow:
+    # speaker-embedding dim fed to the flow (= speaker_head output / espnet xvec dim, 192)
+    spk_embed_dim: ${architecture.feature_extractors.speaker.feature_dim}
     vocab_size: null
     encoder:
       num_blocks: 6

@@ -102,6 +102,13 @@ class LightningTrainer(BaseTrainer):
                 module.build_loss(self.module.indexers)
         trainer_kwargs = self._trainer_kwargs_with_ddp(kwargs)
 
+        # `ckpt_path` is a Trainer.fit() argument, not a Trainer() constructor
+        # argument, so pull it out before building the Trainer. Pass
+        # `+pipeline.train_kwargs.ckpt_path=last` (or an explicit .ckpt path) to
+        # resume a timed-out / crashed run from its last checkpoint; Lightning
+        # restores model + optimizer + LR scheduler + global_step + epoch.
+        ckpt_path = trainer_kwargs.pop("ckpt_path", None)
+
         if self.precision is not None:
             trainer_kwargs.setdefault("precision", self.precision)
 
@@ -116,4 +123,5 @@ class LightningTrainer(BaseTrainer):
             model=self.module,
             train_dataloaders=train_loader,
             val_dataloaders=val_loader,
+            ckpt_path=ckpt_path,
         )
