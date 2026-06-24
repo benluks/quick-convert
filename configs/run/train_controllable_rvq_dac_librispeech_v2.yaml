@@ -29,6 +29,10 @@ pipeline:
       project: quick-convert-dac
       name: dac_v2_train-100+360+500
       save_dir: ${out_root}
+      # upload ModelCheckpoint checkpoints to wandb as artifacts.
+      # "all" = every checkpoint save (storage-heavy at every_n_train_steps=1000);
+      # use `true` for final-only.
+      log_model: all
     # Rolling checkpoint so a timed-out / crashed run can resume. No val monitor
     # because train_dac.sh disables validation; we just keep last.ckpt fresh.
     # Resume an interrupted run with:  +pipeline.train_kwargs.ckpt_path=last
