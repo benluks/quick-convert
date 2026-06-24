@@ -28,6 +28,14 @@ import torch
 import torchaudio
 from hydra import compose, initialize
 from hydra.utils import instantiate
+from omegaconf import OmegaConf
+
+# The training configs use these custom interpolation resolvers (registered in
+# quick_convert/cli/train.py). Register them here too, otherwise OmegaConf raises
+# "Unsupported interpolation type mul" when the architecture config is resolved.
+OmegaConf.register_new_resolver("add", lambda x, y: int(x) + int(y), replace=True)
+OmegaConf.register_new_resolver("mul", lambda x, y: int(x) * int(y), replace=True)
+OmegaConf.register_new_resolver("bool", lambda x: bool(x), replace=True)
 
 
 def parse_args() -> argparse.Namespace:
