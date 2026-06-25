@@ -10,17 +10,17 @@ defaults:
   - _self_
 
 _target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
-cudnn_benchmark: null
+cudnn_benchmark: true
 # Precision for mixed-precision training.
 # Options: "32", "16-mixed" (fp16), "bf16-mixed" (bf16, recommended for flash attention)
-precision: null
+precision: 32
 
 ddp:
-  enabled: false
+  enabled: true
   accelerator: gpu
   devices: auto
   num_nodes: 1
-  strategy: ddp
+  strategy: ddp_find_unused_parameters_true
   sync_batchnorm: false
 
 train_dataloader_kwargs:
@@ -39,11 +39,11 @@ val_dataloader_kwargs:
   persistent_workers: true
 
 compile:
-  enabled: false
+  enabled: true
   backend: inductor
   mode: default
   fullgraph: false
-  dynamic: true
+  dynamic: false
   targets:
     - encoder
     - decoder
@@ -60,7 +60,7 @@ module:
     commitment_loss: 0.25
     codebook_loss: 1.0
     mse_loss: 0.01
-    load_balancing_loss: 0.01 
+    load_balancing_loss: 1.
   distillation_loss_weights:
     ling: 1.0
     spk: 10.0

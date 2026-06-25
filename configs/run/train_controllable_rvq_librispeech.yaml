@@ -7,6 +7,7 @@ defaults:
   - /dataset@train_dataset: manifest
   - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
+  - /components/ssl@trainer.module.content_encoder: w2vbert
   - _self_
 
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
@@ -15,51 +16,55 @@ dataset_path: ${out_root}/${dataset_name}
 
 pipeline:
   batch_size: 32
+  train_kwargs:
+    val_check_interval: null
+    callbacks:
+      - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+        save_top_k: 2
+        monitor: steps
+        mode: max
+        every_n_epochs: 1
+        save_last: true
+        # save_top_k:
+      - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+        monitor: val/loss
+        mode: min
+        save_top_k: 1
+        save_last: false
 
 trainer:
   train_dataloader_kwargs:
-    shuffle: true
+    shuffle: false
 
-data: &data
+data: &data # read info from manifest csv
+  resources:
+    spkid:
+      column: spkid
+      kind: text
+  max_length: 562480
+  # compute info from sample
   resource_providers:
-    # - ${source_dataset.transcript_provider}
-    - ${source_dataset.spkid_provider}
     - _target_: quick_convert.data.resources.PathResourceProvider
-      kind: torch_tensor
-      name: content
-      path_template: ${resources_path}/w2vbert/{sample.split}/{sample.utt_id}.pt
+      kind: token_ids
+      name: token_ids
+      path_template: ${resources_path}/tokenizer/{sample.split}/{sample.utt_id}.pt
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: emo2vec
       path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
-    - _target_: quick_convert.data.resources.PathResourceProvider
-      kind: torch_tensor
-      name: spk
-      path_template: ${resources_path}/espnet_wavlm-ecapa-joint/{sample.split}/{sample.utt_id}.pt
-    # intended resource name : column name
-    # key is the name of the desired resource
-  resources:
-    transcript:
-      # name of column in csv
-      column: transcript
-      kind: text
+      max_length: 1757
 
   load:
     - audio
-    - transcript
-    - content
+    - token_ids
+    # - content
     - emo2vec
-    - spk
+    - spkid
 
 train_dataset:
   <<: *data
-  manifest_path:
-    - ${dataset_path}/train-clean-100/manifest.csv
-    - ${dataset_path}/train-clean-360/manifest.csv
-    - ${dataset_path}/train-other-500/manifest.csv
+  manifest_path: ${dataset_path}/speaker_split/train.csv
 
 val_dataset:
   <<: *data
-  manifest_path:
-    - ${dataset_path}/dev-clean/manifest.csv
-    - ${dataset_path}/dev-other/manifest.csv
+  manifest_path: ${dataset_path}/speaker_split/val.csv

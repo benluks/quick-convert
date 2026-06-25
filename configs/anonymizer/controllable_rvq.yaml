@@ -1,8 +1,8 @@
 # configs/run/infer_controllable_rvq_dac.yaml
 defaults:
   - /global: default
-  - /components/encoders@encoder: rvq_disentangler_v2
-  - /architecture: controllable_rvq_v2
+  - /components/encoders@encoder: rvq_disentangler
+  - /architecture: controllable_rvq
   - /trainer/optimizer@optimizer: adamw
   - _self_
 

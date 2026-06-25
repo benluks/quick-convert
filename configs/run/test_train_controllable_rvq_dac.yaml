@@ -3,7 +3,7 @@
 defaults:
   - /global: default
   - /pipeline: training
-  - /trainer: controllable_rvq_v2
+  - /trainer: controllable_rvq
   - /dataset@train_dataset: manifest
   - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech

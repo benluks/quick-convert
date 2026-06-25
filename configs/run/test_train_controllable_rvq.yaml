@@ -5,8 +5,9 @@ defaults:
   - /pipeline: training
   - /trainer: controllable_rvq
   - /dataset@train_dataset: manifest
-  - /dataset@val_dataset: null
+  - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
+  - /components/ssl@trainer.module.content_encoder: w2vbert
   - _self_
 
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
@@ -19,51 +20,61 @@ pipeline:
     val_check_interval: null
     callbacks:
       - _target_: lightning.pytorch.callbacks.ModelCheckpoint
-        monitor: val/decoder_mae
+        save_top_k: 2
+        monitor: steps
+        mode: max
+        every_n_epochs: 1
+        save_last: true
+        # save_top_k:
+      - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+        monitor: val/loss
+        mode: min
+        save_top_k: 1
+        save_last: false
 
 trainer:
   train_dataloader_kwargs:
     shuffle: false
+  ddp:
+    enabled: false
+  compile: false
 #   val_dataloader_kwargs:
 #     batch_size: 2
 
 data: &data
   resources:
     spkid:
-      # name of column in csv
       column: spkid
       kind: text
+  max_length: 500000
   resource_providers:
-    # - ${source_dataset.transcript_provider}
-    # - ${source_dataset.spkid_provider}
-    # precomputed transcript token ids
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: token_ids
       name: token_ids
       path_template: ${resources_path}/tokenizer/{sample.split}/{sample.utt_id}.pt
-    # ssl features for content
-    - _target_: quick_convert.data.resources.PathResourceProvider
-      kind: torch_tensor
-      name: content
-      path_template: ${resources_path}/w2vbert_6layer/{sample.split}/{sample.utt_id}.pt
-    # emotion vectors
+    # - _target_: quick_convert.data.resources.PathResourceProvider
+    #   kind: torch_tensor
+    #   name: content
+    #   path_template: ${resources_path}/w2vbert_6layer/{sample.split}/{sample.utt_id}.pt
+    #   max_length: 1000
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: emo2vec
       path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
+      max_length: 1000
 
   load:
     - audio
     - token_ids
-    - content
+    # - content
     - emo2vec
     - spk
 
 train_dataset:
   <<: *data
   manifest_path: ${dataset_path}/test-other/manifest.csv
-  # splits:
-  #   - test-other
+  splits:
+    - test-other
 
 val_dataset:
   <<: *data

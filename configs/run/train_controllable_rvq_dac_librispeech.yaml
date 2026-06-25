@@ -1,9 +1,12 @@
 # @package _global_
 # configs/run/train_controllable_rvq_dac_librispeech.yaml
-# Phase 2: train the anonymiser on the precomputed frozen DAC-16k features.
-# Same as train_controllable_rvq_librispeech.yaml, with two DAC changes:
+# DAC variant of train_controllable_rvq_librispeech.yaml.
+# Two DAC changes vs the w2vbert v2 config:
 #   (1) the `content` resource points at the dac16k features, and
-#   (2) the conformer uses num_layers=1 (DAC emits one latent).
+#   (2) the content encoder uses num_layers=1 (DAC emits a single latent layer).
+# NOTE the v2 pipeline: loads precomputed `token_ids` (not transcript) and `spkid`
+# (manifest column, used for AAM-Softmax speaker classification). It does NOT use
+# the espnet `spk` embedding.
 
 defaults:
   - /global: default
@@ -15,58 +18,91 @@ defaults:
   - _self_
 
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
-resources_path: outputs/precomputed/${dataset_name}
+resources_path: ${out_root}/precomputed/${dataset_name}
 dataset_path: ${out_root}/${dataset_name}
 
 pipeline:
   batch_size: 32
+  train_kwargs:
+    logger:
+      _target_: lightning.pytorch.loggers.WandbLogger
+      project: quick-convert-dac
+      name: dac_v2_train-100+360+500
+      save_dir: ${out_root}
+      # upload ModelCheckpoint checkpoints to wandb as artifacts.
+      # "all" = every checkpoint save (storage-heavy at every_n_train_steps=1000);
+      # use `true` for final-only.
+      log_model: all
+      # Rolling checkpoint so a timed-out / crashed run can resume. No val monitor
+      # because train_dac.sh disables validation; we just keep last.ckpt fresh.
+      # Resume an interrupted run with:  +pipeline.train_kwargs.ckpt_path=last
+      train_kwargs:
+    val_check_interval: null
+    callbacks:
+      - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+        save_top_k: 2
+        monitor: steps
+        mode: max
+        every_n_epochs: 1
+        save_last: true
+        # save_top_k:
+      - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+        monitor: val/loss
+        mode: min
+        save_top_k: 1
+        save_last: false
 
 trainer:
   train_dataloader_kwargs:
     shuffle: true
-  # (2) DAC latent has a single "layer" axis -> conformer num_layers = 1
-  module:
-    encoder:
-      content_encoder:
-        num_layers: 1
 
-data: &data
+# DAC emits a single latent "layer" (precomputed content is (T, 1, 1024)), so the
+# ConformerEncoderSSL layer-weighting collapses to one layer. W2V-BERT uses 6.
+architecture:
+  content_encoder:
+    num_ssl_layers: 1
+
+data:
+  &data # read speaker id from the manifest csv (used to build the speaker index)
+  resources:
+    spkid:
+      column: spkid
+      kind: text
+  max_length: 562480
+  # precomputed per-utterance resources
   resource_providers:
-    - ${source_dataset.spkid_provider}
-    # (1) content now comes from the DAC-16k precompute, not w2vbert
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: token_ids
+      name: token_ids
+      path_template: ${resources_path}/tokenizer/{sample.split}/{sample.utt_id}.pt
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: content
       path_template: ${resources_path}/dac16k/{sample.split}/{sample.utt_id}.pt
+      max_length: 1757
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: emo2vec
       path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
-    - _target_: quick_convert.data.resources.PathResourceProvider
-      kind: torch_tensor
-      name: spk
-      path_template: ${resources_path}/espnet_wavlm-ecapa-joint/{sample.split}/{sample.utt_id}.pt
-  resources:
-    transcript:
-      column: transcript
-      kind: text
+      max_length: 1757
 
   load:
     - audio
-    - transcript
+    - token_ids
     - content
     - emo2vec
-    - spk
+    - spkid
 
 train_dataset:
   <<: *data
+  # produced by quick_convert/utils/dataset_splits.py (split_manifest_by_group:
+  # per-speaker 90/10 split of the flat manifest). The `split` column inside each
+  # row still names the original LibriSpeech split, so precomputed features
+  # resolve correctly.
   manifest_path:
-    - ${dataset_path}/train-clean-100/manifest.csv
-    #- ${dataset_path}/train-clean-360/manifest.csv
-    #- ${dataset_path}/train-other-500/manifest.csv
+    - ${dataset_path}/train/manifest.csv
 
 val_dataset:
   <<: *data
   manifest_path:
-  #  - ${dataset_path}/dev-clean/manifest.csv
-    - ${dataset_path}/dev-other/manifest.csv
+    - ${dataset_path}/val/manifest.csv

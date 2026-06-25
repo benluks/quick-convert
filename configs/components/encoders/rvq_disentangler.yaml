@@ -1,6 +1,6 @@
 # configs/components/encoders/rvq_disentangler.yaml
 defaults:
-  - /components/encoders@content_encoder: parallel_conformer
+  - /components/encoders@content_encoder: conformer_encoder_ssl
   - /components/encoders@linguistic_head: linguistic_head
   - /components/encoders@speaker_head: speaker_head
   - _self_
@@ -18,5 +18,5 @@ router:
   _target_: quick_convert.components.encoders.RVQLayerRouter
   n_classes: 3
   codebook_dim: ${architecture.rvq.codebook_dim}
+  codebook_size: ${architecture.rvq.codebook_size}
   gumbel_tau: 1.0
-
