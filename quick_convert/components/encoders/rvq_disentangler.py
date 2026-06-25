@@ -22,15 +22,16 @@ class RVQLayerRouter(nn.Module):
     Routes the output of the RVQ to different heads for disentanglement.
     """
 
-    def __init__(self, n_classes: int, codebook_dim: int, gumbel_tau: float = 1.0):
+    def __init__(self, n_classes: int, codebook_dim: int, codebook_size: int, gumbel_tau: float = 1.0):
         super().__init__()
         self.n_classes = n_classes
         self.codebook_dim = codebook_dim
+        self.codebook_size = codebook_size
         self.gumbel_tau = gumbel_tau
 
         # Learnable class embeddings for routing
         # output shape: (n_classes, 1)
-        self.classifier = nn.Linear(codebook_dim, n_classes)
+        self.classifier = nn.Linear(codebook_size, n_classes)
 
     def _compute_mask(
         self,
@@ -50,7 +51,7 @@ class RVQLayerRouter(nn.Module):
         # because compute_loss=True needs layer_probabilities.
         # detach the codebook weights to avoid backprop through the quantizers
         weights = torch.stack(
-            [q.codebook.weight.mean(dim=0).detach() for q in quantizers],
+            [q.codebook.weight.mean(dim=1).detach() for q in quantizers],
             dim=0,
         )  # (num_codebooks, codebook_dim)
 
