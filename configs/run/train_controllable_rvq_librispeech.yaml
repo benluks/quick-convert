@@ -17,7 +17,7 @@ dataset_path: ${out_root}/${dataset_name}
 pipeline:
   batch_size: 32
   train_kwargs:
-    val_check_interval: null
+    # val_check_interval: 1.0
     callbacks:
       - _target_: lightning.pytorch.callbacks.ModelCheckpoint
         save_top_k: 2
@@ -32,9 +32,9 @@ pipeline:
         save_top_k: 1
         save_last: false
 
-trainer:
-  train_dataloader_kwargs:
-    shuffle: false
+# trainer:
+#   train_dataloader_kwargs:
+#     shuffle: false
 
 data: &data # read info from manifest csv
   resources:
