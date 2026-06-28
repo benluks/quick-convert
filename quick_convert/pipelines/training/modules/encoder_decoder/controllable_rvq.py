@@ -115,8 +115,8 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
         # set encoders (frozen, instead of precomputed features)
         if content_encoder is not None:
-            for p in content_encoder.parameters():
-                p.requires_grad = False
+            content_encoder.requires_grad_(False)
+            content_encoder.eval()
         self.content_encoder = content_encoder or None
 
     # ------------------------------------------------------------------
@@ -176,8 +176,10 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             feature_encoder_name is not None
             and (feature_encoder := getattr(self, feature_encoder_name, None)) is not None
         ):
-            content: ContentFeatures = feature_encoder(batch)
-            return content.values, content.lengths
+            feature_encoder.eval()
+            with torch.inference_mode():
+                content: ContentFeatures = feature_encoder(batch)
+            return content.values.detach(), content.lengths
         else:
             raise RuntimeError(f"""Ensure batch has resource named {name} or this value can be computed using the appropriate encoder.
                                name='{name}', feature_encoder_name='{feature_encoder_name}'""")
@@ -394,6 +396,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             mel_img = mel[i].detach().cpu().float()
             mel_img = (mel_img - mel_img.min()) / (mel_img.max() - mel_img.min() + 1e-8)
 
+            # todo: abstract loggers
             if logger_name == "WandbLogger":
                 import wandb
 
