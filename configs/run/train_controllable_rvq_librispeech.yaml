@@ -11,7 +11,7 @@ defaults:
   - _self_
 
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
-resources_path: outputs/precomputed/${dataset_name}
+resources_path: /tmp/u036742/precomputed
 dataset_path: ${out_root}/${dataset_name}
 
 pipeline:
