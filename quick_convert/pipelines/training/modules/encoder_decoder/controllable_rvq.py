@@ -76,9 +76,14 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         encoder: RVQDisentangler,
         decoder: CSG,
         # either pass `tokenizer` or `tokenizer_pad_id`
-        rvq_loss_weights: dict[str, float],
-        distillation_loss_weights: dict[str, float],
-        adv_loss_weights: dict[str, float],
+        rvq_loss_weights: dict[str, float] = {
+            "commitment_loss": 1,
+            "codebook_loss": 1,
+            "load_balancing_loss": 1,
+            "mse_loss": 1,
+        },
+        distillation_loss_weights: dict[str, float] = {"ling": 1, "spk": 1, "emo": 1, "pros": 1},
+        adv_loss_weights: dict[str, float] = {"spk_ling": 1, "spk_pros": 1, "ling_spk": 1, "ling_pros": 1},
         tokenizer: Optional[spm.SentencePieceProcessor] = None,
         tokenizer_pad_id: Optional[int] = None,
         decoder_loss_weight: Optional[float] = None,
@@ -86,7 +91,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         lr_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
         adv_loss_hold_off: int = 1000,
         content_encoder: Optional[ContentEncoder] = None,
-        *kwargs: Any,
+        **kwargs: Any,
     ) -> None:
         super().__init__(
             encoder=encoder,

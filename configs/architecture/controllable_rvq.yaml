@@ -4,11 +4,12 @@
 defaults:
   - /components/ssl@emotion_ssl: emo2vec
   - /components/ssl@content_ssl: w2vbert
+  - /components/encoders@encoder: rvq_disentangler
   - /components/decoders@decoder: chatterbox
-  - /components/layers@rvq: rvq
+  - /components/layers@encoder.rvq: rvq
   - /components/encoders@decoder.flow.encoder: conformer_encoder
   - /components/encoders@content_encoder: conformer_encoder_ssl
-  - /components/losses@losses.mse_loss: mse_loss
+  # - /components/losses@losses.mse_loss: mse_loss
   - _self_
 
 # probably won't need more than 256
@@ -17,6 +18,8 @@ num_feature_layers: 24
 
 tokenizer_model_path: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
 tokenizer_vocab_size: 1000
+
+mel_dim: 80
 
 feature_extractors:
   content: ${architecture.content_ssl}
@@ -27,42 +30,51 @@ content_encoder:
   embed_dim: ${architecture.encoder_dim}
   num_ssl_layers: ${architecture.num_feature_layers}
 
-rvq:
-  input_dim: ${architecture.content_encoder.embed_dim}
-  n_codebooks: 8
-  codebook_size: 1024
-  codebook_dim: 16
-  quantizer_dropout: 0.0
+encoder:
+  rvq:
+    input_dim: ${architecture.content_encoder.embed_dim}
+    n_codebooks: 8
+    codebook_size: 1024
+    codebook_dim: 16
+    quantizer_dropout: 0.0
 
-# rvq_dim: ${mul:${architecture.rvq.n_codebooks},${architecture.rvq.codebook_dim}}
+  # rvq_dim: ${mul:${architecture.rvq.n_codebooks},${architecture.rvq.codebook_dim}}
 
-emotion_head:
-  _target_: quick_convert.components.encoders.LinearHead
-  input_dim: ${architecture.rvq.input_dim}
-  output_dim: ${architecture.feature_extractors.emotion.feature_dim}
-  loss: ${architecture.losses.mse_loss}
+  emotion_head:
+    _target_: quick_convert.components.encoders.LinearHead
+    input_dim: ${architecture.encoder.rvq.input_dim}
+    output_dim: ${architecture.feature_extractors.emotion.feature_dim}
 
-linguistic_head:
-  hidden_dim: ${architecture.rvq.input_dim}
-  output_dim: ${architecture.tokenizer_vocab_size}
+  linguistic_head:
+    hidden_dim: ${architecture.encoder.rvq.input_dim}
+    loss:
+      hidden_dim: ${architecture.encoder.rvq.input_dim}
+      output_dim: ${architecture.tokenizer_vocab_size}
 
-speaker_head:
-  input_dim: ${architecture.rvq.input_dim}
-  hidden_dim: 256
-  output_dim: 128 #Number of speakers#${architecture.feature_extractors.speaker.feature_dim}
-  supervision: aam
+  speaker_head:
+    input_dim: ${architecture.encoder.rvq.input_dim}
+    hidden_dim: 256
+    output_dim: 128 #Number of speakers#${architecture.feature_extractors.speaker.feature_dim}
+    supervision: aam
+    loss:
+      in_dim: ${architecture.encoder.speaker_head.output_dim}
 
-prosody_head: null
+  prosody_head: null
+
+  router:
+    _target_: quick_convert.components.encoders.RVQLayerRouter
+    n_classes: 3
+    codebook_dim: ${architecture.encoder.rvq.codebook_dim}
+    codebook_size: ${architecture.encoder.rvq.codebook_size}
+    gumbel_tau: 1.0
 # _target_: quick_convert.components.encoders.LinearHead
 # input_dim: ${architecture.ssl_dim}
 # output_dim: ${architecture.emotion_dim}
 
-mel_dim: 80
-
 decoder:
   cond_strategy: null
   flow:
-    spk_embed_dim: ${architecture.speaker_head.output_dim}
+    spk_embed_dim: ${architecture.encoder.speaker_head.output_dim}
     vocab_size: null
     encoder:
       num_blocks: 6

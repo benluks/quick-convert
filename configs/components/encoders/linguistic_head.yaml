@@ -1,6 +1,6 @@
 _target_: quick_convert.components.encoders.LinguisticCTCHead
-hidden_dim: ${architecture.linguistic_head.hidden_dim}
+hidden_dim: ???
 loss:
   _target_: quick_convert.components.losses.CTCLoss
-  hidden_dim: ${architecture.linguistic_head.hidden_dim}
-  output_dim: ${architecture.linguistic_head.output_dim}
+  hidden_dim: ???
+  output_dim: ???

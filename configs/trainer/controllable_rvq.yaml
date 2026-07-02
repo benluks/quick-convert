@@ -3,7 +3,7 @@
 
 defaults:
   - /global: default
-  - /components/encoders@module.encoder: rvq_disentangler
+  - /anonymizer@module: controllable_rvq
   - /architecture: controllable_rvq
   - /trainer/optimizer@module.optimizer: adamw
   - /trainer/lr_scheduler@module.lr_scheduler: cosine_annealing
@@ -11,6 +11,7 @@ defaults:
 
 _target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
 cudnn_benchmark: true
+
 # Precision for mixed-precision training.
 # Options: "32", "16-mixed" (fp16), "bf16-mixed" (bf16, recommended for flash attention)
 precision: 32
@@ -22,6 +23,16 @@ ddp:
   num_nodes: 1
   strategy: ddp_find_unused_parameters_true
   sync_batchnorm: false
+
+compile:
+  enabled: true
+  backend: inductor
+  mode: default
+  fullgraph: false
+  dynamic: false
+  targets:
+    - encoder
+    - decoder
 
 train_dataloader_kwargs:
   batch_size: ${pipeline.batch_size}
@@ -38,23 +49,7 @@ val_dataloader_kwargs:
   drop_last: ${pipeline.dataloader.drop_last}
   persistent_workers: true
 
-compile:
-  enabled: true
-  backend: inductor
-  mode: default
-  fullgraph: false
-  dynamic: false
-  targets:
-    - encoder
-    - decoder
-
 module:
-  _target_: quick_convert.pipelines.training.modules.ControllableRVQTrainingModule
-  decoder: ${architecture.decoder}
-  # tokenizer:
-  #   _target_: sentencepiece.SentencePieceProcessor
-  #   model_file: ${architecture.tokenizer_model_path}
-  tokenizer_pad_id: 0
   decoder_loss_weight: 1.0
   rvq_loss_weights:
     commitment_loss: 0.25
