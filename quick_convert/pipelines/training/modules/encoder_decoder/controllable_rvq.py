@@ -313,54 +313,25 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
     def training_step(self, batch: AudioBatch, batch_idx: int) -> torch.Tensor:
         loss, decoder_output, spk_output, text_q, pros_emo_q, lengths = self._shared_step(batch, "train")
-
-        if (
-            self.sample_log_every_n_steps
-            and self.trainer.is_global_zero
-            and self.global_step > 0
-            and self.global_step % self.sample_log_every_n_steps == 0
-        ):
-            try:
-                mel, gen_audio = self._generate_media(batch, text_q, pros_emo_q, spk_output, lengths)
-                self._log_media(batch, mel, gen_audio)
-            except Exception as exc:  # never let monitoring crash a run
-                import warnings
-
-                warnings.warn(f"sample logging failed at step {self.global_step}: {exc}")
-
         return loss
 
     def validation_step(self, batch: AudioBatch, batch_idx: int) -> torch.Tensor:
         (loss, decoder_output, spk_output, text_q, pros_emo_q, lengths) = self._shared_step(batch, "val")
 
         if self.trainer.is_global_zero and batch_idx == 0:
-            try:
-                mel, gen_audio = self._generate_media(batch, text_q, pros_emo_q, spk_output, lengths)
-                self._log_media(batch, mel, gen_audio)
-            except Exception as exc:  # never let monitoring crash a run
-                import warnings
-
-                warnings.warn(f"sample logging failed at step {self.global_step}: {exc}")
+            mel, gen_audio = self._generate_media(decoder_output)
+            self._log_media(batch, mel, lengths, gen_audio)
 
         return loss
 
     @torch.no_grad()
-    def _generate_media(self, batch, text_q, pros_emo_q, spk_output, lengths):
+    def _generate_media(self, mel):
         """Render mel-spectrograms + waveforms for the first samples of a batch,
         for qualitative monitoring. Returns ``(mel, gen_audio)``."""
-        decoder_features = torch.cat([text_q.detach(), pros_emo_q.detach()], dim=-1)
-        spk_output = spk_output.detach()
-        max_len = lengths.max()
-        mel = torch.cat(
-            [
-                self.decoder(feat.unsqueeze(0), length.unsqueeze(0), spk.unsqueeze(0), max_len=max_len)
-                for feat, length, spk in zip(decoder_features, lengths, spk_output)
-            ]
-        )
         gen_audio = self.decoder.mel2wav(mel)
         return mel, gen_audio
 
-    def _log_media(self, batch, mel, gen_audio, max_samples: int = 16) -> None:
+    def _log_media(self, batch, mel, feat_lengths, gen_audio, max_samples: int = 16) -> None:
         """Persist + log generated spectrograms and audio.
 
         Always writes wavs to ``<trainer.default_root_dir>/samples/step_<N>/`` so the
@@ -406,12 +377,15 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
                     orig = sample.waveform.detach().cpu().float().reshape(-1)
                     wandb_payload[f"original/{utt}"] = wandb.Audio(orig.numpy(), sample_rate=int(sample.sample_rate))
             elif logger_name == "TensorBoardLogger" and experiment is not None:
-                experiment.add_image(f"generated/{utt}", mel_img.unsqueeze(0), step)
-                experiment.add_audio(f"generated/{utt}", wav.unsqueeze(0), step, sample_rate=gen_sr)
+                experiment.add_image(f"generated/{utt}", mel_img.unsqueeze(0)[..., : feat_lengths[i]], step)
+                experiment.add_audio(f"generated/{utt}", wav.unsqueeze(0)[:, : sample.length], step, sample_rate=gen_sr)
                 if step == 0:
                     orig = sample.waveform.detach().cpu().float().reshape(-1)
                     experiment.add_audio(
-                        f"original/{utt}", orig.unsqueeze(0), step, sample_rate=int(sample.sample_rate)
+                        f"original/{utt}",
+                        orig.unsqueeze(0)[:, : sample.length],
+                        step,
+                        sample_rate=int(sample.sample_rate),
                     )
 
         if wandb_payload and experiment is not None:
