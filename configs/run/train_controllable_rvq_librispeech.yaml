@@ -17,7 +17,7 @@ dataset_path: ${out_root}/${dataset_name}
 pipeline:
   batch_size: 32
   train_kwargs:
-    # val_check_interval: 1.0
+    max_epochs: 9
     callbacks:
       - _target_: lightning.pytorch.callbacks.ModelCheckpoint
         save_top_k: 2
