@@ -368,25 +368,28 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             mel_img = (mel_img - mel_img.min()) / (mel_img.max() - mel_img.min() + 1e-8)
 
             # todo: abstract loggers
-            if logger_name == "WandbLogger":
-                import wandb
+            if self.global_rank == 0:
+                if logger_name == "WandbLogger":
+                    import wandb
 
-                wandb_payload[f"generated/{utt}"] = wandb.Audio(wav.numpy(), sample_rate=gen_sr)
-                wandb_payload[f"mel/{utt}"] = wandb.Image(mel_img.numpy())
-                if step == 0:
-                    orig = sample.waveform.detach().cpu().float().reshape(-1)
-                    wandb_payload[f"original/{utt}"] = wandb.Audio(orig.numpy(), sample_rate=int(sample.sample_rate))
-            elif logger_name == "TensorBoardLogger" and experiment is not None:
-                experiment.add_image(f"generated/{utt}", mel_img.unsqueeze(0)[..., : feat_lengths[i]], step)
-                experiment.add_audio(f"generated/{utt}", wav.unsqueeze(0)[:, :wav_length], step, sample_rate=gen_sr)
-                if step == 0:
-                    orig = sample.waveform.detach().cpu().float().reshape(-1)
-                    experiment.add_audio(
-                        f"original/{utt}",
-                        orig.unsqueeze(0)[:, :wav_length],
-                        step,
-                        sample_rate=int(sample.sample_rate),
-                    )
+                    wandb_payload[f"generated/{utt}"] = wandb.Audio(wav.numpy(), sample_rate=gen_sr)
+                    wandb_payload[f"mel/{utt}"] = wandb.Image(mel_img.numpy())
+                    if step == 0:
+                        orig = sample.waveform.detach().cpu().float().reshape(-1)
+                        wandb_payload[f"original/{utt}"] = wandb.Audio(
+                            orig.numpy(), sample_rate=int(sample.sample_rate)
+                        )
+                elif logger_name == "TensorBoardLogger" and experiment is not None:
+                    experiment.add_image(f"generated/{utt}", mel_img.unsqueeze(0)[..., : feat_lengths[i]], step)
+                    experiment.add_audio(f"generated/{utt}", wav.unsqueeze(0)[:, :wav_length], step, sample_rate=gen_sr)
+                    if step == 0:
+                        orig = sample.waveform.detach().cpu().float().reshape(-1)
+                        experiment.add_audio(
+                            f"original/{utt}",
+                            orig.unsqueeze(0)[:, :wav_length],
+                            step,
+                            sample_rate=int(sample.sample_rate),
+                        )
 
         if wandb_payload and experiment is not None:
             experiment.log(wandb_payload)
