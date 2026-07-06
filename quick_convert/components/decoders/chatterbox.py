@@ -139,3 +139,13 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         )
 
         return mel
+
+    @torch.inference_mode()
+    def inference(self, features, lengths, spk_output):
+
+        mel, _ = self.flow.inference(
+            token=features,
+            token_len=lengths,
+            embedding=spk_output,
+            finalize=True,
+        )

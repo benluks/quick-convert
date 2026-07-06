@@ -408,9 +408,14 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
     ) -> torch.Tensor:
         """Run the decoder in inference mode on the provided features and speaker embedding."""
         features, lengths = self._get_resource(batch, "content", "content_encoder")
-        z_q, z_quantized, text_q, spk_q, spk_output, emo_pros_q, lengths = self.encoder(features, lengths)
-        decoder_features = torch.cat([text_q, emo_pros_q], dim=-1)
-        mel = torch.stack(
-            [self.decoder(feat.unsqueeze(0), length, spk_output) for feat, length in zip(decoder_features, lengths)]
+        emo_targets, emo_lengths = self._get_resource(batch, "emo2vec")
+
+        z_q, z_quantized, z_spk, spk_output, z_ling, z_pros, content, padding_mask = self.encoder.inference(
+            features, lengths, emo_targets, emo_lengths
         )
-        return mel
+        decoder_features = torch.cat([z_ling, z_pros], dim=-1)
+        mel = self.decoder.inference(decoder_features, lengths, spk_output)
+
+        wav = self.decoder.mel2wav(mel)
+
+        return mel, wav

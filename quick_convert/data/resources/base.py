@@ -173,7 +173,7 @@ def _normalize_tensor_resource(x: torch.Tensor) -> torch.Tensor:
 
 
 def _collate_tensor_resources(
-    refs: list[ResourceRef], squeeze_single_frame: bool = False, max_length: Optional[int] = None
+    refs: list[ResourceRef], squeeze_single_frame: bool = False, max_length: Optional[int] = None, device="cpu"
 ) -> TensorResourceBatch:
     """
     max_length: An optional arbitrary max length to pad or trim batch. Useful in the case of cudnn, which needs
@@ -214,13 +214,10 @@ def _collate_tensor_resources(
     if squeeze_single_frame and padded.shape[1] == 1:
         padded = padded.squeeze(1)
 
-    return TensorResourceBatch(values=padded, lengths=lengths)
+    return TensorResourceBatch(values=padded.to(device=device), lengths=lengths.to(device=device))
 
 
-def _collate_resource_refs(
-    refs: list[ResourceRef],
-    squeeze_single_frame_tensors: bool = False,
-) -> Any:
+def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors: bool = False, device="cpu") -> Any:
     kinds = {ref.kind for ref in refs}
     if len(kinds) != 1:
         raise ValueError(f"Cannot collate mixed resource kinds: {sorted(kinds)}")
@@ -236,12 +233,10 @@ def _collate_resource_refs(
             squeeze_single_frame=squeeze_single_frame_tensors,
             # very much not a fan of doing it this way. Hopefully we'll update it down the line
             max_length=refs[0].max_length,
+            device=device,
         )
     if kind == "token_ids":
-        return collate_token_sequences(
-            [ref.value for ref in refs],
-            padding_value=0,
-        )
+        return collate_token_sequences([ref.value for ref in refs], padding_value=0, device=device)
 
     raise NotImplementedError(f"Collation for resource kind {kind!r} is not implemented.")
 
@@ -249,6 +244,7 @@ def _collate_resource_refs(
 def collate_resources(
     batch,
     squeeze_single_frame_tensors: bool = False,
+    device="cpu",
 ) -> dict[str, Any]:
     resource_names = {name for item in batch for name in (item.resources.keys() if item.resources is not None else [])}
 
@@ -262,8 +258,7 @@ def collate_resources(
             refs.append(item.resources[name])
 
         collated[name] = _collate_resource_refs(
-            refs,
-            squeeze_single_frame_tensors=squeeze_single_frame_tensors,
+            refs, squeeze_single_frame_tensors=squeeze_single_frame_tensors, device=device
         )
 
     return collated

@@ -91,7 +91,7 @@ class LightningTrainer(BaseTrainer):
         for index in self.module.indexers.values():
             index.fit(train_dataset.rows)
 
-        # build the losses that are dependent on some other indexed value, and therefore 
+        # build the losses that are dependent on some other indexed value, and therefore
         # couldn't be passed in the hydra config. For example, if the speaker identification
         # index is only build in the line above, then we wouldn't know the number of output classes
         # needed until now. The output projection layer is built in the loss (e.g. `AAMSoftmaxLoss()`)

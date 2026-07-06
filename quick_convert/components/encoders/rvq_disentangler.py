@@ -297,6 +297,16 @@ class RVQDisentangler(nn.Module):
 
         return (z_spk, z_ling, z_pros, router_loss)
 
+    def _shared_step(self, features, lengths, emotion_seq, emotion_lengths):
+        # DAC content frames vs emo2vec frames differ by a couple (different framing
+        # conventions across model families), so allow a looser tolerance than the
+        # default 1 used for same-family (w2v-bert / emo2vec) pairs.
+        features, emotion_seq, lengths = trim_to_min(
+            features, emotion_seq, lengths, emotion_lengths, time_dim=1, max_diff=4
+        )
+        padding_mask = make_padding_mask(lengths, max_length=features.shape[1])  # (B, T_frames)
+        return *self.encode(features, padding_mask), padding_mask
+
     def compute_loss(
         self,
         features: int["b t d_feat"],
@@ -312,16 +322,8 @@ class RVQDisentangler(nn.Module):
         run_adv=True,
     ) -> List:
 
-        # DAC content frames vs emo2vec frames differ by a couple (different framing
-        # conventions across model families), so allow a looser tolerance than the
-        # default 1 used for same-family (w2v-bert / emo2vec) pairs.
-        features, emotion_seq, lengths = trim_to_min(
-            features, emotion_seq, lengths, emotion_lengths, time_dim=1, max_diff=4
-        )
-        padding_mask = make_padding_mask(lengths, max_length=features.shape[1])  # (B, T_frames)
-
-        z_q, z_quantized, z_spk, z_ling, z_pros, commitment_loss, codebook_loss, router_loss, content = self.encode(
-            features, padding_mask
+        z_q, z_quantized, z_spk, z_ling, z_pros, commitment_loss, codebook_loss, router_loss, content, padding_mask = (
+            self._shared_step(features, lengths, emotion_seq, emotion_lengths)
         )
 
         # MSE loss between RVQ output and content encoder output
@@ -421,3 +423,21 @@ class RVQDisentangler(nn.Module):
         }
 
         return [z_quantized, z_spk, spk_output, z_ling, z_pros, loss_dict, spk_acc_dict, lengths]
+
+    def inference(
+        self,
+        features: int["b t d_feat"],
+        lengths: int["b"],
+        emotion_seq: Optional[float["b t d_emo"]],
+        emotion_lengths: Optional[int["b"]],
+        # the target speaker indices encoded from their string ids, e.g. `16`, not `spk11`
+        # speaker_targets: Optional[int["b"]] = None,
+        prosody_seq: Optional[float["b t d_pro"]] = None,
+    ):
+        features, emotion_seq, lengths = trim_to_min(
+            features, emotion_seq, lengths, emotion_lengths, time_dim=1, max_diff=4
+        )
+        padding_mask = make_padding_mask(lengths, max_length=features.shape[1])  # (B, T_frames)
+        z_q, z_quantized, z_spk, z_ling, z_pros, *_, content, padding_mask = self.encode(features, padding_mask)
+        spk_output = self.speaker_head(z_spk, padding_mask=padding_mask)
+        return z_q, z_quantized, z_spk, spk_output, z_ling, z_pros, content, padding_mask

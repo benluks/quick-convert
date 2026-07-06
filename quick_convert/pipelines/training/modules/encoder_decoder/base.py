@@ -52,21 +52,18 @@ class BaseEncoderDecoderTrainingModule(L.LightningModule):
     # Abstract interface
     # ------------------------------------------------------------------
 
-    @classmethod
-    def load_for_inference(cls, checkpoint_path, map_location="cpu", strict=True, **init_kwargs):
+    def load_for_inference(self, checkpoint_path, map_location="cpu", strict=True):
         ckpt = torch.load(checkpoint_path, weights_only=False, map_location=map_location)
-        hparams = ckpt["hyper_parameters"]
 
-        model = cls(**init_kwargs, **hparams)
+        state = ckpt["state_dict"]
+        if getattr(self, "compiled", False) is False:
+            state = {k.replace("._orig_mod.", "."): v for k, v in state.items()}
 
-        state = ckpt["state_dict"].items()
-        if getattr(model, "compiled", False):
-            state = {k.replace("._orig_mod.", "."): v for k, v in ckpt["state_dict"].items()}
+        missing, unexpected = self.load_state_dict(state, strict=strict)
+        self.eval()
+        self.freeze()
 
-        model.load_state_dict(state, strict=strict)
-        model.eval()
-        model.freeze()
-        return model
+        return missing, unexpected
 
     @abc.abstractmethod
     def _shared_step(self, batch: AudioBatch, stage: str) -> torch.Tensor:

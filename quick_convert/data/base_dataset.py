@@ -17,7 +17,7 @@ from .resources import collate_resources, load_resource, ResourceRef, BaseResour
 
 from quick_convert.utils.paths import TemplateFormatter
 from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
-from ..utils.audio import get_supported_formats
+from ..utils.audio import get_supported_formats, load_audio
 
 
 class BaseDataset(Dataset):
@@ -43,7 +43,7 @@ class BaseDataset(Dataset):
         exclude_patterns: Optional[Iterable[str]] = None,
         resource_providers: Iterable[BaseResourceProvider] = [],
         sort_key: Optional[str] = "{row.path}",
-        # length to extend collated audio files to beyond the maximum sample length. This is used in 
+        # length to extend collated audio files to beyond the maximum sample length. This is used in
         # cudnn benchmark where all batches must have the same shape. Expressed in number of samples after resampling
         max_length: Optional[int] = None,
         **kwargs,
@@ -211,28 +211,12 @@ class BaseDataset(Dataset):
                 f"No method for determining utt_id. Please provide either `utt_id_template` or `get_utt_id_fn` when initializing {type(self).__name__}."
             )
 
-    def get_spkid(self, file_path: PathLike) -> str:
-        raise NotImplementedError(f"{type(self).__name__} must implement `get_spkid` when `return_spkid=True`.")
-
-    def load_audio(self, path: Path, sample_rate: Optional[int] = None) -> tuple[torch.Tensor, int]:
-        try:
-            waveform, sr = torchaudio.load(str(path))
-        except Exception as e:
-            raise RuntimeError(f"Failed to load audio file: {path}") from e
-        # Convert to mono if needed.
-        if waveform.dim() == 2 and waveform.shape[0] > 1 and self.convert_to_mono:
-            waveform = waveform.mean(dim=0, keepdim=True)
-        if sample_rate is not None:
-            waveform = torchaudio.functional.resample(waveform, orig_freq=sr, new_freq=sample_rate)
-            sr = sample_rate
-        return waveform, sr
-
     def load_sample(self, sample: AudioSample) -> dict[str, Any]:
         """
         If target_sr is set, loading will resample audio. I haven't implemented a way to override this.
         Maybe it's better to leave the resampling concern to a different part of the pipeline. Time will tell.
         """
-        waveform, sample_rate = self.load_audio(sample.path, self.target_sr)
+        waveform, sample_rate = load_audio(sample.path, target_sr=self.target_sr, mono=self.convert_to_mono)
         return AudioSample(
             utt_id=sample.utt_id,
             path=sample.path,
@@ -249,47 +233,8 @@ class BaseDataset(Dataset):
             for key in {k for item in batch for k in (getattr(item, property) or {})}
         }
 
-    def collate_fn(self, batch: list[AudioSample]) -> Any:
-        """
-        Default collate behavior.
-
-        - If self.load=False, returns a metadata batch.
-        - If self.load=True, pads variable-length waveforms and returns tensors + metadata.
-        """
-        has_audio = all(getattr(item, "waveform", None) is not None for item in batch)
-        if not has_audio:
-            return MetadataBatch(
-                utt_ids=[item.utt_id for item in batch],
-                paths=[item.path for item in batch],
-                splits=[item.split for item in batch],
-                spk_ids=[item.spk_id for item in batch],
-                resources=collate_resources(batch),
-            )
-
-        # list[[1 t]]
-        waveforms = [item.waveform.squeeze(0) for item in batch]
-        lengths = torch.tensor([w.shape[-1] for w in waveforms], dtype=torch.long)
-
-        if self.max_length is not None:
-            if (lengths > self.max_length).any():
-                raise NotImplementedError("dataset `max_length` must be greater than the maximum length of your audio.")
-            waveforms[0] = F.pad(waveforms[0], (0, self.max_length - waveforms[0].shape[-1]))
-        padded = pad_sequence(waveforms, batch_first=True)
-
-        sample_rates = torch.tensor([item.sample_rate for item in batch], dtype=torch.int)
-        # if len(set(sample_rates)) != 1:
-        #     raise ValueError(f"Batch contains multiple sample rates: {sorted(set(sample_rates))}")
-
-        return AudioBatch(
-            waveforms=padded,
-            lengths=lengths,
-            sample_rates=sample_rates,
-            utt_ids=[item.utt_id for item in batch],
-            paths=[item.path for item in batch],
-            splits=[item.split for item in batch],
-            spk_ids=[item.spk_id for item in batch],
-            resources=collate_resources(batch),
-        )
+    def collate_fn(self, batch: list[AudioSample]) -> MetadataBatch | AudioBatch:
+        return AudioBatch.from_samples(batch, max_length=self.max_length)
 
     def make_dataloader(
         self,
