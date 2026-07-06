@@ -122,7 +122,9 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         if content_encoder is not None:
             content_encoder.requires_grad_(False)
             content_encoder.eval()
-        self.content_encoder = content_encoder or None
+
+        # store as attribute to it's accessible, but won't be added to state dict
+        object.__setattr__(self, "content_encoder", content_encoder)
 
     # ------------------------------------------------------------------
     # Setup helpers
