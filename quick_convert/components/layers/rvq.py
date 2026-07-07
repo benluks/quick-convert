@@ -1,4 +1,5 @@
-from typing import Union
+from dataclasses import dataclass
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
@@ -98,6 +99,16 @@ class VectorQuantize(nn.Module):
         indices = rearrange((-dist).max(1)[1], "(b t) -> b t", b=latents.size(0))
         z_q = self.decode_code(indices)
         return z_q, indices
+
+
+@dataclass
+class RVQOutput:
+    z_q: torch.Tensor
+    z_qs: List[torch.Tensor]
+    codes: torch.Tensor
+    latents: torch.Tensor
+    commitment_loss: Optional[torch.Tensor] = None
+    codebook_loss: Optional[torch.Tensor] = None
 
 
 class ResidualVectorQuantizer(nn.Module):
@@ -202,7 +213,14 @@ class ResidualVectorQuantizer(nn.Module):
         codes = torch.stack(codebook_indices, dim=1)
         latents = torch.cat(latents, dim=1)
 
-        return z_q, z_qs, codes, latents, commitment_loss, codebook_loss
+        return RVQOutput(
+            z_q=z_q,
+            z_qs=z_qs,
+            codes=codes,
+            latents=latents,
+            commitment_loss=commitment_loss,
+            codebook_loss=codebook_loss,
+        )
 
     def from_codes(self, codes: torch.Tensor):
         """Given the quantized codes, reconstruct the continuous representation
@@ -257,4 +275,9 @@ class ResidualVectorQuantizer(nn.Module):
             z_q_i = self.quantizers[i].out_proj(z_p_i)
             z_q = z_q + z_q_i
 
-        return z_q, torch.cat(z_p, dim=1), torch.stack(codes, dim=1)
+        return RVQOutput(
+            z_q=z_q,
+            z_qs=z_p,
+            codes=torch.stack(codes, dim=1),
+            latents=latents,
+        )
