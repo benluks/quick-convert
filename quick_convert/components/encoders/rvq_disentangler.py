@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, replace
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional
 
 import torch
 import torch.nn as nn
@@ -12,7 +12,7 @@ from quick_convert.components.encoders.conformer_encoder import ConformerEncoder
 from quick_convert.components.layers.rvq import RVQOutput
 from quick_convert.utils.masking import make_padding_mask, masked_loss, trim_to_min
 
-from .speaker_head import SpeakerASPHead
+from .speaker_head import SpeakerASPHead, SpeakerASRHeadOutput
 from .linguistic_head import LinguisticCTCHead
 from .linear_head import LinearHead
 
@@ -22,10 +22,10 @@ from ..layers import ResidualVectorQuantizer, GradientReversalLayer, VectorQuant
 @dataclass
 class RouterOutput:
     zs: list[torch.Tensor]
-    router_loss: torch.Tensor
     layer_mask: Optional[torch.Tensor] = None
     layer_probabilities: Optional[torch.Tensor] = None
     layer_logits: Optional[torch.Tensor] = None
+    loss: Optional[torch.Tensor] = None
 
 
 class RVQLayerRouter(nn.Module):
@@ -101,10 +101,10 @@ class RVQLayerRouter(nn.Module):
 
         return RouterOutput(
             zs=z_s,
-            router_loss=router_loss,
             layer_mask=layer_mask,
             layer_probabilities=layer_probabilities,
             layer_logits=layer_logits,
+            loss=router_loss,
         )
 
     def compute_loss(self, layer_probabilities: torch.Tensor, one_hot_mask: torch.Tensor) -> torch.Tensor:
@@ -115,35 +115,33 @@ class RVQLayerRouter(nn.Module):
 
 
 @dataclass
-class RVQDisentanglerOutput:
-    z_q: torch.Tensor
-    z_q_list: List[torch.Tensor]
-
-    z_spk: torch.Tensor
-    z_ling: torch.Tensor
-
-    commitment_loss: torch.Tensor
-    codebook_loss: torch.Tensor
-    router_loss: torch.Tensor
-
-    content: torch.Tensor
-
-    z_pros: Optional[torch.Tensor] = None
-    padding_mask: Optional[torch.Tensor] = None
-    lengths: Optional[torch.Tensor] = None
-    layer_mask: Optional[torch.Tensor] = None
-    layer_probabilities: Optional[torch.Tensor] = None
-    layer_logits: Optional[torch.Tensor] = None
-    spk_output: Optional[torch.Tensor] = None
+class RVQDisentanglerLoss:
+    rvq: dict[str, torch.Tensor]
+    distill: dict[str, torch.Tensor]
+    adv: Optional[dict[str, torch.Tensor]] = None
+    metrics: Optional[dict[str, torch.Tensor]] = None
 
 
 @dataclass
-class RVQDisentanglerLossOutput:
-    output: RVQDisentanglerOutput
-    rvq_losses: dict[str, torch.Tensor]
-    distill_losses: dict[str, torch.Tensor]
-    adv_losses: Optional[dict[str, torch.Tensor]] = None
-    metrics: Optional[dict[str, torch.Tensor]] = None
+class RVQDisentanglerOutput:
+    content: torch.Tensor
+
+    # having both lengths and padding mask is techincally redundant, but we will need different ones for different
+    # purposes and it makes more sense to store both than to constantly be re-computing one from the other.
+    lengths: torch.Tensor
+    padding_mask: torch.Tensor
+
+    rvq: RVQOutput
+    router: RouterOutput
+
+    # # head inputs
+    # z_spk: torch.Tensor
+    # z_ling: torch.Tensor
+    # z_pros: torch.Tensor
+
+    # the head output exists on the disentangler (encoder) level. It's akin to an x-vector
+    head_outputs: Optional[dict[str, Any]] = None
+    loss: Optional[RVQDisentanglerLoss] = None
 
 
 class RVQDisentangler(nn.Module):
@@ -185,14 +183,14 @@ class RVQDisentangler(nn.Module):
 
     def forward(self, features: torch.Tensor, lengths: torch.Tensor) -> RVQDisentanglerOutput:
         with torch.no_grad():
-            output = self.encode(features, lengths)
-            spk_output = self.speaker_head(output.z_spk)
-            return replace(output, spk_output=spk_output)
+            return self.encode(features, lengths)
 
     def encode(
         self,
-        features: torch.Tensor,
-        padding_mask: torch.Tensor,
+        features: int["b t d"],
+        padding_mask: int["b t [1]"],
+        # cursory addition, because the output of this function should
+        lengths: Optional[int["b"]] = None,
     ) -> RVQDisentanglerOutput:
         content = self.content_encoder(features, padding_mask=padding_mask)
 
@@ -201,34 +199,27 @@ class RVQDisentangler(nn.Module):
 
         rvq_output: RVQOutput = self.rvq(content, padding_mask)
 
-        z_q = rvq_output.z_q.transpose(1, 2)
-        router_output = self._route(rvq_output.z_qs)
+        rvq_output = replace(rvq_output, z_q=rvq_output.z_q.transpose(1, 2))
+        router_output = self._route(rvq_output.layer_z_qs)
 
         return RVQDisentanglerOutput(
-            z_q=z_q,
-            z_q_list=rvq_output.z_qs,
-            z_spk=router_output.zs[0],
-            z_ling=router_output.zs[1],
-            z_pros=router_output.zs[2],
-            commitment_loss=rvq_output.commitment_loss,
-            codebook_loss=rvq_output.codebook_loss,
-            router_loss=router_output.router_loss,
             content=content,
+            # having lengths and padding
+            lengths=lengths if lengths is not None else padding_mask.sum(dim=1),
             padding_mask=padding_mask,
-            layer_mask=router_output.layer_mask,
-            layer_probabilities=router_output.layer_probabilities,
-            layer_logits=router_output.layer_logits,
+            rvq=rvq_output,
+            router=router_output,
         )
 
-    def _route(self, z_q_list):
+    def _route(self, layer_z_qs) -> RouterOutput:
         if isinstance(self.router, dict):
-            z_spk = z_q_list[self.router["speaker"]].transpose(1, 2)
-            z_ling = z_q_list[self.router["linguistic_content"]].transpose(1, 2)
+            z_spk = layer_z_qs[self.router["speaker"]].transpose(1, 2)
+            z_ling = layer_z_qs[self.router["linguistic_content"]].transpose(1, 2)
 
-            z_pros = torch.stack(z_q_list[self.router["emo_pros"] :], dim=3).sum(dim=3).transpose(1, 2)
-            return RouterOutput(zs=[z_spk, z_ling, z_pros], router_loss=z_q_list[0].new_tensor(0.0))
+            z_pros = torch.stack(layer_z_qs[self.router["emo_pros"] :], dim=3).sum(dim=3).transpose(1, 2)
+            return RouterOutput(zs=[z_spk, z_ling, z_pros], router_loss=layer_z_qs[0].new_tensor(0.0))
 
-        router_output = self.router(self.rvq.quantizers, z_q_list, compute_loss=True)
+        router_output = self.router(self.rvq.quantizers, layer_z_qs, compute_loss=True)
         z_spk = router_output.zs[0].transpose(1, 2)
         z_ling = router_output.zs[1].transpose(1, 2)
         z_pros = router_output.zs[2].transpose(1, 2)
@@ -239,9 +230,8 @@ class RVQDisentangler(nn.Module):
         features, emotion_seq, lengths = trim_to_min(
             features, emotion_seq, lengths, emotion_lengths, time_dim=1, max_diff=4
         )
-        padding_mask = make_padding_mask(lengths, max_length=features.shape[1])
-        output = self.encode(features, padding_mask)
-        return replace(output, lengths=lengths)
+        padding_mask = make_padding_mask(lengths, max_length=max(features.shape[1], emotion_seq.shape[1]))
+        return self.encode(features, padding_mask, lengths=lengths)
 
     def compute_loss(
         self,
@@ -254,36 +244,34 @@ class RVQDisentangler(nn.Module):
         emotion_lengths,
         prosody_seq=None,
         run_adv=True,
-    ) -> RVQDisentanglerLossOutput:
+    ) -> RVQDisentanglerOutput:
         output = self._shared_step(features, lengths, emotion_seq, emotion_lengths)
 
         rvq_mse_loss = masked_loss(
             F.mse_loss,
-            preds=output.z_q,
+            preds=output.rvq.z_q,
             targets=output.content.detach().transpose(1, 2),
             mask=output.padding_mask,
         )
 
         rvq_losses = {
-            "commitment_loss": output.commitment_loss,
-            "codebook_loss": output.codebook_loss,
+            "commitment_loss": output.rvq.loss.commitment_loss,
+            "codebook_loss": output.rvq.loss.codebook_loss,
             "mse_loss": rvq_mse_loss,
-            "load_balancing_loss": output.router_loss,
+            "load_balancing_loss": output.router.loss,
         }
 
-        spk_output, spk_loss, spk_acc, _ = self.speaker_head.compute_loss(
-            output.z_spk, speaker_seq, output.padding_mask
-        )
-
-        emo_loss = self.emotion_head.compute_loss(output.z_pros, emotion_seq, output.padding_mask)
+        z_spk, z_ling, z_pros = output.router.zs
+        spk_output = self.speaker_head.compute_loss(z_spk, speaker_seq, output.padding_mask)
+        emo_loss = self.emotion_head.compute_loss(z_pros, emotion_seq, output.padding_mask)
 
         if self.prosody_head is not None and prosody_seq is not None:
-            pros_loss = self.prosody_head.compute_loss(output.z_pros, prosody_seq)
+            pros_loss = self.prosody_head.compute_loss(z_pros, prosody_seq)
         else:
             pros_loss = 0.0
 
         ctc_loss = self.linguistic_head.compute_loss(
-            output.z_ling,
+            z_ling,
             linguistic_targets,
             input_lengths=lengths,
             target_lengths=target_lengths,
@@ -291,29 +279,29 @@ class RVQDisentangler(nn.Module):
 
         distill_losses = {
             "ctc_loss": ctc_loss,
-            "spk_loss": spk_loss,
+            "spk_loss": spk_output.loss,
             "pros_loss": pros_loss,
             "emo_loss": emo_loss,
         }
 
         if run_adv:
             _, adv_spk_loss_ling, adv_spk_acc_ling, _ = self.adv_speaker_head_ling.compute_loss(
-                self.grl(output.z_ling), speaker_seq
+                self.grl(z_ling), speaker_seq
             )
 
             _, adv_spk_loss_pros, adv_spk_acc_pros, _ = self.adv_speaker_head_pros.compute_loss(
-                self.grl(output.z_pros), speaker_seq
+                self.grl(z_pros), speaker_seq
             )
 
             adv_ling_loss_spk = self.adv_linguistic_head_spk.compute_loss(
-                self.grl(output.z_spk),
+                self.grl(z_spk),
                 linguistic_targets,
                 input_lengths=lengths,
                 target_lengths=target_lengths,
             )
 
             adv_ling_loss_pros = self.adv_linguistic_head_pros.compute_loss(
-                self.grl(output.z_pros),
+                self.grl(z_pros),
                 linguistic_targets,
                 input_lengths=lengths,
                 target_lengths=target_lengths,
@@ -336,19 +324,24 @@ class RVQDisentangler(nn.Module):
         }
 
         metrics = {
-            "spk_acc": spk_acc,
+            "spk_acc": spk_output.accuracy,
             "adv_spk_acc_ling": adv_spk_acc_ling,
             "adv_spk_acc_pros": adv_spk_acc_pros,
         }
+        head_outputs = {
+            "spk": spk_output,
+        }
 
-        return RVQDisentanglerLossOutput(
-            output=replace(output, spk_output=spk_output),
-            rvq_losses=rvq_losses,
-            distill_losses=distill_losses,
-            adv_losses=adv_losses,
+        loss = RVQDisentanglerLoss(
+            rvq=rvq_losses,
+            distill=distill_losses,
+            adv=adv_losses,
             metrics=metrics,
         )
 
+        return replace(output, loss=loss, head_outputs=head_outputs)
+
+    @torch.inference_mode()
     def inference(
         self,
         features,
@@ -358,5 +351,5 @@ class RVQDisentangler(nn.Module):
         prosody_seq=None,
     ) -> RVQDisentanglerOutput:
         output = self._shared_step(features, lengths, emotion_seq, emotion_lengths)
-        spk_output = self.speaker_head(output.z_spk, padding_mask=output.padding_mask)
-        return replace(output, spk_output=spk_output)
+        spk_output = self.speaker_head(output.router.zs[0], padding_mask=output.padding_mask)
+        return replace(output, head_outputs={"spk": spk_output})

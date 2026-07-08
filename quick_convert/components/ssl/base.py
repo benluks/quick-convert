@@ -23,7 +23,8 @@ class ContentFeatures:
 
 
 class ContentEncoder(nn.Module, ABC):
-    FEATURE_DIM: int | None = None
+    TIME_D: int = 1
+    FEATURE_DIM: Optional[int] = None
 
     def __init__(self, device):
         super().__init__()
@@ -46,3 +47,20 @@ class ContentEncoder(nn.Module, ABC):
         sample_rates: torch.LongTensor | None = None,
     ) -> ContentFeatures:
         raise NotImplementedError
+
+    def _pad_or_trim_time(self, x: torch.Tensor, max_length: int, pad_value: int = 0) -> torch.Tensor:
+        tdim = self.TIME_D
+        T = x.shape[tdim]
+
+        if T > max_length:
+            raise RuntimeError(
+                f"Setting `max_length` on a subclass of {self.__class__} is meant to extend the features. `max_length` was set to {max_length}, but encountered features with a length={T}"
+            )
+
+        if T < max_length:
+            pad_shape = list(x.shape)
+            pad_shape[tdim] = max_length - T
+            pad = (x.new_zeros(pad_shape) + pad_value).to(x)
+            return torch.cat((x, pad), dim=tdim)
+
+        return x

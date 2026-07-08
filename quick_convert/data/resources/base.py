@@ -173,7 +173,7 @@ def _normalize_tensor_resource(x: torch.Tensor) -> torch.Tensor:
 
 
 def _collate_tensor_resources(
-    refs: list[ResourceRef], squeeze_single_frame: bool = False, max_length: Optional[int] = None, device="cpu"
+    refs: list[ResourceRef], squeeze_single_frame: bool = False, max_length: Optional[int] = None, device=None
 ) -> TensorResourceBatch:
     """
     max_length: An optional arbitrary max length to pad or trim batch. Useful in the case of cudnn, which needs
@@ -217,7 +217,7 @@ def _collate_tensor_resources(
     return TensorResourceBatch(values=padded.to(device=device), lengths=lengths.to(device=device))
 
 
-def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors: bool = False, device="cpu") -> Any:
+def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors: bool = False, device=None) -> Any:
     kinds = {ref.kind for ref in refs}
     if len(kinds) != 1:
         raise ValueError(f"Cannot collate mixed resource kinds: {sorted(kinds)}")
@@ -244,7 +244,7 @@ def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors
 def collate_resources(
     batch,
     squeeze_single_frame_tensors: bool = False,
-    device="cpu",
+    device=None,
 ) -> dict[str, Any]:
     resource_names = {name for item in batch for name in (item.resources.keys() if item.resources is not None else [])}
 
@@ -264,21 +264,18 @@ def collate_resources(
     return collated
 
 
-def collate_token_sequences(
-    sequences: list[list[int]],
-    padding_value: int = 0,
-) -> TensorResourceBatch:
+def collate_token_sequences(sequences: list[list[int]], padding_value: int = 0, device=None) -> TensorResourceBatch:
     tensors = [torch.tensor(seq, dtype=torch.long) for seq in sequences]
 
     lengths = torch.tensor(
         [len(x) for x in tensors],
         dtype=torch.long,
-    )
+    ).to(device)
 
     padded = pad_sequence(
         tensors,
         batch_first=True,
         padding_value=padding_value,
-    )
+    ).to(device)
 
     return TensorResourceBatch(values=padded, lengths=lengths)

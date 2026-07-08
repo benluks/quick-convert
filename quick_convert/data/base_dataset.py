@@ -129,7 +129,7 @@ class BaseDataset(Dataset):
                             utt_id=self.get_utt_id(p),
                             path=p,
                             split=split,
-                            spk_id=self.get_spkid(p) if return_spkid else None,
+                            # spk_id=self.get_spkid(p) if return_spkid else None,
                         )
                     )
 
@@ -221,7 +221,7 @@ class BaseDataset(Dataset):
             utt_id=sample.utt_id,
             path=sample.path,
             split=sample.split,
-            spk_id=sample.spk_id,
+            # spk_id=sample.spk_id,
             waveform=waveform,
             sample_rate=sample_rate,
             resources=sample.resources,

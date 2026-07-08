@@ -84,7 +84,7 @@ class AudioBatch(MetadataBatch):
     sample_rates: Optional[int["b"]] = None
 
     @classmethod
-    def from_samples(cls, samples: list[AudioSample], max_length: int | None = None, device="cpu") -> "AudioBatch":
+    def from_samples(cls, samples: list[AudioSample], max_length: Optional[int] = None, device=None) -> "AudioBatch":
         has_audio = all(s.waveform is not None for s in samples)
 
         common_kwargs = dict(

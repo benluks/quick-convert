@@ -48,7 +48,7 @@ class ManifestDataset(BaseDataset):
                                 utt_id=row.get(utt_id_column),
                                 path=Path(row[path_column]) if row.get(path_column) else None,
                                 split=row.get(split_column),
-                                spk_id=row.get(spk_id_column),
+                                # spk_id=row.get(spk_id_column),
                                 resources=ResourceCollection.from_refs(
                                     [
                                         ResourceRef(

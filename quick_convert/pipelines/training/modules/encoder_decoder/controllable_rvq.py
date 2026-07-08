@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import torch
@@ -8,10 +9,26 @@ import sentencepiece as spm
 from quick_convert.components.encoders import RVQDisentangler
 from quick_convert.components.decoders import ChatterboxSpectrogramGenerator as CSG
 
+from quick_convert.components.encoders.rvq_disentangler import RVQDisentanglerOutput
 from quick_convert.components.ssl import ContentEncoder, ContentFeatures
 from quick_convert.data.index.base import Indexer
 from quick_convert.data.types import AudioBatch
 from quick_convert.pipelines.training.modules.encoder_decoder.base import BaseEncoderDecoderTrainingModule
+
+
+@dataclass
+class ControllableRVQOutput:
+    # mel spectrogram
+    decoder: torch.Tensor
+    encoder: RVQDisentanglerOutput
+    loss: Optional[torch.tensor]
+
+
+# @dataclass
+# class OnTheFlyContentEncoder:
+#     model: ContentEncoder
+#     max_length: Optional[int] = None
+#     requires_grad: Optional[bool] = False
 
 
 class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
@@ -90,7 +107,8 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         optimizer: torch.optim.Optimizer = torch.optim.AdamW,
         lr_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
         adv_loss_hold_off: int = 1000,
-        content_encoder: Optional[ContentEncoder] = None,
+        # encoders that'll run online, as opposed to using pre-computed featurs
+        online_encoders: dict[str, ContentEncoder] = {},
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -119,12 +137,14 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         self.indexers = {"speaker": Indexer("{sample.resources.spkid.value}")}
 
         # set encoders (frozen, instead of precomputed features)
-        if content_encoder is not None:
-            content_encoder.requires_grad_(False)
-            content_encoder.eval()
+        object.__setattr__(self, "online_encoders", {})
 
-        # store as attribute to it's accessible, but won't be added to state dict
-        object.__setattr__(self, "content_encoder", content_encoder)
+        for enc_name, online_encoder in online_encoders.items() or []:
+            online_encoder.requires_grad_(False)
+            online_encoder.model.eval()
+            self.online_encoders[enc_name] = online_encoder
+
+            # store as attribute to it's accessible, but won't be added to state dict
 
     # ------------------------------------------------------------------
     # Setup helpers
@@ -179,11 +199,8 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         if batch.resources.get(name, None) is not None:
             resource = batch.resources[name]
             return resource.values, resource.lengths
-        elif (
-            feature_encoder_name is not None
-            and (feature_encoder := getattr(self, feature_encoder_name, None)) is not None
-        ):
-            feature_encoder.eval()
+        elif feature_encoder_name is not None and (feature_encoder := self.online_encoders.get(name, None)) is not None:
+            # feature_encoder.model.eval()
             with torch.inference_mode():
                 content: ContentFeatures = feature_encoder(batch)
             return content.values.detach(), content.lengths
@@ -191,7 +208,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             raise RuntimeError(f"""Ensure batch has resource named {name} or this value can be computed using the appropriate encoder.
                                name='{name}', feature_encoder_name='{feature_encoder_name}'""")
 
-    def _shared_step(self, batch: AudioBatch, stage: str) -> torch.Tensor:
+    def _shared_step(self, batch: AudioBatch, stage: str) -> ControllableRVQOutput:
         """Compute all losses, log them, and return the total loss.
 
         Called by both :meth:`training_step` and :meth:`validation_step` with
@@ -219,7 +236,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         # tokenized_transcripts = self.tokenizer.encode(targets)
         token_ids = batch.resources["token_ids"]  # transcript token ids, shape (B, T_text) or None
 
-        z_q, spk_q, spk_output, text_q, pros_emo_q, loss_dict, spk_acc_dict, lengths = self.encoder.compute_loss(
+        encoder_output: RVQDisentanglerOutput = self.encoder.compute_loss(
             features,
             lengths,
             linguistic_targets=token_ids.values,
@@ -233,26 +250,26 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
         # Weighted sum of VQ commitment and codebook losses
         rvq_loss = (
-            self.hparams.rvq_loss_weights["commitment_loss"] * loss_dict["rvq_losses"]["commitment_loss"]
-            + self.hparams.rvq_loss_weights["codebook_loss"] * loss_dict["rvq_losses"]["codebook_loss"]
-            + self.hparams.rvq_loss_weights["mse_loss"] * loss_dict["rvq_losses"]["mse_loss"]
-            + self.hparams.rvq_loss_weights["load_balancing_loss"] * loss_dict["rvq_losses"]["load_balancing_loss"]
+            self.hparams.rvq_loss_weights["commitment_loss"] * encoder_output.loss.rvq["commitment_loss"]
+            + self.hparams.rvq_loss_weights["codebook_loss"] * encoder_output.loss.rvq["codebook_loss"]
+            + self.hparams.rvq_loss_weights["mse_loss"] * encoder_output.loss.rvq["mse_loss"]
+            + self.hparams.rvq_loss_weights["load_balancing_loss"] * encoder_output.loss.rvq["load_balancing_loss"]
         )
 
         # Weighted sum of per-attribute distillation losses from frozen teacher encoders
         distil_loss = (
-            self.hparams.distillation_loss_weights["ling"] * loss_dict["distill_losses"]["ctc_loss"]
-            + self.hparams.distillation_loss_weights["spk"] * loss_dict["distill_losses"]["spk_loss"]
-            + self.hparams.distillation_loss_weights["emo"] * loss_dict["distill_losses"]["emo_loss"]
-            + self.hparams.distillation_loss_weights["pros"] * loss_dict["distill_losses"]["pros_loss"]
+            self.hparams.distillation_loss_weights["ling"] * encoder_output.loss.distill["ctc_loss"]
+            + self.hparams.distillation_loss_weights["spk"] * encoder_output.loss.distill["spk_loss"]
+            + self.hparams.distillation_loss_weights["emo"] * encoder_output.loss.distill["emo_loss"]
+            + self.hparams.distillation_loss_weights["pros"] * encoder_output.loss.distill["pros_loss"]
         )
 
         # Weighted sum of adversarial losses that enforce cross-attribute disentanglement
         adv_loss = (
-            self.hparams.adv_loss_weights["spk_ling"] * loss_dict["adv_losses"]["adv_spk_loss_ling"]
-            + self.hparams.adv_loss_weights["spk_pros"] * loss_dict["adv_losses"]["adv_spk_loss_pros"]
-            + self.hparams.adv_loss_weights["ling_spk"] * loss_dict["adv_losses"]["adv_ling_loss_spk"]
-            + self.hparams.adv_loss_weights["ling_pros"] * loss_dict["adv_losses"]["adv_ling_loss_pros"]
+            self.hparams.adv_loss_weights["spk_ling"] * encoder_output.loss.adv["adv_spk_loss_ling"]
+            + self.hparams.adv_loss_weights["spk_pros"] * encoder_output.loss.adv["adv_spk_loss_pros"]
+            + self.hparams.adv_loss_weights["ling_spk"] * encoder_output.loss.adv["adv_ling_loss_spk"]
+            + self.hparams.adv_loss_weights["ling_pros"] * encoder_output.loss.adv["adv_ling_loss_pros"]
         )
 
         # DECODING
@@ -260,7 +277,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         # Decoder reconstruction loss: z_q is used as both the flow target (x1)
         # and the conditioning signal; detach x1 so gradients flow only through mu
         # TODO
-        decoder_features = torch.cat([text_q, pros_emo_q], dim=-1)
+        decoder_features = torch.cat([encoder_output.router.zs[1], encoder_output.router.zs[2]], dim=-1)
 
         decoder_loss, decoder_output, decoder_mae = self.decoder.compute_loss(
             features=decoder_features,
@@ -270,7 +287,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             # audio waveform lengths
             wav_lens=batch.lengths,
             sampling_rate=batch.sample_rates[0],
-            speaker_embedding=spk_output,
+            speaker_embedding=encoder_output.head_outputs["spk"].speaker_features,
         )
 
         loss = rvq_loss + distil_loss + adv_loss + self.hparams.decoder_loss_weight * decoder_loss
@@ -278,29 +295,29 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             f"{stage}/loss": loss,
             # RVQ losses
             f"{stage}/rvq/loss": rvq_loss,
-            f"{stage}/rvq/commitment_loss": loss_dict["rvq_losses"]["commitment_loss"],
-            f"{stage}/rvq/codebook_loss": loss_dict["rvq_losses"]["codebook_loss"],
-            f"{stage}/rvq/mse_loss": loss_dict["rvq_losses"]["mse_loss"],
-            f"{stage}/rvq/load_balancing_loss": loss_dict["rvq_losses"]["load_balancing_loss"],
+            f"{stage}/rvq/commitment_loss": encoder_output.loss.rvq["commitment_loss"],
+            f"{stage}/rvq/codebook_loss": encoder_output.loss.rvq["codebook_loss"],
+            f"{stage}/rvq/mse_loss": encoder_output.loss.rvq["mse_loss"],
+            f"{stage}/rvq/load_balancing_loss": encoder_output.loss.rvq["load_balancing_loss"],
             # Decoder loss
             f"{stage}/decoder/loss": decoder_loss,
             f"{stage}/decoder/mae": decoder_mae,
             # Distillation losses
             f"{stage}/distil/loss": distil_loss,
-            f"{stage}/distil/ctc_loss": loss_dict["distill_losses"]["ctc_loss"],
-            f"{stage}/distil/spk_loss": loss_dict["distill_losses"]["spk_loss"],
-            f"{stage}/distil/emo_loss": loss_dict["distill_losses"]["emo_loss"],
-            f"{stage}/distil/pros_loss": loss_dict["distill_losses"]["pros_loss"],
+            f"{stage}/distil/ctc_loss": encoder_output.loss.distill["ctc_loss"],
+            f"{stage}/distil/spk_loss": encoder_output.loss.distill["spk_loss"],
+            f"{stage}/distil/emo_loss": encoder_output.loss.distill["emo_loss"],
+            f"{stage}/distil/pros_loss": encoder_output.loss.distill["pros_loss"],
             # Adversarial losses
             f"{stage}/adv/loss": adv_loss,
-            f"{stage}/adv/spk_loss_ling": loss_dict["adv_losses"]["adv_spk_loss_ling"],
-            f"{stage}/adv/spk_loss_pros": loss_dict["adv_losses"]["adv_spk_loss_pros"],
-            f"{stage}/adv/ling_loss_spk": loss_dict["adv_losses"]["adv_ling_loss_spk"],
-            f"{stage}/adv/ling_loss_pros": loss_dict["adv_losses"]["adv_ling_loss_pros"],
+            f"{stage}/adv/spk_loss_ling": encoder_output.loss.adv["adv_spk_loss_ling"],
+            f"{stage}/adv/spk_loss_pros": encoder_output.loss.adv["adv_spk_loss_pros"],
+            f"{stage}/adv/ling_loss_spk": encoder_output.loss.adv["adv_ling_loss_spk"],
+            f"{stage}/adv/ling_loss_pros": encoder_output.loss.adv["adv_ling_loss_pros"],
             # spk accuracy
-            f"{stage}/adv_spk_acc_ling": spk_acc_dict["adv_spk_acc_ling"],
-            f"{stage}/adv_spk_acc_pros": spk_acc_dict["adv_spk_acc_pros"],
-            f"{stage}/spk_acc": spk_acc_dict["spk_acc"],
+            f"{stage}/adv_spk_acc_ling": encoder_output.loss.metrics["adv_spk_acc_ling"],
+            f"{stage}/adv_spk_acc_pros": encoder_output.loss.metrics["adv_spk_acc_pros"],
+            f"{stage}/spk_acc": encoder_output.loss.metrics["spk_acc"],
         }
 
         self.log_dict(
@@ -312,24 +329,24 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             batch_size=len(batch.paths),
         )
 
-        return (loss, decoder_output, spk_output, text_q, pros_emo_q, lengths)
+        return ControllableRVQOutput(decoder=decoder_output, encoder=encoder_output, loss=loss)
 
     # ------------------------------------------------------------------
     # Steps
     # ------------------------------------------------------------------
 
     def training_step(self, batch: AudioBatch, batch_idx: int) -> torch.Tensor:
-        loss, decoder_output, spk_output, text_q, pros_emo_q, lengths = self._shared_step(batch, "train")
-        return loss
+        output = self._shared_step(batch, "train")
+        return output.loss
 
     def validation_step(self, batch: AudioBatch, batch_idx: int) -> torch.Tensor:
-        (loss, decoder_output, spk_output, text_q, pros_emo_q, lengths) = self._shared_step(batch, "val")
+        output = self._shared_step(batch, "val")
 
         if self.trainer.is_global_zero and batch_idx == 0:
-            mel, gen_audio = self._generate_media(decoder_output)
-            self._log_media(batch, mel, lengths, gen_audio)
+            mel, gen_audio = self._generate_media(output.decoder)
+            self._log_media(batch, mel, output.encoder.lengths, gen_audio)
 
-        return loss
+        return output.loss
 
     @torch.no_grad()
     def _generate_media(self, mel):
@@ -410,11 +427,9 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         features, lengths = self._get_resource(batch, "content", "content_encoder")
         emo_targets, emo_lengths = self._get_resource(batch, "emo2vec")
 
-        z_q, z_quantized, z_spk, spk_output, z_ling, z_pros, content, padding_mask = self.encoder.inference(
-            features, lengths, emo_targets, emo_lengths
-        )
-        decoder_features = torch.cat([z_ling, z_pros], dim=-1)
-        mel = self.decoder.inference(decoder_features, lengths, spk_output)
+        encoder_output = self.encoder.inference(features, lengths, emo_targets, emo_lengths)
+        decoder_features = torch.cat([encoder_output.router.zs[1], encoder_output.router.zs[2]], dim=-1)
+        mel = self.decoder.inference(decoder_features, lengths, encoder_output.head_outputs["spk"].speaker_features)
 
         wav = self.decoder.mel2wav(mel)
 

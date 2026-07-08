@@ -14,6 +14,20 @@ from .conv import WNConv1d
 # from DAC: https://github.com/descriptinc/descript-audio-codec/blob/main/dac/nn/quantize.py
 
 
+@dataclass
+class VQLoss:
+    commitment_loss: torch.Tensor
+    codebook_loss: torch.Tensor
+
+
+@dataclass
+class VQOutput:
+    z_q: torch.Tensor
+    indices: torch.Tensor
+    latents: torch.Tensor
+    loss: Optional[VQLoss] = None
+
+
 class VectorQuantize(nn.Module):
     """
     Implementation of VQ taken from DAC:
@@ -74,7 +88,12 @@ class VectorQuantize(nn.Module):
 
         z_q = self.out_proj(z_q)
 
-        return z_q, commitment_loss, codebook_loss, indices, z_e
+        return VQOutput(
+            z_q=z_q,
+            indices=indices,
+            latents=z_e,
+            loss=VQLoss(commitment_loss=commitment_loss, codebook_loss=codebook_loss),
+        )
 
     def embed_code(self, embed_id):
         return F.embedding(embed_id, self.codebook.weight)
@@ -102,13 +121,18 @@ class VectorQuantize(nn.Module):
 
 
 @dataclass
+class RVQLosses:
+    commitment_loss: torch.Tensor
+    codebook_loss: torch.Tensor
+
+
+@dataclass
 class RVQOutput:
     z_q: torch.Tensor
-    z_qs: List[torch.Tensor]
+    layer_z_qs: List[torch.Tensor]
     codes: torch.Tensor
     latents: torch.Tensor
-    commitment_loss: Optional[torch.Tensor] = None
-    codebook_loss: Optional[torch.Tensor] = None
+    loss: Optional[RVQLosses] = None
 
 
 class ResidualVectorQuantizer(nn.Module):
@@ -194,32 +218,31 @@ class ResidualVectorQuantizer(nn.Module):
             if self.training is False and i >= n_quantizers:
                 break
 
-            z_q_i, commitment_loss_i, codebook_loss_i, indices_i, z_e_i = quantizer(residual, lengths)
+            vq_output = quantizer(residual, lengths)
 
             # Create mask to apply quantizer dropout
             mask = torch.full((z.shape[0],), fill_value=i, device=z.device) < n_quantizers
-            z_q = z_q + z_q_i * mask[:, None, None]
-            residual = residual - z_q_i
+            z_q = z_q + vq_output.z_q * mask[:, None, None]
+            residual = residual - vq_output.z_q
 
             # Sum losses
-            commitment_loss += (commitment_loss_i * mask).mean()
-            codebook_loss += (codebook_loss_i * mask).mean()
+            commitment_loss += (vq_output.loss.commitment_loss * mask).mean()
+            codebook_loss += (vq_output.loss.codebook_loss * mask).mean()
 
-            z_qs.append(z_q_i)
+            z_qs.append(vq_output.z_q)
 
-            codebook_indices.append(indices_i)
-            latents.append(z_e_i)
+            codebook_indices.append(vq_output.indices)
+            latents.append(vq_output.latents)
 
         codes = torch.stack(codebook_indices, dim=1)
         latents = torch.cat(latents, dim=1)
 
         return RVQOutput(
             z_q=z_q,
-            z_qs=z_qs,
+            layer_z_qs=z_qs,
             codes=codes,
             latents=latents,
-            commitment_loss=commitment_loss,
-            codebook_loss=codebook_loss,
+            loss=RVQLosses(commitment_loss=commitment_loss, codebook_loss=codebook_loss),
         )
 
     def from_codes(self, codes: torch.Tensor):
@@ -277,7 +300,7 @@ class ResidualVectorQuantizer(nn.Module):
 
         return RVQOutput(
             z_q=z_q,
-            z_qs=z_p,
+            layer_z_qs=z_p,
             codes=torch.stack(codes, dim=1),
             latents=latents,
         )
