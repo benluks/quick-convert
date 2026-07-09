@@ -173,7 +173,7 @@ def _normalize_tensor_resource(x: torch.Tensor) -> torch.Tensor:
 
 
 def _collate_tensor_resources(
-    refs: list[ResourceRef], squeeze_single_frame: bool = False, max_length: Optional[int] = None, device=None
+    refs: list[ResourceRef], squeeze_single_frame: bool = False, max_length: Optional[int] = None
 ) -> TensorResourceBatch:
     """
     max_length: An optional arbitrary max length to pad or trim batch. Useful in the case of cudnn, which needs
@@ -205,7 +205,7 @@ def _collate_tensor_resources(
         if lengths.max() > max_length:
             raise NotImplementedError("This function is only implemented to increase the maximum length. ")
         T, *d_rest = tensors[0].shape
-        padded_tensor = torch.zeros((max_length, *d_rest), dtype=tensors[0].dtype, device=tensors[0].device)
+        padded_tensor = torch.zeros((max_length, *d_rest), dtype=tensors[0].dtype)
         padded_tensor[:T] = tensors[0]
         tensors[0] = padded_tensor
 
@@ -214,10 +214,10 @@ def _collate_tensor_resources(
     if squeeze_single_frame and padded.shape[1] == 1:
         padded = padded.squeeze(1)
 
-    return TensorResourceBatch(values=padded.to(device=device), lengths=lengths.to(device=device))
+    return TensorResourceBatch(values=padded, lengths=lengths)
 
 
-def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors: bool = False, device=None) -> Any:
+def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors: bool = False) -> Any:
     kinds = {ref.kind for ref in refs}
     if len(kinds) != 1:
         raise ValueError(f"Cannot collate mixed resource kinds: {sorted(kinds)}")
@@ -233,10 +233,9 @@ def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors
             squeeze_single_frame=squeeze_single_frame_tensors,
             # very much not a fan of doing it this way. Hopefully we'll update it down the line
             max_length=refs[0].max_length,
-            device=device,
         )
     if kind == "token_ids":
-        return collate_token_sequences([ref.value for ref in refs], padding_value=0, device=device)
+        return collate_token_sequences([ref.value for ref in refs], padding_value=0)
 
     raise NotImplementedError(f"Collation for resource kind {kind!r} is not implemented.")
 
@@ -244,7 +243,6 @@ def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors
 def collate_resources(
     batch,
     squeeze_single_frame_tensors: bool = False,
-    device=None,
 ) -> dict[str, Any]:
     resource_names = {name for item in batch for name in (item.resources.keys() if item.resources is not None else [])}
 
@@ -257,25 +255,23 @@ def collate_resources(
                 raise ValueError(f"Sample {item.utt_id!r} is missing resource {name!r}")
             refs.append(item.resources[name])
 
-        collated[name] = _collate_resource_refs(
-            refs, squeeze_single_frame_tensors=squeeze_single_frame_tensors, device=device
-        )
+        collated[name] = _collate_resource_refs(refs, squeeze_single_frame_tensors=squeeze_single_frame_tensors)
 
     return collated
 
 
-def collate_token_sequences(sequences: list[list[int]], padding_value: int = 0, device=None) -> TensorResourceBatch:
+def collate_token_sequences(sequences: list[list[int]], padding_value: int = 0) -> TensorResourceBatch:
     tensors = [torch.tensor(seq, dtype=torch.long) for seq in sequences]
 
     lengths = torch.tensor(
         [len(x) for x in tensors],
         dtype=torch.long,
-    ).to(device)
+    )
 
     padded = pad_sequence(
         tensors,
         batch_first=True,
         padding_value=padding_value,
-    ).to(device)
+    )
 
     return TensorResourceBatch(values=padded, lengths=lengths)
