@@ -190,7 +190,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
     # Shared step logic
     # ------------------------------------------------------------------
 
-    def _get_resource(self, batch: AudioBatch, name, feature_encoder_name=None):
+    def _get_resource(self, batch: AudioBatch, name):
         """
         Method to optionally use precomputed features, otherwise rely on an encoder (must be passed to this class' __init__,
         and referenced by name). If `feautre_encoder_name`
@@ -198,22 +198,14 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         if batch.resources.get(name, None) is not None:
             resource = batch.resources[name]
             return resource.values, resource.lengths
-        elif (
-            feature_encoder_name is not None
-            and (
-                feature_encoder := self.online_encoders[feature_encoder_name]
-                if feature_encoder_name in self.online_encoders
-                else None
-            )
-            is not None
-        ):
+        elif feature_encoder := self.online_encoders[name] if name in self.online_encoders else None is not None:
             # feature_encoder.model.eval()
             with torch.inference_mode():
                 content: ContentFeatures = feature_encoder(batch)
             return content.values.detach(), content.lengths
         else:
             raise RuntimeError(f"""Ensure batch has resource named {name} or this value can be computed using the appropriate encoder.
-                               name='{name}', feature_encoder_name='{feature_encoder_name}'""")
+                               name='{name}'""")
 
     def _shared_step(self, batch: AudioBatch, stage: str) -> ControllableRVQOutput:
         """Compute all losses, log them, and return the total loss.
@@ -228,7 +220,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         Returns:
             Scalar total loss tensor passed to the Lightning optimiser.
         """
-        features, lengths = self._get_resource(batch, "content", "content_encoder")
+        features, lengths = self._get_resource(batch, "content")
         # for now, only precomputed emo2vec
         emo_targets, emo_lengths = self._get_resource(batch, "emo2vec")
 
