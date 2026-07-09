@@ -224,7 +224,7 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         # for now, only precomputed emo2vec
         emo_targets, emo_lengths = self._get_resource(batch, "emo2vec")
 
-        spk_targets = torch.LongTensor(self.indexers["speaker"].encode_many(batch.resources["spkid"]))
+        spk_targets = torch.LongTensor(self.indexers["speaker"].encode_many(batch.resources["spkid"])).to(self.device)
 
         pros_targets = (
             batch.resources["pros"].values
