@@ -120,6 +120,7 @@ class RVQDisentanglerLoss:
     distill: dict[str, torch.Tensor]
     adv: Optional[dict[str, torch.Tensor]] = None
     metrics: Optional[dict[str, torch.Tensor]] = None
+    states: Optional[dict[str, torch.Tensor]] = None
 
 
 @dataclass
@@ -317,26 +318,24 @@ class RVQDisentangler(nn.Module):
             ) = (0,) * 6
 
         adv_losses = {
-            "adv_spk_loss_ling": adv_spk_loss_ling,
-            "adv_spk_loss_pros": adv_spk_loss_pros,
-            "adv_ling_loss_spk": adv_ling_loss_spk,
-            "adv_ling_loss_pros": adv_ling_loss_pros,
+            "spk_loss_ling": adv_spk_loss_ling,
+            "spk_loss_pros": adv_spk_loss_pros,
+            "ling_loss_spk": adv_ling_loss_spk,
+            "ling_loss_pros": adv_ling_loss_pros,
         }
 
         metrics = {
             "spk_acc": spk_output.accuracy,
-            "adv_spk_acc_ling": adv_spk_acc_ling,
-            "adv_spk_acc_pros": adv_spk_acc_pros,
+            "spk_acc_ling": adv_spk_acc_ling,
+            "spk_acc_pros": adv_spk_acc_pros,
         }
+        states = {"router/layer_probabilities": output.router.layer_probabilities}
         head_outputs = {
             "spk": spk_output,
         }
 
         loss = RVQDisentanglerLoss(
-            rvq=rvq_losses,
-            distill=distill_losses,
-            adv=adv_losses,
-            metrics=metrics,
+            rvq=rvq_losses, distill=distill_losses, adv=adv_losses, metrics=metrics, states=states
         )
 
         return replace(output, loss=loss, head_outputs=head_outputs)

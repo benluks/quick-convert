@@ -18,7 +18,7 @@ with initialize(version_base=None, config_path="../configs"):
         overrides=[
             "+anonymizer=controllable_rvq",
             "+architecture=controllable_rvq",
-            "+components/ssl@anonymizer.content_encoder=w2vbert",
+            "+components/ssl@anonymizer.online_encoders.content=w2vbert",
             f"device={device}",
         ],
     )
