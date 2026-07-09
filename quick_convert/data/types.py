@@ -42,8 +42,8 @@ class AudioSample(MetadataSample):
             **kwargs,
         )
 
-    def load_audio(self, device="cpu", *args, **kwargs) -> "AudioSample":
-        waveform, sr = load_audio(self.path, device=device, *args, **kwargs)
+    def load_audio(self, *args, **kwargs) -> "AudioSample":
+        waveform, sr = load_audio(self.path, *args, **kwargs)
         return replace(self, waveform=waveform, sample_rate=sr)
 
 
@@ -84,14 +84,14 @@ class AudioBatch(MetadataBatch):
     sample_rates: Optional[int["b"]] = None
 
     @classmethod
-    def from_samples(cls, samples: list[AudioSample], max_length: Optional[int] = None, device=None) -> "AudioBatch":
+    def from_samples(cls, samples: list[AudioSample], max_length: Optional[int] = None) -> "AudioBatch":
         has_audio = all(s.waveform is not None for s in samples)
 
         common_kwargs = dict(
             utt_ids=[s.utt_id for s in samples],
             paths=[s.path for s in samples],
             splits=[s.split for s in samples],
-            resources=collate_resources(samples, device=device),
+            resources=collate_resources(samples),
         )
 
         if not has_audio:
@@ -107,9 +107,9 @@ class AudioBatch(MetadataBatch):
 
         return cls(
             **common_kwargs,
-            waveforms=pad_sequence(waveforms, batch_first=True).to(device=device),
-            lengths=lengths.to(device=device),
-            sample_rates=torch.tensor([s.sample_rate for s in samples], dtype=torch.long).to(device=device),
+            waveforms=pad_sequence(waveforms, batch_first=True),
+            lengths=lengths,
+            sample_rates=torch.tensor([s.sample_rate for s in samples], dtype=torch.long),
         )
 
     @classmethod
@@ -117,7 +117,6 @@ class AudioBatch(MetadataBatch):
         cls,
         paths: str | Path | list[str | Path],
         resource_providers: Optional[Iterable[TemplateResourceProvider]] = [],
-        device: Optional[torch.device] = "cpu",
         target_sr: Optional[int] = None,
         mono: bool = True,
         max_length: Optional[int] = None,
@@ -142,12 +141,12 @@ class AudioBatch(MetadataBatch):
                     resources=resources,
                 )
             for name, ref in resources.items():
-                resources[name] = load_resource(ref, device=device)
-            sample = sample.load_audio(target_sr=target_sr, mono=mono, device=device)
+                resources[name] = load_resource(ref)
+            sample = sample.load_audio(target_sr=target_sr, mono=mono)
 
             samples.append(sample)
 
-        return cls.from_samples(samples, max_length=max_length, device=device)
+        return cls.from_samples(samples, max_length=max_length)
 
     def __len__(self) -> int:
         return len(self.paths)
