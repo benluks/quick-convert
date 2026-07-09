@@ -11,7 +11,7 @@ batch_size: 8
 val_batch_size: ${pipeline.batch_size}
 
 dataloader:
-  num_workers: 4
+  num_workers: 24
   pin_memory: true
   drop_last: false
 

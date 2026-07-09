@@ -29,6 +29,7 @@ train_dataloader_kwargs:
   num_workers: ${pipeline.dataloader.num_workers}
   pin_memory: ${pipeline.dataloader.pin_memory}
   drop_last: ${pipeline.dataloader.drop_last}
+  persistent_workers: true
 
 val_dataloader_kwargs:
   batch_size: ${pipeline.val_batch_size}
