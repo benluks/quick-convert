@@ -1,10 +1,19 @@
-from typing import Any, Tuple
+from dataclasses import dataclass, replace
+from typing import Any, Optional, Tuple
 
 import torch
 import torch.nn as nn
 
 from quick_convert.components.layers import AttentiveStatisticsPooling
 from quick_convert.components.losses.speaker_losses import BaseSpeakerLoss
+
+
+@dataclass
+class SpeakerASRHeadOutput:
+    speaker_features: torch.FloatTensor
+    accuracy: Optional[torch.FloatTensor] = None
+    predictions: Optional[torch.LongTensor] = None
+    loss: Optional[torch.FloatTensor] = None
 
 
 class SpeakerASPHead(nn.Module):
@@ -23,7 +32,7 @@ class SpeakerASPHead(nn.Module):
     ):
         super().__init__()
         self.ln = nn.LayerNorm(input_dim)
-        
+
         self.pre_pool = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
@@ -74,17 +83,18 @@ class SpeakerASPHead(nn.Module):
         x = self.pre_pool(x)
         x = self.pool(x, padding_mask=padding_mask)
         x = self.post_pool(x)
-        return x
+        return SpeakerASRHeadOutput(speaker_features=x)
 
     def compute_loss(
         self,
         speaker_features: torch.FloatTensor,
         speaker_labels: torch.LongTensor = None,
         padding_mask: torch.LongTensor = None,
-    ) -> Tuple:
+    ) -> SpeakerASRHeadOutput:
         """Compute cosine distance loss between predicted speaker features and target speaker embeddings."""
 
-        x = self.forward(speaker_features, padding_mask=padding_mask)
+        spk_output = self.forward(speaker_features, padding_mask=padding_mask)
+        x = spk_output.speaker_features
         # only need padding if
         if x.ndim == 3:
             raise NotImplementedError("Loss padding not yet implemented for frame-wise speaker embeddings")
@@ -105,4 +115,4 @@ class SpeakerASPHead(nn.Module):
         else:
             raise ValueError(f"Unsupported supervision type: {self.supervision}")
 
-        return x, loss, accuracy, preds
+        return replace(spk_output, loss=loss, accuracy=accuracy, predictions=preds)

@@ -1,5 +1,5 @@
 _target_: quick_convert.components.encoders.LinearHead
-input_dim: ${architecture.rvq.input_dim}
-output_dim: ${architecture.feature_extractors.emotion.feature_dim}
+input_dim: ???
+output_dim: ???
 loss:
   _target_: quick_convert.components.losses.MaskedMSELoss
