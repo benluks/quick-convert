@@ -198,7 +198,15 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         if batch.resources.get(name, None) is not None:
             resource = batch.resources[name]
             return resource.values, resource.lengths
-        elif feature_encoder_name is not None and (feature_encoder := self.online_encoders.get(name, None)) is not None:
+        elif (
+            feature_encoder_name is not None
+            and (
+                feature_encoder := self.online_encoders[feature_encoder_name]
+                if feature_encoder_name in self.online_encoders
+                else None
+            )
+            is not None
+        ):
             # feature_encoder.model.eval()
             with torch.inference_mode():
                 content: ContentFeatures = feature_encoder(batch)
