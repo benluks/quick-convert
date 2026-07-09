@@ -83,7 +83,13 @@ class W2VBertContentEncoder(ContentEncoder):
                 config to perform resampling at the dataset level."""
             )
 
-        content = self.encode_waveforms(batch.waveforms.to(self.device), batch.lengths.to(self.device), **kwargs)
+        content = self.encode_waveforms(
+            batch.waveforms,
+            # .to(self.device)
+            batch.lengths,
+            # .to(self.device)
+            **kwargs,
+        )
         return content
 
     @torch.inference_mode()
