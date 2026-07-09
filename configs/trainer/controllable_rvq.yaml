@@ -34,20 +34,20 @@ compile:
     - encoder
     - decoder
 
-train_dataloader_kwargs:
+dataloader_kwargs: &dataloader_kwargs
   batch_size: ${pipeline.batch_size}
-  shuffle: true
-  num_workers: ${pipeline.dataloader.num_workers}
-  pin_memory: ${pipeline.dataloader.pin_memory}
-  drop_last: ${pipeline.dataloader.drop_last}
-
-val_dataloader_kwargs:
-  batch_size: ${pipeline.val_batch_size}
-  shuffle: false
   num_workers: ${pipeline.dataloader.num_workers}
   pin_memory: ${pipeline.dataloader.pin_memory}
   drop_last: ${pipeline.dataloader.drop_last}
   persistent_workers: true
+
+train_dataloader_kwargs:
+  <<: *dataloader_kwargs
+  shuffle: true
+
+val_dataloader_kwargs:
+  <<: *dataloader_kwargs
+  shuffle: false
 
 module:
   decoder_loss_weight: 1.0

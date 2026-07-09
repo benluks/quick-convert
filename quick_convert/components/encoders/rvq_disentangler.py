@@ -33,13 +33,21 @@ class RVQLayerRouter(nn.Module):
     Routes the output of the RVQ to different heads for disentanglement.
     """
 
-    def __init__(self, n_classes: int, codebook_dim: int, codebook_size: int, gumbel_tau: float = 1.0):
+    def __init__(self, n_classes: int, codebook_dim: int, codebook_size: int, gumbel_tau: float = 1.0, init_zeros=True):
         super().__init__()
         self.n_classes = n_classes
         self.codebook_dim = codebook_dim
         self.codebook_size = codebook_size
         self.gumbel_tau = gumbel_tau
         self.classifier = nn.Linear(codebook_size, n_classes)
+
+        if init_zeros:
+            # initialize with zeros. The small number of rvq layers and
+            # heads can mean unstable training if initialization favors one head
+            nn.init.zeros_(self.classifier.weight)
+            nn.init.zeros_(self.classifier.bias)
+
+        self.init_zeros = init_zeros
 
     def _compute_mask(
         self,
@@ -107,11 +115,16 @@ class RVQLayerRouter(nn.Module):
             loss=router_loss,
         )
 
-    def compute_loss(self, layer_probabilities: torch.Tensor, one_hot_mask: torch.Tensor) -> torch.Tensor:
+    def compute_loss_orig(self, layer_probabilities: torch.Tensor, one_hot_mask: torch.Tensor) -> torch.Tensor:
         p_expert = layer_probabilities.mean(dim=0)
         f_expert = one_hot_mask.float().mean(dim=0)
         loss = self.n_classes * torch.sum(f_expert * p_expert)
         return loss
+
+    def compute_loss(self, layer_probabilities, one_hot_mask):
+        p = layer_probabilities.mean(dim=0)
+        target = torch.full_like(p, 1.0 / self.n_classes)
+        return F.mse_loss(p, target)
 
 
 @dataclass
@@ -329,7 +342,10 @@ class RVQDisentangler(nn.Module):
             "spk_acc_ling": adv_spk_acc_ling,
             "spk_acc_pros": adv_spk_acc_pros,
         }
-        states = {"router/layer_probabilities": output.router.layer_probabilities}
+        states = {
+            "router_probabilities": output.router.layer_probabilities,
+            "router_logits": output.router.layer_logits,
+        }
         head_outputs = {
             "spk": spk_output,
         }

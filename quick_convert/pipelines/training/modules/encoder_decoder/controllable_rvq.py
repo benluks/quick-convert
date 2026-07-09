@@ -266,10 +266,10 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
 
         # Weighted sum of adversarial losses that enforce cross-attribute disentanglement
         adv_loss = (
-            self.hparams.adv_loss_weights["spk_ling"] * encoder_output.loss.adv["adv_spk_loss_ling"]
-            + self.hparams.adv_loss_weights["spk_pros"] * encoder_output.loss.adv["adv_spk_loss_pros"]
-            + self.hparams.adv_loss_weights["ling_spk"] * encoder_output.loss.adv["adv_ling_loss_spk"]
-            + self.hparams.adv_loss_weights["ling_pros"] * encoder_output.loss.adv["adv_ling_loss_pros"]
+            self.hparams.adv_loss_weights["spk_ling"] * encoder_output.loss.adv["spk_loss_ling"]
+            + self.hparams.adv_loss_weights["spk_pros"] * encoder_output.loss.adv["spk_loss_pros"]
+            + self.hparams.adv_loss_weights["ling_spk"] * encoder_output.loss.adv["ling_loss_spk"]
+            + self.hparams.adv_loss_weights["ling_pros"] * encoder_output.loss.adv["ling_loss_pros"]
         )
 
         # DECODING
@@ -315,8 +315,6 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             f"{stage}/adv/spk_acc_ling": encoder_output.loss.metrics["spk_acc_ling"],
             f"{stage}/adv/spk_acc_pros": encoder_output.loss.metrics["spk_acc_pros"],
             f"{stage}/spk_acc": encoder_output.loss.metrics["spk_acc"],
-            # router
-            f"{stage}/router/layer_probablities": encoder_output.loss.states["layer_probabilities"],
             # Decoder loss
             f"{stage}/decoder/loss": decoder_loss,
             f"{stage}/decoder/mae": decoder_mae,
@@ -329,6 +327,19 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             prog_bar=(stage == "train"),
             sync_dist=True,
             batch_size=len(batch.paths),
+        )
+
+        self.logger.experiment.add_image(
+            "router/probabilities",
+            encoder_output.loss.states["router_probabilities"].detach().unsqueeze(0),  # (1, 8, 3)
+            self.global_step,
+            dataformats="CHW",
+        )
+        self.logger.experiment.add_image(
+            "router/logits",
+            encoder_output.loss.states["router_logits"].detach().unsqueeze(0),  # (1, 8, 3)
+            self.global_step,
+            dataformats="CHW",
         )
 
         return ControllableRVQOutput(decoder=decoder_output, encoder=encoder_output, loss=loss)
