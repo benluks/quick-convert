@@ -14,7 +14,7 @@ dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
 resources_path: outputs/precomputed/${dataset_name}
 dataset_path: ${out_root}/${dataset_name}
 
-max_feature_length: 1000
+max_feature_length: null
 
 pipeline:
   batch_size: 2
