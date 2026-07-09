@@ -33,9 +33,9 @@ class BaseTrainer(ABC):
         self,
         train_dataset: Any | None = None,
         val_dataset: Any | None = None,
-        test_dataset: Any | None = None,
-        out_dir: str | Path | None = None,
-        **kwargs: Any,
+        # test_dataset: Any | None = None,
+        # out_dir: str | Path | None = None,
+        # **kwargs: Any,
     ) -> Any:
         """
         Run training.

@@ -7,12 +7,14 @@ defaults:
   - /dataset@train_dataset: manifest
   - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
-  - /components/ssl@trainer.module.content_encoder: w2vbert
+  - /components/ssl@trainer.module.online_encoders.content: w2vbert
   - _self_
 
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
 resources_path: outputs/precomputed/${dataset_name}
 dataset_path: ${out_root}/${dataset_name}
+
+max_feature_length: null
 
 pipeline:
   batch_size: 2
@@ -38,8 +40,12 @@ trainer:
   ddp:
     enabled: false
   compile: false
-#   val_dataloader_kwargs:
-#     batch_size: 2
+  #   val_dataloader_kwargs:
+  #     batch_size: 2
+  module:
+    online_encoders:
+      content:
+        max_length: ${max_feature_length}
 
 data: &data
   resources:
@@ -61,14 +67,14 @@ data: &data
       kind: torch_tensor
       name: emo2vec
       path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
-      max_length: 1000
+      max_length: ${max_feature_length}
 
   load:
     - audio
     - token_ids
     # - content
     - emo2vec
-    - spk
+    - spkid
 
 train_dataset:
   <<: *data

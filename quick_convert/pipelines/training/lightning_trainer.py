@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Iterable, Optional
 
 import lightning as L
@@ -81,17 +82,17 @@ class LightningTrainer(BaseTrainer):
             )
             setattr(self.module, target, compiled_submodule)
 
-    def train(
+    def build(
         self,
-        train_dataset: BaseDataset,
-        val_dataset: Optional[BaseDataset] = None,
+        train_dataset,
+        kwargs,
         out_dir=None,
-        kwargs: Optional[dict] = {},
     ):
+
         for index in self.module.indexers.values():
             index.fit(train_dataset.rows)
 
-        # build the losses that are dependent on some other indexed value, and therefore 
+        # build the losses that are dependent on some other indexed value, and therefore
         # couldn't be passed in the hydra config. For example, if the speaker identification
         # index is only build in the line above, then we wouldn't know the number of output classes
         # needed until now. The output projection layer is built in the loss (e.g. `AAMSoftmaxLoss()`)
@@ -107,12 +108,20 @@ class LightningTrainer(BaseTrainer):
         # `+pipeline.train_kwargs.ckpt_path=last` (or an explicit .ckpt path) to
         # resume a timed-out / crashed run from its last checkpoint; Lightning
         # restores model + optimizer + LR scheduler + global_step + epoch.
-        ckpt_path = trainer_kwargs.pop("ckpt_path", None)
+        self.ckpt_path = trainer_kwargs.pop("ckpt_path", None)
 
         if self.precision is not None:
             trainer_kwargs.setdefault("precision", self.precision)
 
         self.pl_trainer = L.Trainer(default_root_dir=out_dir, **trainer_kwargs)
+        self.log_dir = self.pl_trainer.log_dir
+
+    def train(
+        self,
+        train_dataset: BaseDataset,
+        val_dataset: Optional[BaseDataset] = None,
+    ):
+
         self._maybe_enable_cudnn_benchmark()
         self._maybe_compile_module()
 
@@ -123,5 +132,5 @@ class LightningTrainer(BaseTrainer):
             model=self.module,
             train_dataloaders=train_loader,
             val_dataloaders=val_loader,
-            ckpt_path=ckpt_path,
+            ckpt_path=self.ckpt_path,
         )

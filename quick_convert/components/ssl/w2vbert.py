@@ -15,6 +15,7 @@ from .base import ContentEncoder, ContentFeatures
 
 class W2VBertContentEncoder(ContentEncoder):
     FEATURE_DIM = 1024
+    TIME_D = 1
 
     def __init__(
         self,
@@ -24,6 +25,7 @@ class W2VBertContentEncoder(ContentEncoder):
         device: str | None = None,
         local_files_only: bool = False,
         downsample_factor: int = 0,
+        max_length: Optional[int] = None,
         **kwargs,
     ) -> None:
         super().__init__(device=device)
@@ -32,6 +34,7 @@ class W2VBertContentEncoder(ContentEncoder):
         self.layer = layer
         self.local_files_only = local_files_only
         self.downsample_factor = downsample_factor
+        self.max_length = max_length
 
         if downsample_factor > 1:
             assert self.layer is None, (
@@ -67,7 +70,7 @@ class W2VBertContentEncoder(ContentEncoder):
     # def forward(self, batch: AudioBatch):
     #     self.extract_batch(batch)
 
-    def forward(self, batch: AudioBatch):
+    def forward(self, batch: AudioBatch, **kwargs):
         if getattr(batch, "waveforms", None) is None:
             raise RuntimeError(
                 f"{self.__class__.__name__} only works with loaded audio for now. Please set `load: true` in your dataset config"
@@ -80,15 +83,16 @@ class W2VBertContentEncoder(ContentEncoder):
                 config to perform resampling at the dataset level."""
             )
 
-        content = self.encode_waveforms(batch.waveforms.to(self.device), batch.lengths.to(self.device))
+        content = self.encode_waveforms(batch.waveforms.to(self.device), batch.lengths.to(self.device), **kwargs)
         return content
 
     @torch.inference_mode()
     def encode_waveforms(
         self,
         waveforms: torch.Tensor,
-        lengths: torch.Tensor | None = None,
-        sample_rate: int | None = None,
+        lengths: Optional[torch.Tensor] = None,
+        sample_rate: Optional[int] = None,
+        max_length: Optional[int] = None,
     ) -> ContentFeatures:
         """
         Args:
@@ -127,6 +131,12 @@ class W2VBertContentEncoder(ContentEncoder):
             selected = hidden_states[self.layer]  # (batch, frames, dim)
         output_lengths = features.attention_mask.sum(1)
 
+        # pad to some fixed length
+        effective_max_length = max_length or self.max_length
+        if effective_max_length is not None:
+            selected = self._pad_or_trim_time(selected, effective_max_length)
+
+        # downsample across layer dimension
         if self.downsample_factor:
             B, T, L, D = selected.shape
             selected = selected.transpose(2, 3)

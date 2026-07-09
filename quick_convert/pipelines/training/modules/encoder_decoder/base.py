@@ -41,7 +41,7 @@ class BaseEncoderDecoderTrainingModule(L.LightningModule):
         lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
     ) -> None:
         super().__init__()
-        self.save_hyperparameters(ignore=["encoder", "decoder", "tokenizer", "content_encoder"])
+        self.save_hyperparameters(ignore=["encoder", "decoder"])
 
         self.encoder = encoder
         self.decoder = decoder
@@ -51,6 +51,19 @@ class BaseEncoderDecoderTrainingModule(L.LightningModule):
     # ------------------------------------------------------------------
     # Abstract interface
     # ------------------------------------------------------------------
+
+    def load_for_inference(self, checkpoint_path, map_location="cpu", strict=True):
+        ckpt = torch.load(checkpoint_path, weights_only=False, map_location=map_location)
+
+        state = ckpt["state_dict"]
+        if getattr(self, "compiled", False) is False:
+            state = {k.replace("._orig_mod.", "."): v for k, v in state.items()}
+
+        missing, unexpected = self.load_state_dict(state, strict=strict)
+        self.eval()
+        self.freeze()
+
+        return missing, unexpected
 
     @abc.abstractmethod
     def _shared_step(self, batch: AudioBatch, stage: str) -> torch.Tensor:
@@ -91,3 +104,8 @@ class BaseEncoderDecoderTrainingModule(L.LightningModule):
                 "frequency": 1,
             },
         }
+
+    # save/load logic
+    def on_save_checkpoint(self, checkpoint):
+        # `_orig_mod` is added by torch.compile() to the names of all submodules, which breaks loading
+        checkpoint["state_dict"] = {k.replace("._orig_mod.", "."): v for k, v in checkpoint["state_dict"].items()}

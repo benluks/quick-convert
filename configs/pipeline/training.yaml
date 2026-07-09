@@ -5,7 +5,7 @@ trainer: ${trainer}
 train_dataset: ${train_dataset}
 val_dataset: ${val_dataset}
 test_dataset: null
-out_dir: ${out_root}/${hydra:runtime.choices.trainer}/${hydra:runtime.choices.dataset@train_dataset}${out_dir_suffix}
+out_dir: ${out_root}/${hydra:runtime.choices.trainer}/${dataset_name}${out_dir_suffix}
 
 batch_size: 8
 val_batch_size: ${pipeline.batch_size}
@@ -28,7 +28,6 @@ train_kwargs:
   enable_checkpointing: true
   enable_progress_bar: true
   enable_model_summary: true
-  
 
 # test_dataset: null
 # test_dataloader_kwargs: {}
