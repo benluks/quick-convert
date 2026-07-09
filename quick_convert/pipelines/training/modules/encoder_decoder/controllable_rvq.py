@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 import torch
 import sentencepiece as spm
+from torch import nn
 
 from quick_convert.components.encoders import RVQDisentangler
 from quick_convert.components.decoders import ChatterboxSpectrogramGenerator as CSG
@@ -136,15 +137,13 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         # access to the datasets, which are used to fit the indexer
         self.indexers = {"speaker": Indexer("{sample.resources.spkid.value}")}
 
-        # set encoders (frozen, instead of precomputed features)
-        object.__setattr__(self, "online_encoders", {})
-
-        for enc_name, online_encoder in online_encoders.items() or []:
+        for online_encoder in online_encoders.values() or []:
             online_encoder.requires_grad_(False)
             online_encoder.model.eval()
-            self.online_encoders[enc_name] = online_encoder
 
-            # store as attribute to it's accessible, but won't be added to state dict
+        self.online_encoders = nn.ModuleDict(online_encoders)
+
+        # store as attribute to it's accessible, but won't be added to state dict
 
     # ------------------------------------------------------------------
     # Setup helpers
@@ -447,3 +446,12 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
         wav = self.decoder.mel2wav(mel)
 
         return mel, wav
+
+    # saving/loading logic
+    def on_save_checkpoint(self, checkpoint: dict) -> None:
+        # exclude online encoders (cuz they're frozen anyway)
+        state = checkpoint["state_dict"]
+
+        for key in list(state.keys()):
+            if key.startswith("online_encoders."):
+                del state[key]
