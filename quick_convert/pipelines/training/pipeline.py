@@ -1,4 +1,4 @@
-# quick_convert/pipelines/training/train.py
+# quick_convert/pipelines/training/pipeline.py
 
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ class TrainingPipeline:
         val_dataset: Optional[BaseDataset] = None,
         test_dataset: Optional[BaseDataset] | None = None,
         out_dir: PathLike = None,
-        train_kwargs: Optional[dict] = {},
         **kwargs,
     ) -> None:
         self.trainer = trainer
@@ -26,14 +25,13 @@ class TrainingPipeline:
         self.val_dataset = val_dataset
         self.test_dataset = test_dataset
         self.out_dir = out_dir
-        self.train_kwargs = train_kwargs
 
         # separate build and train so that trainer.save_config can be called in between, because I want all pipelines to have that
         # options, but the lightningmodule needs to have been built to expose the log dir to which the yaml config should be saved
         # the `build` function on a trainer make the output dir accessible, because `write_config` is called on the pipeline level.
         self.trainer.build(
             train_dataset=self.train_dataset,
-            kwargs=self.train_kwargs,
+            # kwargs=self.train_kwargs,
             out_dir=self.out_dir,
         )
         self.out_path = Path(self.trainer.log_dir)

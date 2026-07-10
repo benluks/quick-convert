@@ -1,0 +1,46 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: vq_asr
+  - /dataset@train_dataset: manifest
+  - /dataset@val_dataset: manifest
+  - /dataset@source_dataset: librispeech
+  - /components/ssl@trainer.module.online_encoders.content: w2vbert
+  - _self_
+
+dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
+resources_path: outputs/precomputed/${dataset_name}
+dataset_path: ${out_root}/${dataset_name}
+
+pipeline:
+  batch_size: 2
+  dataloader:
+    num_workers: 1
+
+trainer:
+  train_dataloader_kwargs:
+    shuffle: false
+  ddp:
+    enabled: false
+  compile: false
+
+data: &data # compute info from sample
+  resource_providers:
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: token_ids
+      name: token_ids
+      path_template: ${resources_path}/tokenizer/{sample.split}/{sample.utt_id}.pt
+
+  load:
+    - audio
+    - token_ids
+
+train_dataset:
+  <<: *data
+  manifest_path: ${dataset_path}/test-other/manifest.csv
+
+val_dataset:
+  <<: *data
+  manifest_path: ${dataset_path}/test-other/manifest.csv

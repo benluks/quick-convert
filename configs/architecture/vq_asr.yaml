@@ -1,0 +1,20 @@
+# architecture/vq_asr.yaml
+
+defaults:
+  - /global: default
+  - /components/encoders@ctc_head: linguistic_head
+  - _self_
+
+tokenizer_vocab_size: 1000
+
+quantizer:
+  _target_: quick_convert.components.layers.VectorQuantize
+  codebook_dim: 256
+  codebook_size: 64
+  input_dim: ${trainer.module.online_encoders.content.feature_dim}
+ctc_head:
+  hidden_dim: ${..quantizer.codebook_dim}
+  loss:
+    output_dim: ${...tokenizer_vocab_size}
+  # loss:
+  #   hidden_dim:

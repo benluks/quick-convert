@@ -3,6 +3,7 @@
 
 defaults:
   - /global: default
+  - lightning
   - /anonymizer@module: controllable_rvq
   - /architecture: controllable_rvq
   - /trainer/optimizer@module.optimizer: adamw
@@ -72,7 +73,5 @@ module:
     lr: 1e-4
     weight_decay: 1e-2
   lr_scheduler:
-    _target_: torch.optim.lr_scheduler.CosineAnnealingLR
-    _partial_: true
     T_max: 10000
   adv_loss_hold_off: 1000

@@ -15,6 +15,7 @@ class LightningTrainer(BaseTrainer):
         module: L.LightningModule,
         train_dataloader_kwargs: Optional[dict] = {},
         val_dataloader_kwargs: Optional[dict] = {},
+        trainer_kwargs: Optional[dict] = None,
         compile: Optional[dict] = None,
         cudnn_benchmark: Optional[bool] = None,
         ddp: Optional[dict] = None,
@@ -24,6 +25,7 @@ class LightningTrainer(BaseTrainer):
         self.module = module
         self.train_dataloader_kwargs = train_dataloader_kwargs
         self.val_dataloader_kwargs = val_dataloader_kwargs
+        self.trainer_kwargs = trainer_kwargs or {}
         self.compile_cfg = compile or {"enabled": False}
         self.cudnn_benchmark = cudnn_benchmark
         self.ddp_cfg = ddp or {"enabled": False}
@@ -85,12 +87,15 @@ class LightningTrainer(BaseTrainer):
     def build(
         self,
         train_dataset,
-        kwargs,
         out_dir=None,
     ):
 
-        for index in self.module.indexers.values():
-            index.fit(train_dataset.rows)
+        # where indexing and loss building happens
+        self.module.setup_training(train_dataset)
+        trainer_kwargs = self._trainer_kwargs_with_ddp(self.trainer_kwargs)
+
+        # for index in self.module.indexers.values():
+        #     index.fit(train_dataset.rows)
 
         # build the losses that are dependent on some other indexed value, and therefore
         # couldn't be passed in the hydra config. For example, if the speaker identification
@@ -101,7 +106,6 @@ class LightningTrainer(BaseTrainer):
                 continue
             if hasattr(module, "build_loss"):
                 module.build_loss(self.module.indexers)
-        trainer_kwargs = self._trainer_kwargs_with_ddp(kwargs)
 
         # `ckpt_path` is a Trainer.fit() argument, not a Trainer() constructor
         # argument, so pull it out before building the Trainer. Pass

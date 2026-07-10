@@ -1,0 +1,53 @@
+# configs/trainer/lightning.yaml
+defaults:
+  - optimizations@ddp: ddp
+  - optimizations@compile: compile
+  - _self_
+
+_target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
+
+module: ???
+cudnn_benchmark: false
+
+train_dataloader_kwargs:
+  batch_size: ${pipeline.batch_size}
+  shuffle: true
+  num_workers: ${pipeline.dataloader.num_workers}
+  pin_memory: ${pipeline.dataloader.pin_memory}
+  drop_last: ${pipeline.dataloader.drop_last}
+  persistent_workers: true
+
+val_dataloader_kwargs:
+  batch_size: ${pipeline.val_batch_size}
+  shuffle: false
+  num_workers: ${pipeline.dataloader.num_workers}
+  pin_memory: ${pipeline.dataloader.pin_memory}
+  drop_last: ${pipeline.dataloader.drop_last}
+  persistent_workers: true
+
+trainer_kwargs:
+  max_steps: -1
+  # for step-based validation
+  # val_check_interval: 1000
+  accelerator: auto
+  devices: auto
+  precision: 32
+  log_every_n_steps: 200
+  enable_checkpointing: true
+  enable_progress_bar: true
+  enable_model_summary: true
+  max_epochs: 9
+
+  callbacks:
+    - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+      save_top_k: 2
+      monitor: step
+      mode: max
+      every_n_epochs: 1
+      save_last: true
+
+    - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+      monitor: val/loss
+      mode: min
+      save_top_k: 1
+      save_last: false

@@ -9,7 +9,6 @@ defaults:
   - /components/layers@encoder.rvq: rvq
   - /components/encoders@decoder.flow.encoder: conformer_encoder
   - /components/encoders@content_encoder: conformer_encoder_ssl
-  # - /components/losses@losses.mse_loss: mse_loss
   - _self_
 
 # probably won't need more than 256

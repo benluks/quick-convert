@@ -1,3 +1,3 @@
 _target_: quick_convert.data.ManifestDataset
 manifest_path: ${dataset_path}/manifest.csv
-resources: ???
+resources: {}
