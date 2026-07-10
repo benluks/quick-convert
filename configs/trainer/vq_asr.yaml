@@ -12,3 +12,4 @@ module:
   _target_: quick_convert.pipelines.training.modules.vq_asr.VQASRTrainingModule
   quantizer: ${architecture.quantizer}
   ctc_head: ${architecture.ctc_head}
+  layer_fusion: ${architecture.layer_fusion}

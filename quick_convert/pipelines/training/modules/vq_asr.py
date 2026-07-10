@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 from quick_convert.components.encoders import LinguisticCTCHead
-from quick_convert.components.layers import VectorQuantize
+from quick_convert.components.layers import VectorQuantize, LayerWeightedSum
 from quick_convert.components.layers.rvq import VQOutput
 from quick_convert.components.mixins.resource import OnlineResourceMixin
 from quick_convert.components.ssl import ContentEncoder
@@ -42,7 +42,7 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         online_encoders: Optional[dict[str, ContentEncoder]] = None,
         optimizer: Callable[..., torch.optim.Optimizer] = torch.optim.AdamW,
         lr_scheduler: Optional[Callable[..., LRScheduler]] = None,
-        blank_id: int = 0,
+        layer_fusion: Optional[LayerWeightedSum] = None,
         ctc_loss_weight: float = 1.0,
         commitment_loss_weight: float = 1.0,
         codebook_loss_weight: float = 1.0,
@@ -55,7 +55,7 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         self.quantizer = quantizer
         self.ctc_head = ctc_head
         self.online_encoders = nn.ModuleDict(online_encoders or {})
-        self.blank_id = blank_id
+        self.layer_fusion = layer_fusion or nn.Identity()
         self.ctc_loss_weight = ctc_loss_weight
         self.commitment_loss_weight = commitment_loss_weight
         self.codebook_loss_weight = codebook_loss_weight
@@ -79,26 +79,24 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         stage: str,
     ) -> VQASROutput:
         features, feature_lengths = self.get_resource(batch, "content")
-
-        token_ids = batch.resources["token_ids"]
+        token_ids, token_lengths = self.get_resource(batch, "token_ids")
 
         padding_mask = make_padding_mask(
             feature_lengths,
             max_length=features.shape[1],
         )
 
-        quantizer_output = self.quantizer(
-            features.transpose(1, 2),
-            padding_mask,
-        )
+        features = self.layer_fusion(features)
+        quantizer_output = self.quantizer(features.transpose(1, 2), padding_mask, loss_reduction="batch_by_sample")
 
+        # back to [B, T, D]
         quantized = quantizer_output.z_q.transpose(1, 2)
 
         ctc_loss = self.ctc_head.compute_loss(
             quantized,
-            token_ids.values,
+            token_ids,
             input_lengths=feature_lengths,
-            target_lengths=token_ids.lengths,
+            target_lengths=token_lengths,
         )
 
         loss = (
@@ -126,5 +124,5 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         return VQASROutput(
             logits=logits,
             vq=quantizer_output,
-            loss=VQASRLoss(loss=loss, ctc_loss=ctc_loss),
+            losses=VQASRLoss(total=loss, ctc_loss=ctc_loss),
         )

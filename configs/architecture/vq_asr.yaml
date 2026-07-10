@@ -9,12 +9,16 @@ tokenizer_vocab_size: 1000
 
 quantizer:
   _target_: quick_convert.components.layers.VectorQuantize
+  input_dim: ${trainer.module.online_encoders.content.feature_dim}
   codebook_dim: 256
   codebook_size: 64
-  input_dim: ${trainer.module.online_encoders.content.feature_dim}
+  output_dim: ${.codebook_dim}
 ctc_head:
-  hidden_dim: ${..quantizer.codebook_dim}
+  hidden_dim: ${..quantizer.output_dim}
   loss:
     output_dim: ${...tokenizer_vocab_size}
   # loss:
   #   hidden_dim:
+layer_fusion:
+  _target_: quick_convert.components.layers.LayerWeightedSum
+  num_layers: 24

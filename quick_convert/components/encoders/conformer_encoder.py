@@ -77,6 +77,7 @@ class ConformerEncoder(nn.Module):
             x = block(x, padding_mask=padding_mask)
         return x
 
+
 class ConformerEncoderSSL(nn.Module):
     """
     Stack of ConformerBlocks with an optional input projection.
@@ -151,7 +152,7 @@ class ConformerEncoderSSL(nn.Module):
         padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         layer_weights = F.softmax(self.layer_weights, dim=-1)  # (1, L)
-        x = torch.einsum("btlc,kl->btc", x, layer_weights)  # (B, T, H, D_in)
+        x = torch.einsum("btlc,kl->btc", x, layer_weights)  # (B, T, C)
         x = self.input_proj(x)
         for block in self.blocks:
             x = block(x, padding_mask=padding_mask)
