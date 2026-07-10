@@ -79,7 +79,24 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
         batch_idx: int,
     ) -> torch.Tensor:
         output = self._shared_step(batch, "val")
+        self.log_validation_output(
+            batch=batch,
+            output=output,
+            batch_idx=batch_idx,
+        )
         return output.loss
+
+    def on_validation_epoch_end(self):
+        return super().on_validation_epoch_end()
+
+    def log_validation_output(
+        self,
+        batch: AudioBatch,
+        output: TrainingStepOutput,
+        batch_idx: int,
+    ) -> None:
+        """Optionally log qualitative validation outputs."""
+        pass
 
     def configure_optimizers(self):
         params = [parameter for parameter in self.parameters() if parameter.requires_grad]

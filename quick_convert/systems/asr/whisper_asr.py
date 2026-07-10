@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 import torchaudio
-import whisper
+
 
 from ...data.types import AudioBatch, MetadataSample
 from .base import ASRSystem
@@ -24,6 +24,8 @@ class WhisperASR(ASRSystem):
         self.model_name = model_name
         self.language = language
         self._model = None
+        import whisper
+
         self.decoding_options = whisper.DecodingOptions(language=language)
         if self.device == "mps":
             self.device = "cpu"

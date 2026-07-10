@@ -27,6 +27,10 @@ trainer:
   compile: false
 
 data: &data # compute info from sample
+  resources:
+    transcript:
+      column: transcript
+      kind: text
   resource_providers:
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: token_ids

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import jiwer
 
-from .....data.types import AudioBatch
+from quick_convert.data.types import AudioBatch
 
 from .base import WERMetric
 

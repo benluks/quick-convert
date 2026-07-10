@@ -28,7 +28,7 @@ class OnlineResourceMixin:
         resource = batch.resources.get(name)
 
         if resource is not None:
-            return resource.values, resource.lengths
+            return resource
 
         encoder: ContentEncoder = self.online_encoders[name] if name in self.online_encoders else None
         if encoder is not None:

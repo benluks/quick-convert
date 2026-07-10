@@ -6,6 +6,7 @@ defaults:
   - _self_
 
 tokenizer_vocab_size: 1000
+tokenizer_model_path: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
 
 quantizer:
   _target_: quick_convert.components.layers.VectorQuantize

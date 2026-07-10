@@ -16,10 +16,13 @@ class TokenizerFeatureExtractor(BaseFeatureExtractor):
 
     @property
     def feature_name(self) -> str:
-        return "speaker_embedding"
+        return "tokenizer"
 
     @torch.inference_mode()
     def extract_batch(self, batch: AudioBatch) -> list[dict[str, torch.Tensor]]:
         tokens: Iterable[torch.LongTensor] = self.encoder.encode(batch.resources["transcript"])
 
         return tokens
+
+    def decode_batch(self, batch: AudioBatch):
+        pass
