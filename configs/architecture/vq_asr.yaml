@@ -3,15 +3,18 @@
 defaults:
   - /global: default
   - /components/encoders@ctc_head: linguistic_head
+  - /components/encoders@post_quantization_network: conformer_encoder
   - _self_
 
 tokenizer_vocab_size: 1000
 tokenizer_model_path: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
+vq_dim: 256
+post_quant_dim: ${.vq_dim}
 
 quantizer:
   _target_: quick_convert.components.layers.VectorQuantize
   input_dim: ${trainer.module.online_encoders.content.feature_dim}
-  codebook_dim: 256
+  codebook_dim: ${..vq_dim}
   codebook_size: 64
   output_dim: ${.codebook_dim}
 ctc_head:
@@ -23,3 +26,7 @@ ctc_head:
 layer_fusion:
   _target_: quick_convert.components.layers.LayerWeightedSum
   num_layers: 24
+post_quantization_network:
+  num_blocks: 2
+  input_dim: ${..vq_dim}
+  embed_dim: ${..vq_dim}

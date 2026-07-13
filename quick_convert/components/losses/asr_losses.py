@@ -8,7 +8,7 @@ import torch.nn.functional as F
 @dataclass
 class CTCOutput:
     logits: torch.Tensor
-    probs: torch.Tensor
+    log_probs: torch.Tensor
     loss: torch.Tensor
 
 
@@ -35,13 +35,13 @@ class CTCLoss(nn.Module):
         target_lengths: torch.LongTensor,
     ) -> torch.FloatTensor:
         logits = self.ctc_l(x)
-        x = x.log_softmax(dim=-1)  # Log probabilities for CTC loss
+        log_probs = logits.log_softmax(dim=-1)  # Log probabilities for CTC loss
         ctc_loss = F.ctc_loss(
-            x,
+            log_probs,
             linguistic_targets,
             input_lengths=input_lengths,
             target_lengths=target_lengths,
             blank=self.blank_id,  # Assuming 0 is the blank token ID
             reduction=self.reduction,
         )
-        return CTCOutput(logits=logits, probs=x, loss=ctc_loss)
+        return CTCOutput(logits=logits, log_probs=log_probs, loss=ctc_loss)

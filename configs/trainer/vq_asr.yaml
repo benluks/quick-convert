@@ -14,3 +14,4 @@ module:
   ctc_head: ${architecture.ctc_head}
   layer_fusion: ${architecture.layer_fusion}
   tokenizer_model_path: ${architecture.tokenizer_model_path}
+  post_quantization_network: ${architecture.post_quantization_network}

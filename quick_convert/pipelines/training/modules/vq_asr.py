@@ -37,10 +37,13 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         quantizer: VectorQuantize,
         ctc_head: LinguisticCTCHead,
         tokenizer_model_path: Path = None,
+        layer_fusion: Optional[LayerWeightedSum] = None,
+        # contextual model to be able to break the independence sampling,
+        # something but cpaable of modelling context
+        post_quantization_network: Optional[nn.Module] = None,
         online_encoders: Optional[dict[str, ContentEncoder]] = None,
         optimizer: Callable[..., torch.optim.Optimizer] = torch.optim.AdamW,
         lr_scheduler: Optional[Callable[..., LRScheduler]] = None,
-        layer_fusion: Optional[LayerWeightedSum] = None,
         ctc_loss_weight: float = 1.0,
         commitment_loss_weight: float = 1.0,
         codebook_loss_weight: float = 1.0,
@@ -57,6 +60,7 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         self.ctc_loss_weight = ctc_loss_weight
         self.commitment_loss_weight = commitment_loss_weight
         self.codebook_loss_weight = codebook_loss_weight
+        self.post_quantization_network = post_quantization_network
 
         # decoding for eval
         self.tokenizer = SentencePieceProcessor(model_file=tokenizer_model_path)
@@ -94,9 +98,10 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
 
         # back to [B, T, D]
         quantized = quantizer_output.z_q.transpose(1, 2)
+        contextual_output = self.post_quantization_network(quantized, padding_mask)
 
         ctc_output: CTCOutput = self.ctc_head.compute_loss(
-            quantized,
+            contextual_output,
             token_ids.values,
             input_lengths=feature_lengths,
             target_lengths=token_ids.lengths,
@@ -153,3 +158,12 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
             on_epoch=True,
             prog_bar=True,
         )
+
+    def on_after_backward(self):
+        """
+        purely for debugging purposes
+        """
+        for name, param in self.named_parameters():
+            if (param.grad is not None) and (not param.grad.isfinite().all()):
+                print(name, param.grad.norm())
+                

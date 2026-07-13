@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Optional
 
 import torch
@@ -69,8 +70,8 @@ class ConformerEncoder(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,
-        padding_mask: Optional[torch.Tensor] = None,
+        x: float["b t d"],
+        padding_mask: Optional[float["b t [1]"]] = None,
     ) -> torch.Tensor:
         x = self.input_proj(x)
         for block in self.blocks:
