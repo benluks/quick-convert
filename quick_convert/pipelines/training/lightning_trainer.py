@@ -94,19 +94,6 @@ class LightningTrainer(BaseTrainer):
         self.module.setup_training(train_dataset)
         trainer_kwargs = self._trainer_kwargs_with_ddp(self.trainer_kwargs)
 
-        # for index in self.module.indexers.values():
-        #     index.fit(train_dataset.rows)
-
-        # build the losses that are dependent on some other indexed value, and therefore
-        # couldn't be passed in the hydra config. For example, if the speaker identification
-        # index is only build in the line above, then we wouldn't know the number of output classes
-        # needed until now. The output projection layer is built in the loss (e.g. `AAMSoftmaxLoss()`)
-        for module in self.module.modules():
-            if module is self:
-                continue
-            if hasattr(module, "build_loss"):
-                module.build_loss(self.module.indexers)
-
         # `ckpt_path` is a Trainer.fit() argument, not a Trainer() constructor
         # argument, so pull it out before building the Trainer. Pass
         # `+pipeline.train_kwargs.ckpt_path=last` (or an explicit .ckpt path) to

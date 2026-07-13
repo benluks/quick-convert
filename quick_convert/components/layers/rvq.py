@@ -51,7 +51,7 @@ class VectorQuantize(nn.Module):
         # for backward compat, default to outputting input dim, but optionally skip output proj
         self.output_dim = output_dim or input_dim
         self.out_proj = (
-            nn.Identity() if output_dim == codebook_dim else WNConv1d(codebook_dim, output_dim, kernel_size=1)
+            nn.Identity() if output_dim == codebook_dim else WNConv1d(codebook_dim, self.output_dim, kernel_size=1)
         )
         self.codebook = nn.Embedding(codebook_size, codebook_dim)
 

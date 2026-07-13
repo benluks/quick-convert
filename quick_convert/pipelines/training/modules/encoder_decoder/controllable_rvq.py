@@ -207,6 +207,22 @@ class ControllableRVQTrainingModule(BaseEncoderDecoderTrainingModule):
             raise RuntimeError(f"""Ensure batch has resource named {name} or this value can be computed using the appropriate encoder.
                                name='{name}'""")
 
+    def setup_training(self, train_dataset):
+
+        # index spkid
+        for index in self.indexers.values():
+            index.fit(train_dataset.rows)
+
+        # build the losses that are dependent on some other indexed value, and therefore
+        # couldn't be passed in the hydra config. For example, if the speaker identification
+        # index is only build in the line above, then we wouldn't know the number of output classes
+        # needed until now. The output projection layer is built in the loss (e.g. `AAMSoftmaxLoss()`)
+        for module in self.modules():
+            if module is self:
+                continue
+            if hasattr(module, "build_loss"):
+                module.build_loss(self.indexers)
+
     def _shared_step(self, batch: AudioBatch, stage: str) -> ControllableRVQOutput:
         """Compute all losses, log them, and return the total loss.
 

@@ -25,6 +25,9 @@ trainer:
   ddp:
     enabled: false
   compile: false
+  module:
+    commitment_loss_weight: 0.1
+    codebook_loss_weight: 0.1
 
 data: &data # compute info from sample
   resources:

@@ -16,14 +16,13 @@ dataset_path: ${out_root}/${dataset_name}
 
 max_feature_length: 1757
 
-trainer:
+pipeline:
   batch_size: 32
-  train_kwargs:
-    max_epochs: 9
-  module:
-    online_encoders:
-      content:
-        max_length: ${max_feature_length}
+  trainer:
+    module:
+      online_encoders:
+        content:
+          max_length: ${max_feature_length}
 
 data: &data # read info from manifest csv
   resources:

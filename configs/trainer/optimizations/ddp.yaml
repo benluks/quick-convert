@@ -1,7 +1,6 @@
-ddp:
-  enabled: true
-  accelerator: gpu
-  devices: auto
-  num_nodes: 1
-  strategy: ddp_find_unused_parameters_true
-  sync_batchnorm: false
+enabled: false
+accelerator: gpu
+devices: auto
+num_nodes: 1
+strategy: ddp_find_unused_parameters_true
+sync_batchnorm: false

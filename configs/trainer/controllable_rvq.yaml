@@ -11,26 +11,15 @@ defaults:
   - _self_
 
 _target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
-cudnn_benchmark: true
 
-# Precision for mixed-precision training.
-# Options: "32", "16-mixed" (fp16), "bf16-mixed" (bf16, recommended for flash attention)
-precision: 32
+# cudnn, ddp and compile are disabled by default. Switch enabled to true to turn on
+cudnn_benchmark: true
 
 ddp:
   enabled: true
-  accelerator: gpu
-  devices: auto
-  num_nodes: 1
-  strategy: ddp_find_unused_parameters_true
-  sync_batchnorm: false
 
 compile:
   enabled: true
-  backend: inductor
-  mode: default
-  fullgraph: false
-  dynamic: false
   targets:
     - encoder
     - decoder

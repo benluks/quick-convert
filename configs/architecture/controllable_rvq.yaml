@@ -21,17 +21,17 @@ tokenizer_vocab_size: 1000
 mel_dim: 80
 
 feature_extractors:
-  content: ${architecture.content_ssl}
-  emotion: ${architecture.emotion_ssl}
+  content: ${..content_ssl}
+  emotion: ${..emotion_ssl}
 
 content_encoder:
-  input_dim: ${architecture.content_ssl.feature_dim}
-  embed_dim: ${architecture.encoder_dim}
-  num_ssl_layers: ${architecture.num_feature_layers}
+  input_dim: ${..content_ssl.feature_dim}
+  embed_dim: ${..encoder_dim}
+  num_ssl_layers: ${..num_feature_layers}
 
 encoder:
   rvq:
-    input_dim: ${architecture.content_encoder.embed_dim}
+    input_dim: ${...content_encoder.embed_dim}
     n_codebooks: 8
     codebook_size: 1024
     codebook_dim: 16
@@ -41,30 +41,30 @@ encoder:
 
   emotion_head:
     _target_: quick_convert.components.encoders.LinearHead
-    input_dim: ${architecture.encoder.rvq.input_dim}
-    output_dim: ${architecture.feature_extractors.emotion.feature_dim}
+    input_dim: ${..rvq.input_dim}
+    output_dim: ${...feature_extractors.emotion.feature_dim}
 
   linguistic_head:
-    hidden_dim: ${architecture.encoder.rvq.input_dim}
+    hidden_dim: ${..rvq.input_dim}
     loss:
-      hidden_dim: ${architecture.encoder.rvq.input_dim}
-      output_dim: ${architecture.tokenizer_vocab_size}
+      hidden_dim: ${...rvq.input_dim}
+      output_dim: ${....tokenizer_vocab_size}
 
   speaker_head:
-    input_dim: ${architecture.encoder.rvq.input_dim}
+    input_dim: ${..rvq.input_dim}
     hidden_dim: 256
     output_dim: 128 #Number of speakers#${architecture.feature_extractors.speaker.feature_dim}
     supervision: aam
     loss:
-      in_dim: ${architecture.encoder.speaker_head.output_dim}
+      in_dim: ${..output_dim}
 
   prosody_head: null
 
   router:
     _target_: quick_convert.components.encoders.RVQLayerRouter
     n_classes: 3
-    codebook_dim: ${architecture.encoder.rvq.codebook_dim}
-    codebook_size: ${architecture.encoder.rvq.codebook_size}
+    codebook_dim: ${..rvq.codebook_dim}
+    codebook_size: ${..rvq.codebook_size}
     gumbel_tau: 1.0
 # _target_: quick_convert.components.encoders.LinearHead
 # input_dim: ${architecture.ssl_dim}
@@ -73,13 +73,13 @@ encoder:
 decoder:
   cond_strategy: null
   flow:
-    spk_embed_dim: ${architecture.encoder.speaker_head.output_dim}
+    spk_embed_dim: ${...encoder.speaker_head.output_dim}
     vocab_size: null
     encoder:
       num_blocks: 6
       embed_dim: 256
       # hardcoded for now. 2 because ling_q +  emo_pros_q
-      input_dim: ${mul:2,${architecture.encoder_dim}}
+      input_dim: ${mul:2,${....encoder_dim}}
     decoder:
       estimator:
-        in_channels: ${mul:${add:3,${bool:${architecture.decoder.cond_strategy}}},${architecture.mel_dim}}
+        in_channels: ${mul:${add:3,${bool:${....cond_strategy}}},${.....mel_dim}}
