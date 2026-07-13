@@ -41,16 +41,21 @@ class VectorQuantize(nn.Module):
             improves training stability
     """
 
-    def __init__(self, input_dim: int, codebook_size: int, codebook_dim: int):
+    def __init__(self, input_dim: int, codebook_size: int, codebook_dim: int, output_dim: Optional[int] = None):
         super().__init__()
         self.codebook_size = codebook_size
         self.codebook_dim = codebook_dim
 
         self.in_proj = WNConv1d(input_dim, codebook_dim, kernel_size=1)
-        self.out_proj = WNConv1d(codebook_dim, input_dim, kernel_size=1)
+
+        # for backward compat, default to outputting input dim, but optionally skip output proj
+        self.output_dim = output_dim or input_dim
+        self.out_proj = (
+            nn.Identity() if output_dim == codebook_dim else WNConv1d(codebook_dim, self.output_dim, kernel_size=1)
+        )
         self.codebook = nn.Embedding(codebook_size, codebook_dim)
 
-    def forward(self, z, padding_mask):
+    def forward(self, z, padding_mask, loss_reduction="sample"):
         """Quantized the input tensor using a fixed codebook and returns
         the corresponding codebook vectors
 
@@ -78,10 +83,10 @@ class VectorQuantize(nn.Module):
         z_q, indices = self.decode_latents(z_e)
 
         commitment_loss = masked_loss(
-            F.mse_loss, z_e.transpose(1, 2), z_q.detach().transpose(1, 2), mask=padding_mask, reduction="sample"
+            F.mse_loss, z_e.transpose(1, 2), z_q.detach().transpose(1, 2), mask=padding_mask, reduction=loss_reduction
         )
         codebook_loss = masked_loss(
-            F.mse_loss, z_q.transpose(1, 2), z_e.detach().transpose(1, 2), mask=padding_mask, reduction="sample"
+            F.mse_loss, z_q.transpose(1, 2), z_e.detach().transpose(1, 2), mask=padding_mask, reduction=loss_reduction
         )
 
         z_q = z_e + (z_q - z_e).detach()  # noop in forward pass, straight-through gradient estimator in backward pass

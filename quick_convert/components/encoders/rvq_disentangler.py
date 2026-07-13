@@ -284,7 +284,7 @@ class RVQDisentangler(nn.Module):
         else:
             pros_loss = 0.0
 
-        ctc_loss = self.linguistic_head.compute_loss(
+        ctc_output = self.linguistic_head.compute_loss(
             z_ling,
             linguistic_targets,
             input_lengths=lengths,
@@ -292,7 +292,7 @@ class RVQDisentangler(nn.Module):
         )
 
         distill_losses = {
-            "ctc_loss": ctc_loss,
+            "ctc_loss": ctc_output.loss,
             "spk_loss": spk_output.loss,
             "pros_loss": pros_loss,
             "emo_loss": emo_loss,
@@ -348,6 +348,7 @@ class RVQDisentangler(nn.Module):
         }
         head_outputs = {
             "spk": spk_output,
+            "ctc": ctc_output,
         }
 
         loss = RVQDisentanglerLoss(

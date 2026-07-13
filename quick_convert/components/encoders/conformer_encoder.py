@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Optional
 
 import torch
@@ -69,13 +70,14 @@ class ConformerEncoder(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,
-        padding_mask: Optional[torch.Tensor] = None,
+        x: float["b t d"],
+        padding_mask: Optional[float["b t [1]"]] = None,
     ) -> torch.Tensor:
         x = self.input_proj(x)
         for block in self.blocks:
             x = block(x, padding_mask=padding_mask)
         return x
+
 
 class ConformerEncoderSSL(nn.Module):
     """
@@ -151,7 +153,7 @@ class ConformerEncoderSSL(nn.Module):
         padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         layer_weights = F.softmax(self.layer_weights, dim=-1)  # (1, L)
-        x = torch.einsum("btlc,kl->btc", x, layer_weights)  # (B, T, H, D_in)
+        x = torch.einsum("btlc,kl->btc", x, layer_weights)  # (B, T, C)
         x = self.input_proj(x)
         for block in self.blocks:
             x = block(x, padding_mask=padding_mask)
