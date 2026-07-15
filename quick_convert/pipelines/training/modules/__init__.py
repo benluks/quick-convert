@@ -1,10 +1,6 @@
-from .encoder_decoder.base import BaseEncoderDecoderTrainingModule
-from .encoder_decoder.controllable_rvq import ControllableRVQTrainingModule
 from .tokenizer.bpe import SentencePieceBPETrainer
+from .base import BaseTrainingModule
+from .vq_asr import VQASRTrainingModule
 
 
-__all__ = [
-    "BaseEncoderDecoderTrainingModule",
-    "ControllableRVQTrainingModule",
-    "SentencePieceBPETrainer",
-]
+__all__ = ["SentencePieceBPETrainer", "BaseTrainingModule", "VQASRTrainingModule"]

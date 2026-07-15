@@ -24,7 +24,7 @@ environment that only needs one encoder avoid installing the others' deps.
 from importlib import import_module
 
 # Base classes are lightweight (only torch) and are imported elsewhere as base
-# classes / type hints (e.g. controllable_rvq.py: `from quick_convert.components.ssl
+# classes / type hints (e.g. `from quick_convert.components.ssl
 # import ContentEncoder, ContentFeatures`), so expose them eagerly. The heavy
 # concrete encoders below stay lazy.
 from .base import ContentEncoder, ContentFeatures
