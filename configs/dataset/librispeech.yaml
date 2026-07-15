@@ -1,16 +1,16 @@
+# @package _global_
 # configs/dataset/librispeech.yaml
 
 _target_: quick_convert.data.BaseDataset
-#root: /cfs/collections/librispeech/LibriSpeech
-root: /scratch/elec/t412-speechsynth/DATA/LibriSpeech/tarballs/LibriSpeech
+root: ${data_root}/librispeech/Librispeech
 splits:
   - train-clean-100
-  #- train-clean-360
-  #- train-other-500
-  #- dev-clean
-  #- dev-other
-  #- test-clean
-  #- test-other
+  - train-clean-360
+  - train-other-500
+  - dev-clean
+  - dev-other
+  - test-clean
+  - test-other
 
 file_format: flac
 utt_id_template: "{path.stem}"

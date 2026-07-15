@@ -5,7 +5,7 @@ out_dir_suffix: ""
 device: cuda
 use_flash_attention: false
 # root for all datasets
-# data_root: /Users/ben
+data_root: /cfs/collections
 # gpu: null
 
 hydra:
