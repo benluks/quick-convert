@@ -1,0 +1,30 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: precompute_features
+  - /dataset: librispeech
+  - /components/feature_extractor@feature_extractor: content
+  - /components/ssl@encoder: w2vbert
+  - _self_
+
+dataset:
+  splits:
+    - train-clean-100
+    - train-clean-360
+    - train-other-500
+    - dev-clean
+    - dev-other
+    - test-clean
+    - test-other
+
+  load: true
+  target_sr: ${encoder.sample_rate}
+
+feature_extractor:
+  encoder:
+    downsample_factor: 4
+
+pipeline:
+  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/ssl@encoder}_6layer
+  batch_size: 64

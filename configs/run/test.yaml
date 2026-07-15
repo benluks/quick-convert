@@ -1,0 +1,19 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: test
+  - /dataset: manifest
+  - _self_
+
+dataset_name: librispeech
+resources_path: outputs/precomputed/${dataset_name}
+dataset_path: ${out_root}/${dataset_name}
+
+dataset:
+  resource_providers:
+    # - ${dataset.transcript_provider}
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: w2vbert
+      path_template: ${resources_path}/w2vbert/{sample.split}/{sample.utt_id}.pt

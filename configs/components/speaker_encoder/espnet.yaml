@@ -1,3 +1,5 @@
-_target_: quick_convert.components.speaker_encoders.espnet.ESPnetSpeakerEncoder
-model_tag: espnet/${model_name}
+_target_: quick_convert.components.speaker.ESPnetSpeakerEncoder
+model_tag: espnet/voxcelebs12_ecapa_wavlm_joint
 device: ${device}
+sample_rate: 16000
+feature_dim: 192

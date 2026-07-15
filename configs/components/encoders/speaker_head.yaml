@@ -1,0 +1,9 @@
+_target_: quick_convert.components.encoders.SpeakerASPHead
+input_dim: ???
+hidden_dim: ???
+output_dim: ???
+supervision: ???
+loss:
+  _target_: quick_convert.components.losses.AAMSoftmaxLoss
+  _partial_: true
+  in_dim: ???

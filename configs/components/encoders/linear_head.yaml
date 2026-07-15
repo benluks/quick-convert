@@ -1,0 +1,5 @@
+_target_: quick_convert.components.encoders.LinearHead
+input_dim: ???
+output_dim: ???
+loss:
+  _target_: quick_convert.components.losses.MaskedMSELoss

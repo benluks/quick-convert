@@ -30,7 +30,7 @@ class BaseAnonymizer(nn.Module, ABC, Generic[T_Target]):
     #     return self.feature_providers
 
     def load(self, audio_path, convert_to_mono=True):
-        wav = load_audio(audio_path, self.sr)
+        wav, _ = load_audio(audio_path, self.sr)
         # is stereo, but make sure it is in [channel, T] format.
         # for now, I don't see how wav could be batched audio so there's
         # no risk of averaging 2 audios

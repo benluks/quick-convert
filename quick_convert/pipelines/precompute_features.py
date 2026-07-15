@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from os import PathLike
 from pathlib import Path
 
 import torch
@@ -14,14 +15,14 @@ class PrecomputeFeaturesPipeline:
         self,
         dataset,
         extractor,
-        out_root: str | Path,
+        out_dir: PathLike,
         skip_existing: bool = False,
         batch_size: int = 1,
         num_workers: int = 0,
     ):
         self.dataset = dataset
         self.extractor = extractor
-        self.out_root = Path(out_root)
+        self.out_root = Path(out_dir)
         self.skip_existing = skip_existing
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -29,7 +30,7 @@ class PrecomputeFeaturesPipeline:
     def run(self) -> None:
         loader = self.dataset.make_dataloader(batch_size=self.batch_size, num_workers=self.num_workers)
 
-        feature_dir = self.out_root / self.extractor.feature_name
+        feature_dir = self.out_root
         feature_dir.mkdir(parents=True, exist_ok=True)
 
         manifest_path = feature_dir / "manifest.jsonl"

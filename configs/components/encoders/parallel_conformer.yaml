@@ -1,0 +1,13 @@
+_target_: quick_convert.components.encoders.ParallelConformerEncoder
+input_dim: ${architecture.content_encoder.input_dim}
+embed_dim: ${architecture.content_encoder.embed_dim}
+num_layers: ${architecture.content_encoder.num_ssl_layers}
+num_meta_heads: 4
+num_sub_heads: 4
+ffn_dim: 512
+conv_kernel_size: 31
+dropout: 0.1
+bias: true
+pos_emb_base: 10000.0
+use_flash_attention: ${use_flash_attention}
+pre_norm: false

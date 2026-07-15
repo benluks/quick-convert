@@ -1,0 +1,23 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: precompute_features
+  - /dataset: librispeech
+  - /components/feature_extractor@feature_extractor: speaker_embedding
+  - /components/speaker_encoder@encoder: espnet
+  - _self_
+
+dataset:
+  splits:
+    - train-clean-100
+  #  - train-other-500
+    - dev-other
+  #  - test-clean
+  #  - test-other
+
+  load: true
+  target_sr: ${encoder.sample_rate}
+
+pipeline:
+  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/speaker_encoder@encoder}_wavlm-ecapa-joint

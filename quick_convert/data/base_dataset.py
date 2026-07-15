@@ -1,21 +1,23 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import field, replace
 from fnmatch import fnmatch
 from os import PathLike
 from pathlib import Path
-from typing import Callable, Iterable, Optional, Union, Any
+from typing import Callable, Iterable, Literal, Optional, Union, Any
 
 import torch
 import torchaudio
+import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 
-from .features import PatternSidecarFeatureResolver
 
+from .resources import collate_resources, load_resource, ResourceRef, BaseResourceProvider, ResourceCollection
+
+from quick_convert.utils.paths import TemplateFormatter
 from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
-
-from ..utils.audio import get_supported_formats
+from ..utils.audio import get_supported_formats, load_audio
 
 
 class BaseDataset(Dataset):
@@ -27,27 +29,47 @@ class BaseDataset(Dataset):
         splits: Optional[Iterable[str]] = None,
         file_format: Optional[Union[str, Iterable[str]]] = None,
         paths: Optional[Iterable[Union[str, Path]]] = None,
-        load: bool = False,
+        rows: Optional[Iterable[MetadataSample]] = None,
+        load: Optional[bool | list[str] | Literal["all"]] = False,
         return_spkid: bool = False,
         target_sr: Optional[int] = None,
         convert_to_mono: bool = True,
         # pass a spkid function to avoid subclassing just to implement get_spkid logic
+        utt_id_template: Optional[str] = None,
+        get_utt_id_fn: Optional[Callable[[PathLike], str]] = None,
         get_spkid_fn: Optional[Callable[[PathLike], str]] = None,
         # feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
         pattern: Optional[str] = None,
         exclude_patterns: Optional[Iterable[str]] = None,
+        resource_providers: Iterable[BaseResourceProvider] = [],
+        sort_key: Optional[str] = "{row.path}",
+        # length to extend collated audio files to beyond the maximum sample length. This is used in
+        # cudnn benchmark where all batches must have the same shape. Expressed in number of samples after resampling
+        max_length: Optional[int] = None,
+        **kwargs,
     ):
-        if root is None and paths is None:
-            raise ValueError("You must provide either `root` or `paths`.")
-        if root is not None and paths is not None:
-            raise ValueError("Provide only one of `root` or `paths`, not both.")
+        sources = [
+            root is not None,
+            paths is not None,
+            rows is not None,
+        ]
+
+        if sum(sources) != 1:
+            raise ValueError(
+                f"Provide exactly one of `root`, `paths`, or `rows`. Got root={root}, paths={paths}, rows={rows}."
+            )
 
         self.file_formats = self._normalize_and_validate_format(file_format)
         self.splits = list(splits) if splits is not None else None
         self.convert_to_mono = convert_to_mono
+
+        # for determining utterance ID
+        self.utt_id_template = utt_id_template
+        self.get_utt_id_fn = get_utt_id_fn
+
         self.target_sr = target_sr
         self.root = Path(root) if root is not None else None
-        self.load = load
+
         self.return_spkid = return_spkid
         if get_spkid_fn is not None:
             self.get_spkid = get_spkid_fn
@@ -55,14 +77,21 @@ class BaseDataset(Dataset):
 
         self.pattern = pattern or "*"
         self.exclude_patterns = exclude_patterns or []
+        self.resource_providers = resource_providers
 
-        rows: list[MetadataSample] = []
+        self.load = self._normalize_load(load)
+        self.max_length = max_length
 
-        if paths is not None:
+        if rows is not None:
+            self.rows = rows
+            return
+
+        elif paths is not None:
             files = [Path(p) for p in paths if Path(p).is_file()]
             for p in files:
                 rows.append(
                     MetadataSample(
+                        utt_id=self.get_utt_id(p),
                         path=p,
                         spk_id=self.get_spkid(p) if return_spkid else None,
                     )
@@ -86,7 +115,7 @@ class BaseDataset(Dataset):
                     search_roots.append((split, split_root))
 
             file_formats = self.file_formats if self.file_formats is not None else self.VALID_FORMATS
-
+            rows = []
             for split, search_root in search_roots:
                 for p in search_root.rglob(self.pattern):
                     if not p.is_file():
@@ -97,13 +126,15 @@ class BaseDataset(Dataset):
                         continue
                     rows.append(
                         MetadataSample(
+                            utt_id=self.get_utt_id(p),
                             path=p,
                             split=split,
-                            spk_id=self.get_spkid(p) if return_spkid else None,
+                            # spk_id=self.get_spkid(p) if return_spkid else None,
                         )
                     )
 
-        self.rows = sorted(rows, key=lambda row: str(row.path))
+        self.sort_key = sort_key
+        self.rows = sorted(rows, key=lambda row: TemplateFormatter.format_str(sort_key, row=row))
 
     @classmethod
     def _normalize_and_validate_format(cls, file_format: Optional[Union[str, Iterable[str]]]) -> Optional[set[str]]:
@@ -125,87 +156,85 @@ class BaseDataset(Dataset):
 
         return normalized
 
+    def _normalize_load(self, load: bool | list[str] | Literal["all"] | None) -> bool | set[str]:
+        if load is None or load is False:
+            return []
+
+        if load is True or load == "all":
+            return {"audio"}.union({provider.name for provider in self.resource_providers})
+
+        if isinstance(load, str):
+            return {load}
+
+        return set(load)
+
+    def _should_load(self, ref: ResourceRef | Literal["audio"]) -> bool:
+        if getattr(ref, "value", None) is not None:
+            return False
+        name = "audio" if ref == "audio" else ref.name
+        return name in self.load
+
     def __len__(self) -> int:
         return len(self.rows)
 
     def __getitem__(self, idx: int) -> AudioSample:
         sample = self.rows[idx]
 
-        if self.load:
+        if self._should_load("audio"):
             sample = self.load_sample(sample)
 
-        features = dict(getattr(sample, "features", {}) or {})
+        resource_refs = list(sample.resources) + [provider(sample) for provider in self.resource_providers]
+        resources = ResourceCollection.from_refs(resource_refs)
 
-        # for resolver in self.feature_resolvers:
-        #     features.update(resolver.resolve(sample))
+        for name, ref in resources.items():
+            if self._should_load(ref):
+                resources[name] = load_resource(ref)
 
-        return replace(sample, features=features)
+        # materialize resources here
+
+        return replace(sample, resources=resources)
 
     def _is_excluded(self, path: Path) -> bool:
         return any(fnmatch(path.name, pattern) or fnmatch(str(path), pattern) for pattern in self.exclude_patterns)
 
-    def get_spkid(self, file_path: PathLike) -> str:
-        raise NotImplementedError(f"{type(self).__name__} must implement `get_spkid` when `return_spkid=True`.")
+    def get_utt_id(self, path: Path) -> str:
+        if self.get_utt_id_fn is not None:
+            return self.get_utt_id_fn(path)
 
-    def load_audio(self, path: Path, sample_rate: Optional[int] = None) -> tuple[torch.Tensor, int]:
-        try:
-            waveform, sr = torchaudio.load(str(path))
-        except Exception as e:
-            raise RuntimeError(f"Failed to load audio file: {path}") from e
-        # Convert to mono if needed.
-        if waveform.dim() == 2 and waveform.shape[0] > 1 and self.convert_to_mono:
-            waveform = waveform.mean(dim=0, keepdim=True)
-        if sample_rate is not None:
-            waveform = torchaudio.functional.resample(waveform, orig_freq=sr, new_freq=sample_rate)
-            sr = sample_rate
-        return waveform, sr
+        elif self.utt_id_template is not None:
+            return TemplateFormatter.format_str(
+                self.utt_id_template,
+                path=path,
+            )
+        else:
+            raise RuntimeError(
+                f"No method for determining utt_id. Please provide either `utt_id_template` or `get_utt_id_fn` when initializing {type(self).__name__}."
+            )
 
     def load_sample(self, sample: AudioSample) -> dict[str, Any]:
         """
         If target_sr is set, loading will resample audio. I haven't implemented a way to override this.
         Maybe it's better to leave the resampling concern to a different part of the pipeline. Time will tell.
         """
-        waveform, sample_rate = self.load_audio(sample.path, self.target_sr)
+        waveform, sample_rate = load_audio(sample.path, target_sr=self.target_sr, mono=self.convert_to_mono)
         return AudioSample(
+            utt_id=sample.utt_id,
             path=sample.path,
             split=sample.split,
-            spk_id=sample.spk_id,
+            # spk_id=sample.spk_id,
             waveform=waveform,
             sample_rate=sample_rate,
+            resources=sample.resources,
         )
 
-    def collate_fn(self, batch: list[AudioSample]) -> Any:
-        """
-        Default collate behavior.
+    def _collate_dicts(self, batch: list[AudioSample], property="resources") -> dict[str, list[Any]]:
+        return {
+            key: [d.get(key) for d in (getattr(item, property) or {} for item in batch)]
+            for key in {k for item in batch for k in (getattr(item, property) or {})}
+        }
 
-        - If self.load=False, returns a metadata batch.
-        - If self.load=True, pads variable-length waveforms and returns tensors + metadata.
-        """
-        if not self.load:
-            return MetadataBatch(
-                paths=[item.path for item in batch],
-                splits=[item.split for item in batch],
-                spk_ids=[item.spk_id for item in batch],
-            )
-
-        # list[[1 t]]
-        waveforms = [item.waveform.squeeze(0) for item in batch]
-        lengths = torch.tensor([w.shape[-1] for w in waveforms], dtype=torch.long)
-
-        padded = pad_sequence(waveforms, batch_first=True)
-
-        sample_rates = [item.sample_rate for item in batch]
-        # if len(set(sample_rates)) != 1:
-        #     raise ValueError(f"Batch contains multiple sample rates: {sorted(set(sample_rates))}")
-
-        return AudioBatch(
-            waveforms=padded,
-            lengths=lengths,
-            sample_rates=sample_rates,
-            paths=[item.path for item in batch],
-            splits=[item.split for item in batch],
-            spk_ids=[item.spk_id for item in batch],
-        )
+    def collate_fn(self, batch: list[AudioSample]) -> MetadataBatch | AudioBatch:
+        return AudioBatch.from_samples(batch, max_length=self.max_length)
 
     def make_dataloader(
         self,

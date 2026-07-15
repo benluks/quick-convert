@@ -1,0 +1,40 @@
+import torch
+import torch.nn as nn
+
+from quick_convert.utils.masking import masked_loss
+
+from quick_convert.utils.masking import masked_loss
+from quick_convert.components.losses.distil_losses import BaseDistilLoss, MSELoss, MaskedMSELoss
+
+
+class LinearHead(nn.Module):
+    """
+    Simple linear head that applies a linear layer to the content encoder output.
+    """
+
+    def __init__(
+        self,
+        input_dim: int = 512,
+        output_dim: int = 128,
+        loss: BaseDistilLoss = MaskedMSELoss("frame"),
+    ):
+        super().__init__()
+        self.ln = nn.LayerNorm(input_dim)
+        self.linear_head = nn.Linear(input_dim, output_dim)
+        self.loss = loss
+
+    def forward(self, content_features: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            content_features: (B, T, input_dim) output of the content encoder
+
+        Returns:
+            predicted_features: (B, T, output_dim)
+        """
+        return self.linear_head(self.ln(content_features))
+
+    def compute_loss(self, x: torch.FloatTensor, targets: torch.FloatTensor, mask: torch.LongTensor) -> torch.Tensor:
+        """Compute loss between predicted features and target features."""
+        x = self.forward(x)
+
+        return self.loss(x, targets, mask=mask)

@@ -1,0 +1,8 @@
+_target_: quick_convert.components.encoders.ConformerEncoderSSL
+input_dim: ${architecture.content_encoder.input_dim}
+embed_dim: ${architecture.content_encoder.embed_dim}
+output_dim: 256
+num_blocks: 4
+num_ssl_layers: ${architecture.content_encoder.num_ssl_layers}
+use_flash_attention: ${use_flash_attention}
+pre_norm: false

@@ -1,0 +1,26 @@
+# @package _global_
+# configs/run/precompute_content_dac_librispeech.yaml
+# Phase 1: precompute frozen DAC-16k content features (mirrors the w2vbert one,
+# minus downsample_factor — DAC emits a single latent).
+defaults:
+  - /global: default
+  - /pipeline: precompute_features
+  - /dataset: librispeech
+  - /components/feature_extractor@feature_extractor: content
+  - /components/ssl@encoder: dac
+  - _self_
+
+dataset:
+  splits:
+    - train-clean-100
+    - train-clean-360
+    - train-other-500
+    - dev-clean
+    - dev-other
+  load: true
+  target_sr: ${encoder.sample_rate}   # 16000 — DAC-16k
+
+pipeline:
+  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/dac16k
+  # idempotent: safe to resume timed-out jobs (already-written utts are skipped)
+  skip_existing: true

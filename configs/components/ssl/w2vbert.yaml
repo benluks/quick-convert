@@ -1,0 +1,6 @@
+_target_: quick_convert.components.ssl.W2VBertContentEncoder
+sample_rate: 16000
+device: ${device}
+model_name: facebook/w2v-bert-2.0
+feature_dim: 1024
+downsample_factor: 0

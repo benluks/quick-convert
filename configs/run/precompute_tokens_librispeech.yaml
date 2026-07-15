@@ -1,0 +1,28 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: precompute_features
+  - /dataset: librispeech
+  - /components/feature_extractor@feature_extractor: tokenizer
+  # skipping the encoder. feature extractor computes directly. That means
+  # this isn't robust to different tokenizers for now.
+  - _self_
+
+dataset:
+  splits:
+    - train-clean-100
+    - train-clean-360
+    - train-other-500
+    - dev-clean
+    - dev-other   # val set loads token_ids too
+  resource_providers:
+    - ${dataset.transcript_provider}
+  load: false
+
+feature_extractor:
+  encoder:
+    model_file: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
+
+pipeline:
+  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/tokenizer
