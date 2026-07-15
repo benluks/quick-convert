@@ -46,8 +46,8 @@ data: &data # compute info from sample
 
 train_dataset:
   <<: *data
-  manifest_path: ${dataset_path}/test-other/manifest.csv
+  manifest_path: ${dataset_path}/speaker_split/train_cfs.csv
 
 val_dataset:
   <<: *data
-  manifest_path: ${dataset_path}/test-other/manifest.csv
+  manifest_path: ${dataset_path}/speaker_split/val_cfs.csv
