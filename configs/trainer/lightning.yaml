@@ -51,3 +51,6 @@ trainer_kwargs:
       mode: min
       save_top_k: 1
       save_last: false
+
+    - _target_: lightning.pytorch.callbacks.LearningRateMonitor
+      logging_interval: step

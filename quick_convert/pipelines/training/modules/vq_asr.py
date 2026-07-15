@@ -19,6 +19,7 @@ from torch.optim.lr_scheduler import LRScheduler
 
 from quick_convert.data.types import AudioBatch
 from quick_convert.pipelines.training.modules.base import BaseTrainingModule
+from quick_convert.pipelines.training.optim.base import Optimization
 from quick_convert.utils.masking import make_padding_mask
 from quick_convert.systems.asr.utils import greedy_ctc_decode
 from quick_convert.pipelines.evaluation.metrics.wer.jiwer_wer import JiwerWER
@@ -36,21 +37,19 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         self,
         quantizer: VectorQuantize,
         ctc_head: LinguisticCTCHead,
+        optimization: Optimization,
         tokenizer_model_path: Path = None,
         layer_fusion: Optional[LayerWeightedSum] = None,
         # contextual model to be able to break the independence sampling,
         # something but cpaable of modelling context
         post_quantization_network: Optional[nn.Module] = None,
         online_encoders: Optional[dict[str, ContentEncoder]] = None,
-        optimizer: Callable[..., torch.optim.Optimizer] = torch.optim.AdamW,
-        lr_scheduler: Optional[Callable[..., LRScheduler]] = None,
         ctc_loss_weight: float = 1.0,
         commitment_loss_weight: float = 1.0,
         codebook_loss_weight: float = 1.0,
     ):
         super().__init__(
-            optimizer=optimizer,
-            lr_scheduler=lr_scheduler,
+            optimization=optimization,
         )
 
         self.quantizer = quantizer
@@ -166,4 +165,3 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         for name, param in self.named_parameters():
             if (param.grad is not None) and (not param.grad.isfinite().all()):
                 print(name, param.grad.norm())
-                
