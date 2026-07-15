@@ -5,7 +5,7 @@ defaults:
   # belongs to LightningTrainer base
   - lightning
   - /architecture@_global_.architecture: vq_asr
-  - /trainer/optimizer@module.optimizer: adamw
+  - /trainer/optimizer@module.optimization: adamw_cosine
   - _self_
 
 module:
@@ -15,3 +15,8 @@ module:
   layer_fusion: ${architecture.layer_fusion}
   tokenizer_model_path: ${architecture.tokenizer_model_path}
   post_quantization_network: ${architecture.post_quantization_network}
+  optimization:
+    warmup:
+      steps: 5000
+    optimizer_kwargs:
+      lr: 1e-4

@@ -4,18 +4,23 @@ from __future__ import annotations
 
 import abc
 from collections.abc import Callable
-from typing import Protocol, TypeVar
+from typing import Protocol, TypeVar, Union
 
 import lightning as L
 import torch
 
 from quick_convert.data import AudioBatch, BaseDataset
+from ..optim.base import Optimization
 
 
 class TrainingStepOutput(Protocol):
-    """Structural interface for outputs returned by a training step."""
-
     loss: torch.Tensor
+
+
+StepOutputT = TypeVar(
+    "StepOutputT",
+    bound=TrainingStepOutput,
+)
 
 
 StepOutputT = TypeVar("StepOutputT", bound=TrainingStepOutput)
@@ -40,13 +45,11 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
 
     def __init__(
         self,
-        optimizer: Callable[..., torch.optim.Optimizer] = torch.optim.AdamW,
-        lr_scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | None = None,
+        optimization: Optimization,
     ) -> None:
         super().__init__()
 
-        self.optimizer_factory = optimizer
-        self.lr_scheduler_factory = lr_scheduler
+        self.optimization = optimization
 
     def setup_training(self, train_dataset: BaseDataset) -> None:
         """Perform dataset-dependent initialization before training.
@@ -99,23 +102,10 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
         pass
 
     def configure_optimizers(self):
-        params = [parameter for parameter in self.parameters() if parameter.requires_grad]
-
-        optimizer = self.optimizer_factory(params=params)
-
-        if self.lr_scheduler_factory is None:
-            return optimizer
-
-        scheduler = self.lr_scheduler_factory(optimizer=optimizer)
-
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": scheduler,
-                "interval": "step",
-                "frequency": 1,
-            },
-        }
+        return self.optimization.configure(
+            parameters=self.parameters(),
+            total_steps=self.trainer.estimated_stepping_batches,
+        )
 
     def load_for_inference(
         self,
