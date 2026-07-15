@@ -1,0 +1,27 @@
+# configs/optimization/adamw_cosine_warmup.yaml
+
+_target_: quick_convert.pipelines.training.optim.base.Optimization
+
+optimizer:
+  _target_: hydra.utils.get_class
+  path: torch.optim.AdamW
+
+optimizer_kwargs:
+  lr: ???
+
+lr_scheduler:
+  _target_: hydra.utils.get_class
+  path: torch.optim.lr_scheduler.CosineAnnealingLR
+
+lr_scheduler_kwargs:
+  T_max: 95000
+  eta_min: 1.0e-6
+
+warmup:
+  _target_: quick_convert.pipelines.training.optim.base.LinearWarmup
+  steps: 0.05
+  start_factor: 1.0e-6
+
+interval: step
+frequency: 1
+monitor: null
