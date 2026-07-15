@@ -1,5 +1,3 @@
-"""SSL/TLS components for quick-convert.
-
 from .dac import DACContentEncoder
 from .emo2vec import EmotionEncoder
 from .pros2vec import ProsodyEncoder
@@ -9,42 +7,8 @@ from .base import ContentEncoder, ContentFeatures
 __all__ = [
     "ContentEncoder",
     "ContentFeatures",
+    "DACContentEncoder",
     "EmotionEncoder",
     "ProsodyEncoder",
     "W2VBertContentEncoder",
-]"""
-
-"""SSL/TLS components for quick-convert.
-
-Lazy imports: each encoder module (and its heavy deps like transformers / funasr /
-dac) is only imported when that specific class is first accessed. This lets an
-environment that only needs one encoder avoid installing the others' deps.
-"""
-
-from importlib import import_module
-
-# Base classes are lightweight (only torch) and are imported elsewhere as base
-# classes / type hints (e.g. `from quick_convert.components.ssl
-# import ContentEncoder, ContentFeatures`), so expose them eagerly. The heavy
-# concrete encoders below stay lazy.
-from .base import ContentEncoder, ContentFeatures
-
-_LAZY = {
-    "DACContentEncoder": ".dac",
-    "EmotionEncoder": ".emo2vec",
-    "ProsodyEncoder": ".pros2vec",
-    "W2VBertContentEncoder": ".w2vbert",
-}
-
-__all__ = ["ContentEncoder", "ContentFeatures", *_LAZY]
-
-
-def __getattr__(name: str):
-    module = _LAZY.get(name)
-    if module is None:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    return getattr(import_module(module, __name__), name)
-
-
-def __dir__():
-    return sorted(__all__)
+]

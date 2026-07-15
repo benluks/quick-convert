@@ -6,7 +6,6 @@ from typing import Optional
 
 import torch
 import torchaudio
-from transformers import AutoFeatureExtractor, AutoModel
 
 from quick_convert.data.types import AudioBatch
 
@@ -40,6 +39,8 @@ class W2VBertContentEncoder(ContentEncoder):
             assert self.layer is None, (
                 "Cannot have downsampling if layers not preserved. Set `layer` to None or `downsample_factor` to 0."
             )
+
+        from transformers import AutoFeatureExtractor, AutoModel
 
         self.processor = AutoFeatureExtractor.from_pretrained(
             model_name,
