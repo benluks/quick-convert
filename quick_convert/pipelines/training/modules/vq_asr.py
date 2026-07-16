@@ -1,7 +1,6 @@
 from dataclasses import dataclass
-from typing import Callable, Optional
-
 from pathlib import Path
+from typing import Optional
 
 import torch
 from torch import nn
@@ -14,8 +13,6 @@ from quick_convert.components.layers.rvq import VQOutput
 from quick_convert.components.losses.asr_losses import CTCOutput
 from quick_convert.components.mixins.resource import OnlineResourceMixin
 from quick_convert.components.ssl import ContentEncoder
-
-from torch.optim.lr_scheduler import LRScheduler
 
 from quick_convert.data.types import AudioBatch
 from quick_convert.pipelines.training.modules.base import BaseTrainingModule
@@ -136,14 +133,14 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         )
 
     def on_validation_epoch_start(self):
-        self.hypothesis_fp = (Path(self.trainer.log_dir) / "hypothesis.txt").open("w")
-        self.references_fp = (Path(self.trainer.log_dir) / "ground_truth.txt").open("w")
+        self.hypothesis_fp = (Path(self.trainer.log_dir) / "hypothesis.txt").open("w+")
+        self.references_fp = (Path(self.trainer.log_dir) / "ground_truth.txt").open("w+")
 
     def log_validation_output(self, batch: AudioBatch, output: VQASROutput, batch_idx: int):
         writer: torch.utils.tensorboard.SummaryWriter = self.logger.experiment
 
         transcripts = self.get_resource(batch, "transcript")
-        self.references_fp.write("\n".join(transcripts))
+        self.references_fp.write("\n".join(transcripts) + "\n")
         # reshape logits to [B T V]
         for i, (item, logits) in enumerate(zip(batch, output.ctc.logits.transpose(0, 1))):
             if self.tokenizer is not None:
@@ -156,10 +153,12 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
                     writer.add_text(f"transcript/{item.utt_id}/ground_truth", transcripts[i], self.global_step)
 
     def on_validation_epoch_end(self):
+        self.hypothesis_fp.seek(0)
+        self.references_fp.seek(0)
+        wer = JiwerWER().compute(self.references_fp, self.hypothesis_fp)["wer"]
         self.hypothesis_fp.close()
         self.references_fp.close()
 
-        wer = JiwerWER().compute(self.references_fp, self.hypothesis_fp)["wer"]
         self.log(
             "wer",
             wer,
