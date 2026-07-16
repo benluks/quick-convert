@@ -3,6 +3,7 @@ from __future__ import annotations
 import jiwer
 
 from quick_convert.data.types import AudioBatch
+from ..utils import load_lines
 
 from .base import WERMetric
 
@@ -21,7 +22,8 @@ class JiwerWER(WERMetric):
         super().__init__(key)
 
     def compute(self, references: list[str], hypotheses: list[str]) -> float:
-
+        references = load_lines(references)
+        hypotheses = load_lines(hypotheses)
         return {
             "wer": float(
                 jiwer.wer(

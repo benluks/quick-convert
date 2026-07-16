@@ -1,7 +1,6 @@
 from dataclasses import dataclass
-from typing import Callable, Optional
-
 from pathlib import Path
+from typing import Optional
 
 import torch
 from torch import nn
@@ -14,8 +13,6 @@ from quick_convert.components.layers.rvq import VQOutput
 from quick_convert.components.losses.asr_losses import CTCOutput
 from quick_convert.components.mixins.resource import OnlineResourceMixin
 from quick_convert.components.ssl import ContentEncoder
-
-from torch.optim.lr_scheduler import LRScheduler
 
 from quick_convert.data.types import AudioBatch
 from quick_convert.pipelines.training.modules.base import BaseTrainingModule
@@ -79,6 +76,9 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
             encoder.requires_grad_(False)
             encoder.eval()
 
+        self.online_encoders.eval()
+        self.online_encoders.requires_grad_(False)
+
     def _shared_step(
         self,
         batch: AudioBatch,
@@ -132,24 +132,33 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
             loss=loss,
         )
 
+    def on_validation_epoch_start(self):
+        self.hypothesis_fp = (Path(self.trainer.log_dir) / "hypothesis.txt").open("w+")
+        self.references_fp = (Path(self.trainer.log_dir) / "ground_truth.txt").open("w+")
+
     def log_validation_output(self, batch: AudioBatch, output: VQASROutput, batch_idx: int):
+        writer: torch.utils.tensorboard.SummaryWriter = self.logger.experiment
+
         transcripts = self.get_resource(batch, "transcript")
-        self.val_refs += transcripts
+        self.references_fp.write("\n".join(transcripts) + "\n")
         # reshape logits to [B T V]
         for i, (item, logits) in enumerate(zip(batch, output.ctc.logits.transpose(0, 1))):
             if self.tokenizer is not None:
                 hypothesis_ids = greedy_ctc_decode(logits=logits)
                 hypothesis = self.tokenizer.decode_ids(hypothesis_ids.tolist())
-                self.val_hyps.append(hypothesis)
+                self.hypothesis_fp.write(hypothesis + "\n")
 
                 if batch_idx == 0:
-                    self.logger.experiment.add_text(f"hypothesis/{item.utt_id}", hypothesis)
-                    self.logger.experiment.add_text(f"ground_truth/{item.utt_id}", transcripts[i])
+                    writer.add_text(f"transcript/{item.utt_id}/hypothesis", hypothesis, self.global_step)
+                    writer.add_text(f"transcript/{item.utt_id}/ground_truth", transcripts[i], self.global_step)
 
     def on_validation_epoch_end(self):
-        wer = JiwerWER().compute(self.val_refs, self.val_hyps)["wer"]
-        self.val_hyps = []
-        self.val_refs = []
+        self.hypothesis_fp.seek(0)
+        self.references_fp.seek(0)
+        wer = JiwerWER().compute(self.references_fp, self.hypothesis_fp)["wer"]
+        self.hypothesis_fp.close()
+        self.references_fp.close()
+
         self.log(
             "wer",
             wer,
@@ -157,11 +166,3 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
             on_epoch=True,
             prog_bar=True,
         )
-
-    def on_after_backward(self):
-        """
-        purely for debugging purposes
-        """
-        for name, param in self.named_parameters():
-            if (param.grad is not None) and (not param.grad.isfinite().all()):
-                print(name, param.grad.norm())
