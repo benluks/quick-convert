@@ -1,19 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import field, replace
+from dataclasses import replace
 from fnmatch import fnmatch
 from os import PathLike
 from pathlib import Path
 from typing import Callable, Iterable, Literal, Optional, Union, Any
 
-import torch
-import torchaudio
-import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 
-
-from .resources import collate_resources, load_resource, ResourceRef, BaseResourceProvider, ResourceCollection
+from .resources import load_resource, ResourceRef, BaseResourceProvider, ResourceCollection
 
 from quick_convert.utils.paths import TemplateFormatter
 from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
