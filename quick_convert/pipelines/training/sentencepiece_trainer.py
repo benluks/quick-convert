@@ -1,4 +1,4 @@
-# quick_convert/systems/training/tokenizer.py
+# quick_convert/pipelines/training/sentencepiece_trainer.py
 
 from __future__ import annotations
 

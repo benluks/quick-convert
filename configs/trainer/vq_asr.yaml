@@ -7,6 +7,7 @@ defaults:
   - /architecture@_global_.architecture: vq_asr
   - /trainer/optimizer@module.optimization: adamw_cosine
   - _self_
+  - /components/ssl@module.online_encoders.content: w2vbert
 
 module:
   _target_: quick_convert.pipelines.training.modules.vq_asr.VQASRTrainingModule

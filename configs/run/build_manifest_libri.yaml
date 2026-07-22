@@ -10,7 +10,6 @@ columns:
   utt_id: "{sample.utt_id}"
   path: "{sample.path}"
   split: "{sample.split}"
-  spk_id: "{sample.path.parent.parent.stem}"
   transcript: "{sample.resources.transcript.value}"
   spkid: "{sample.resources.spkid.value}"
 
@@ -27,15 +26,3 @@ dataset:
   resource_providers:
     - ${dataset.transcript_provider}
     - ${dataset.spkid_provider}
-    # - _target_: quick_convert.data.resources.PathResourceProvider
-    #   name: w2vbert
-    #   kind: torch_tensor
-    #   path_template: ${resources_path}/w2vbert/{sample.split}/{sample.utt_id}.pt
-  #   - _target_: quick_convert.data.resources.PathResourceProvider
-  #     name: spk_espnet
-  #     kind: torch_tensor
-  #     path_template: ${resources_path}/spk_espnet/{sample.split}/{sample.utt_id}.pt
-  #   - _target_: quick_convert.data.resources.PathResourceProvider
-  #     name: emo2vec
-  #     kind: torch_tensor
-  #     path_template: ${resources_path}/emo2vec/{sample.split}/{sample.utt_id}.pt
