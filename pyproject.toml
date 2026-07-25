@@ -57,7 +57,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 
 [project.optional-dependencies]
-asv = ["speechbrain>=1.1.0", "hyperpyyaml>=1.2.3"]
 nac = ["tts>=0.22.0", "transformers"]
 web = ["flask>=3.1.3", "pandas>=1.5.3"]
 pyannote = ["pyannote-audio>=3.4.0"]
@@ -75,7 +74,7 @@ emotion-compensation = [
     "speechbrain>=1.1.0",
 ]
 chatterbox = ["conformer==0.3.2", "diffusers==0.29.0", "librosa>=0.11.0"]
-module-training = [
+lightning = [
     "lightning>=2.6.1",
     "sentencepiece>=0.2.0",
     "setuptools<82",
