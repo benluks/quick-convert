@@ -28,7 +28,6 @@ defaults:
   - /global: default
   - /pipeline: training
   - /trainer: vq_asr
-  - /components/ssl@trainer.module.online_encoders.content: w2vbert
 ```
 
 These defaults establish the high-level structure of the experiment:
@@ -36,7 +35,6 @@ These defaults establish the high-level structure of the experiment:
 * `/global: default` loads project-wide defaults.
 * `/pipeline: training` selects the training pipeline.
 * `/trainer: vq_asr` selects the VQ-ASR training module and associated training configuration.
-* (extra: `/components/ssl@trainer.module.online_encoders.content: w2vbert`: this model relies on the 
 
 At this point, the run defines *how* training will happen, but not *which data* will be used.
 
