@@ -1,6 +1,8 @@
 # Quickstart: Training VQ-ASR on LibriSpeech
 
-This quickstart walks through the public VQ-ASR training pipeline. It assumes that LibriSpeech is already available locally and introduces the core concepts used throughout the codebase: Hydra configuration, datasets, resources, and data loading.
+This quickstart walks through the public VQ-ASR training pipeline. This is an ASR model that runs an self-supervised (SSL) encoding through a vector quantizer. It's inspired by the encoder in Pierre Champion's [ASR-BN](https://github.com/deep-privacy/SA-toolkit) voice conversion model, with some modifications. 
+
+This tutorial assumes that LibriSpeech is already available locally and introduces the core concepts used throughout the codebase: Hydra configuration, datasets, resources, and data loading.
 
 ## Exploring Hydra configs
 
@@ -34,7 +36,7 @@ These defaults establish the high-level structure of the experiment:
 * `/global: default` loads project-wide defaults.
 * `/pipeline: training` selects the training pipeline.
 * `/trainer: vq_asr` selects the VQ-ASR training module and associated training configuration.
-* `/components/ssl@trainer.module.online_encoders.content: w2vbert`
+* (extra: `/components/ssl@trainer.module.online_encoders.content: w2vbert`: this model relies on the 
 
 At this point, the run defines *how* training will happen, but not *which data* will be used.
 
