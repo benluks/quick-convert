@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from os import PathLike
 from typing import Any, Iterable
 
 from ....data.types import AudioBatch
