@@ -2,6 +2,8 @@
 
 `quick-convert` is a modular framework for speech privacy research. It provides reusable components for datasets, feature extraction, preprocessing, training, and evaluation, allowing new experiments to be assembled through Hydra configuration rather than extensive code changes.
 
+📚 **Documentation:** https://benluks.github.io/quick-convert/
+
 The framework is designed around composition. Datasets, resources, models, feature extractors, trainers, and pipelines are all interchangeable, making it straightforward to build new workflows while reusing existing infrastructure.
 
 ## Features
@@ -69,19 +71,7 @@ Along the way, it introduces the core abstractions used throughout the project:
 * trainers;
 * Hydra configuration composition.
 
-➡ **See the Quickstart guide.**
-
-## Documentation
-
-The documentation is organized by topic:
-
-* **Quickstart** — Build and train your first model.
-* **Concepts** — Core abstractions such as datasets, resources, and pipelines.
-* **Datasets** — Built-in dataset implementations and resource providers.
-* **Pipelines** — Preprocessing, training, and evaluation workflows.
-* **Components** — Encoders, decoders, feature extractors, SSL models, quantizers, and losses.
-* **Configuration** — Hydra configuration structure and composition.
-* **API Reference** — Python API documentation.
+➡ [**See the Quickstart guide.**](https://benluks.github.io/quick-convert/quickstart.html)
 
 ## Design philosophy
 
@@ -154,7 +144,3 @@ Most experiments in quick-convert are created by selecting a pipeline, configuri
 ## Contributing
 
 Contributions are welcome. Bug reports, feature requests, documentation improvements, and pull requests are all appreciated.
-
-## License
-
-See the `LICENSE` file for licensing information.
