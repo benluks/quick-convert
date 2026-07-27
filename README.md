@@ -2,8 +2,6 @@
 
 `quick-convert` is a modular framework for speech privacy research. It provides reusable components for datasets, feature extraction, preprocessing, training, and evaluation, allowing new experiments to be assembled through Hydra configuration rather than extensive code changes.
 
-📚 **Documentation:** https://benluks.github.io/quick-convert/
-
 The framework is designed around composition. Datasets, resources, models, feature extractors, trainers, and pipelines are all interchangeable, making it straightforward to build new workflows while reusing existing infrastructure.
 
 ## Features
@@ -39,6 +37,12 @@ Many components rely on optional dependencies. These are grouped into extras so 
 | `nac`                  | Neural audio codec anonymizer. Relies on Coqui TTS, which is deprecated. Also a total nightmare.        |
 | `web`                  | Web interface components. I think she's currently broken.             |
 
+* **Hydra-based configuration** for reproducible, composable experiments.
+* **Flexible datasets** with pluggable resource providers.
+* **Preprocessing pipelines** for manifest generation, feature precomputation, and tokenizer training.
+* **Training pipelines** for speech models and auxiliary components.
+* **Evaluation pipelines** for benchmarking and analysis.
+* **Reusable components**, including encoders, decoders, feature extractors, SSL models, quantizers, and losses.
 
 Normally, when you import a module, you'll get a `ModuleNotFoundError` if the requisite dependencies are missing. Check out `pyproject.toml` to see which extras are needed to run whatever it is you're trying to run.
 
@@ -71,7 +75,19 @@ Along the way, it introduces the core abstractions used throughout the project:
 * trainers;
 * Hydra configuration composition.
 
-➡ [**See the Quickstart guide.**](https://benluks.github.io/quick-convert/quickstart.html)
+➡ **See the Quickstart guide.**
+
+## Documentation
+
+The documentation is organized by topic:
+
+* **Quickstart** — Build and train your first model.
+* **Concepts** — Core abstractions such as datasets, resources, and pipelines.
+* **Datasets** — Built-in dataset implementations and resource providers.
+* **Pipelines** — Preprocessing, training, and evaluation workflows.
+* **Components** — Encoders, decoders, feature extractors, SSL models, quantizers, and losses.
+* **Configuration** — Hydra configuration structure and composition.
+* **API Reference** — Python API documentation.
 
 ## Design philosophy
 
@@ -144,3 +160,7 @@ Most experiments in quick-convert are created by selecting a pipeline, configuri
 ## Contributing
 
 Contributions are welcome. Bug reports, feature requests, documentation improvements, and pull requests are all appreciated.
+
+## License
+
+See the `LICENSE` file for licensing information.
