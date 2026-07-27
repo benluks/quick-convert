@@ -1,158 +1,166 @@
-# Quick-Convert
+# quick-convert
 
-A (someday) comprehensive library for running, training, and evaluating speech privacy models.
-Checkout the [docs](https://benluks.github.io/quick-convert/)
+`quick-convert` is a modular framework for speech privacy research. It provides reusable components for datasets, feature extraction, preprocessing, training, and evaluation, allowing new experiments to be assembled through Hydra configuration rather than extensive code changes.
 
-## TODO:
+The framework is designed around composition. Datasets, resources, models, feature extractors, trainers, and pipelines are all interchangeable, making it straightforward to build new workflows while reusing existing infrastructure.
 
-I'm putting this near the top so you, the reader can understand 
+## Features
 
-1. [] Refactor main modules into `pipelines`, `systems`, and `components`:
-
-`pipelines`: Top-level experiment class. This is concerned with 
-
-2. [] ...?
-
-## Quick Start
-
-This project provides command-line entrypoints for common workflows such as anonymization and ASV training.
-
-After installation (with `uv sync`), you can run commands with `uv run ...`.
-
-### Check available commands
-
-```bash
-uv run anonymize --help
-uv run train-asv --help
-```
-
-### Run anonymization
-
-Use the anonymize command with a config alias and optional Hydra overrides:
-
-```bash
-uv run anonymize <config-alias> [hydra overrides...]
-```
-
-Example:
-
+* **Hydra-based configuration** for reproducible, composable experiments.
+* **Flexible datasets** with pluggable resource providers.
+* **Preprocessing pipelines** for manifest generation, feature precomputation, and tokenizer training.
+* **Training pipelines** for speech models and auxiliary components.
+* **Evaluation pipelines** for benchmarking and analysis.
+* **Reusable components**, including encoders, decoders, feature extractors, SSL models, quantizers, and losses.
 
 ## Installation
 
-This project uses [uv](https://github.com/astral-sh/uv) for Python environment management. Make sure you have it installed before proceeding.
+Install the base package with:
 
 ```bash
-git clone https://github.com/benluks/quick-convert
-cd quick-convert
 uv sync
 ```
 
+Many components rely on optional dependencies. These are grouped into extras so that only the libraries required for a particular workflow need to be installed.   
 
-## CLI Usage
+| Extra                  | Description                          |
+| ---------------------- | ------------------------------------ |
+| `w2vbert`              | W2V-BERT feature extraction          |
+| `whisper`              | Whisper ASR model                    |
+| `jiwer`                | JIWER implementation of WER metric   |
+| `chatterbox`           | Chatterbox decoder.                   |
+| `lightning`      | pytorch-lightning, and associated tools for training with lightning.                    |
+| `emotion-compensation` | To run this one specific emotion-compensation pipeline (needs Python 3.9. Total nightmare)          |
+| `espnet-wavlm-joint`   | ESPnet WavLM implementation             |
+| `pyannote`             | For the pyannote WeSpeaker implementation      |
+| `dac`                  | Descript Audio Codec support         |
+| `nac`                  | Neural audio codec anonymizer. Relies on Coqui TTS, which is deprecated. Also a total nightmare.        |
+| `web`                  | Web interface components. I think she's currently broken.             |
 
-This project provides simplified CLI entrypoints for running different pipelines (e.g., anonymization, ASV training, evaluation) using Hydra configs under `configs/run/`.
+* **Hydra-based configuration** for reproducible, composable experiments.
+* **Flexible datasets** with pluggable resource providers.
+* **Preprocessing pipelines** for manifest generation, feature precomputation, and tokenizer training.
+* **Training pipelines** for speech models and auxiliary components.
+* **Evaluation pipelines** for benchmarking and analysis.
+* **Reusable components**, including encoders, decoders, feature extractors, SSL models, quantizers, and losses.
 
-### Basic Pattern
+Normally, when you import a module, you'll get a `ModuleNotFoundError` if the requisite dependencies are missing. Check out `pyproject.toml` to see which extras are needed to run whatever it is you're trying to run.
 
-All commands follow the same structure:
+For example:
 
 ```bash
-uv run <command> <config-alias> [hydra overrides...]
-<command> → the pipeline you want to run (e.g., anonymize, train_asv, eval_asv)
-<config-alias> → the suffix of a config file in configs/run/
-[hydra overrides...] → optional Hydra overrides (key=value)
+uv sync --extra w2vbert --extra module-training
 ```
 
----
+> **Note**
+>
+> Some extras depend on conflicting versions of third-party libraries and therefore cannot be installed together. See `pyproject.toml` for the defined compatibility groups. I can't promise it's up-to-date. I didn't fully understand how conflicts worked back when I started writing it. Currently in the process of fixing it, and writing tests.
 
-### Examples
+## Quickstart
 
-#### Anonymization
-```bash
-uv run anonymize knnvc_clac target_id=6081
-```
+The recommended introduction to the framework is the [Quickstart guide](https://benluks.github.io/quick-convert/quickstart.html).
 
-Uses config:
+Starting from a downloaded LibriSpeech dataset, it walks through:
 
-`configs/run/anonymization_knnvc_clac.yaml`
+1. training a SentencePiece tokenizer;
+2. precomputing token IDs;
+3. building a manifest dataset;
+4. training a VQ-ASR model.
 
----
+Along the way, it introduces the core abstractions used throughout the project:
 
-#### Train ASV Model
-```bash
-uv run train_asv clac asv.overrides.batch_size=32
-```
+* datasets;
+* resources;
+* pipelines;
+* trainers;
+* Hydra configuration composition.
 
-Uses config:
+➡ **See the Quickstart guide.**
 
-`configs/run/train_asv_clac.yaml`
+## Documentation
 
----
+The documentation is organized by topic:
 
-#### Evaluate ASV
-```bash
-uv run eval_asv clac
-```
+* **Quickstart** — Build and train your first model.
+* **Concepts** — Core abstractions such as datasets, resources, and pipelines.
+* **Datasets** — Built-in dataset implementations and resource providers.
+* **Pipelines** — Preprocessing, training, and evaluation workflows.
+* **Components** — Encoders, decoders, feature extractors, SSL models, quantizers, and losses.
+* **Configuration** — Hydra configuration structure and composition.
+* **API Reference** — Python API documentation.
 
-Uses config:
+## Design philosophy
 
-`configs/run/eval_asv_clac.yaml`
+quick-convert is organized into three conceptual layers:
 
----
+Pipelines
+    │
+    ▼
+Systems
+    │
+    ▼
+Components
 
-### How Config Resolution Works
+### Pipelines
 
-Each command maps to:
+Pipelines define complete executable workflows. These can be found under `quick_convert/pipelines/{[PIPELINE_NAME]/pipeline.py,[PIPLEINE_NAME].py}`.
 
-```bash
-configs/run/<prefix>_<config-alias>.yaml
-```
+Examples include:
 
-Where:
+Model training pipelines, which is agnostic to the task (system) and architecture (components);
+Evaluation which is similarly agnostic;
+Anonymization a dataset;
+Precomputing features (although maybe this should be under an "inference" pipeline, we'll see);
 
-* prefix is usually the same as the command
-* exception:
-    * `anonymize` → `anonymization_*`
+A pipeline coordinates data loading, systems, output handling, and runtime configuration.
 
-So:
+### Systems
 
-```bash
-uv run anonymize knnvc_clac
-```
+Systems implement a complete task-level capability. They're found under `quick_convert/pipelines/{[PIPELINE_NAME]/[SYSTEM_NAME]/...}`. I put ASR in a dedicated systems folder `quick_convert/systems/asr`. That's the plan for the future. I just haven't done the refactoring yet.
 
-→
+Examples include:
 
-`configs/run/anonymization_knnvc_clac.yaml`
+ASR system, invariant to the exact architecture;
+Automatic Speaker Verification (ASV);
+Anonymization/Voice Converstion.
 
----
+A system may combine multiple models, and, frankly, a model may utilize multiple systems.
 
-### Hydra Overrides
+### Components
 
-You can pass any Hydra override directly:
+Components are the reusable building blocks from which systems are constructed. This are analogous to pytorch `nn.Module`s, and are similarly recursive.
 
-```bash
-uv run anonymize knnvc_clac \
-  target_id=6081 \
-  pipeline.out_dir=foo \
-  hydra.job.chdir=false
-```
----
+Examples include:
 
-### Getting Help
+encoders and decoders;
+self-supervised speech models;
+neural network layers;
+losses;
+feature extractors;
+x-vector extractors
 
-Running a command without arguments will show available config aliases:
+This separation allows low-level components to be reused across different systems, while pipelines remain focused on how those systems are trained, evaluated, or applied.
 
-```bash
-uv run anonymize
-```
+Configuration
+      │
+      ▼
+   Pipeline
+      │
+      ▼
+    System
+      │
+      ▼
+  Components
+      │
+      ▼
+    Output
 
----
+Most experiments in quick-convert are created by selecting a pipeline, configuring a system, and composing its components through Hydra.
 
-### Notes
-* Commands are thin wrappers around modules in `quick_convert/cli/`
-* All heavy lifting is still handled by Hydra + your existing pipeline code
-* This interface is just a cleaner alternative to:
-```bash
-uv run python -m quick_convert.cli.<module> \
-  --config-name run/<full_config_name> ...
-  ```
+## Contributing
+
+Contributions are welcome. Bug reports, feature requests, documentation improvements, and pull requests are all appreciated.
+
+## License
+
+See the `LICENSE` file for licensing information.
