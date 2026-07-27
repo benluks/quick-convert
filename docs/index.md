@@ -1,81 +1,161 @@
-Quick Convert is a toolkit for speech anonymization and ASV (automatic speaker verification) workflows.
+# quick-convert documentation
 
-It provides a flexible, config-driven pipeline built around Hydra, allowing you to run anonymization, training, and evaluation with minimal friction.
+`quick-convert` is a modular framework for building speech privacy experiments from reusable datasets, systems, components, and executable pipelines.
 
----
+Experiments are configured through Hydra, allowing architectures, datasets, feature extractors, trainers, and evaluation systems to be composed without rewriting the surrounding infrastructure.
 
-## Getting Started
+## Start here
 
-If you're new, start here:
+New users should begin with the [Quickstart](quickstart.md).
 
-- [Installation](installation.md)
-- [Quickstart](quickstart.md)
-- [Design Philisophy](design_philosophy.md)
+The Quickstart starts from a downloaded copy of LibriSpeech and walks through a complete workflow:
 
----
+1. training a SentencePiece tokenizer;
+2. precomputing token IDs;
+3. building a CSV manifest;
+4. training a VQ-ASR model from that manifest.
 
-## Core Concepts
+It also introduces the main abstractions used throughout the project, including datasets, resources, pipelines, trainers, and Hydra configuration composition.
 
-These explain how the system is structured under the hood.
+[**Begin the Quickstart →**](quickstart.md)
 
-### Configuration (Hydra)
+## Core concepts
 
-- [Hydra Structure](config/hydra_structure.md)
+`quick-convert` is organized around three conceptual layers:
 
-Learn how configurations are composed, overridden, and used to drive pipelines.
+```text
+Pipelines
+    │
+    ▼
+Systems
+    │
+    ▼
+Components
+```
 
-### The 3 module types: Piplines, Systems, Components (for the future)
+⚠️ WARNING: Most of the following pages don't exist yet. ⚠️
 
-- [Systems] are where the task-specific logic is implemented. Examples of systems are:
-- - Anonymization
-- - Automatic Speaker Verification (ASV)
-- - Automatic Speech Recognition (ASR)
-- [Components](components/index.md) are the puzzle pieces that make up a system. For example, the same speaker encoder may extract a speaker embedding as part of an [anonymization system] as well as an [ASV system]. An anonymizer might swap out a WavLM feature extractor for a WhisperEncoder one.
-Components are the broadest and richest of the 3 module types, and where I expect most of the 
-- - [Donors](components/donors.md)
-- [Pipelines] Pipelines string the . This is the top-level wrapper, although I put it last in this list, because I feel it's easier to understand once **Systems** abd **Components** have been explained.
+### [Pipelines](pipelines/index.md)
 
-Note: As of yet, you'll notice that there is non `systems` module. The implemented anonymization systems currently exist under `pipelines`, and need to be refactored.
+Pipelines define complete executable workflows, such as:
 
----
+* training;
+* evaluation;
+* anonymization;
+* feature precomputation;
+* manifest generation.
 
-### Data Handling
+Pipelines coordinate configuration, data loading, execution, and output handling.
 
-- [Base Dataset](data/base_dataset.md)
+### [Systems](systems/index.md)
 
-Understand how datasets are represented, loaded, and iterated over.
+Systems implement task-level capabilities, such as:
 
----
+* automatic speech recognition;
+* automatic speaker verification;
+* speech anonymization and voice conversion.
 
-## What This Project Covers
+A system is generally independent of the exact architecture used to implement it.
 
-- Speech anonymization pipelines  
-- ASV (speaker verification) training and evaluation  
-- Dataset preparation and transformation  
-- Hydra-based experiment management  
+### [Components](components/index.md)
 
----
+Components are reusable model and signal-processing building blocks. They are analogous to PyTorch `nn.Module` objects and may be composed recursively.
 
-## Suggested Reading Paths
+Examples include:
 
-### 👶 First-time user
-1. Installation  
-2. Quickstart  
-3. Hydra Structure  
+* encoders and decoders;
+* self-supervised speech models;
+* feature extractors;
+* speaker embedding models;
+* neural network layers;
+* losses.
 
-### Working on experiments
-1. Hydra Structure  
-2. Base Dataset  
+## Documentation
 
-### Extending the codebase
-1. Base Dataset  
-2. Hydra Structure  
+### Using the framework
 
----
+* [Installation](installation.md)
+* [Quickstart](quickstart.md)
+* [Configuration and Hydra](configuration.md)
+* [Running pipelines](pipelines/index.md)
 
-## Notes
+### Data
 
-This documentation is intentionally lightweight and close to the codebase.  
-If something is unclear, it's usually best to check the corresponding module directly.
+* [Datasets](data/datasets.md)
+* [Resources](data/resources.md)
+* [Manifest datasets](data/manifests.md)
+* [Dataloading](data/dataloading.md)
 
----
+### [Pipelines](pipelines/index.md)
+
+* [Training](pipelines/training.md)
+* [Evaluation](pipelines/evaluation.md)
+* [Feature precomputation](pipelines/precompute.md)
+* [Building manifests](pipelines/build-manifest.md)
+* [Anonymization](pipelines/anonymization.md)
+
+### [Systems](systems/index.md)
+
+* [Automatic speech recognition](systems/asr.md)
+* [Automatic speaker verification](systems/asv.md)
+* [Anonymization and voice conversion](systems/anonymization.md)
+
+### [Components](components/index.md)
+
+* [Encoders and decoders](components/encoders-decoders.md)
+* [Self-supervised models](components/ssl.md)
+* [Feature extractors](components/feature-extractors.md)
+* [Quantizers](components/quantizers.md)
+* [Losses](components/losses.md)
+
+### Development: TODO
+
+* [Repository structure](development/repository-structure.md)
+* [Adding a dataset](development/adding-a-dataset.md)
+* [Adding a component](development/adding-a-component.md)
+* [Adding a pipeline](development/adding-a-pipeline.md)
+* [Contributing](development/contributing.md)
+
+## How experiments are assembled
+
+Most experiments begin with a run configuration under `configs/run/`.
+
+A run configuration selects and combines the relevant configuration groups:
+
+```yaml
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: vq_asr
+  - /dataset@train_dataset: manifest
+  - _self_
+```
+
+Hydra composes these files into a complete runtime configuration. The selected pipeline is then instantiated and executed.
+
+```text
+Run configuration
+       │
+       ▼
+Hydra composition
+       │
+       ▼
+    Pipeline
+       │
+       ▼
+     System
+       │
+       ▼
+   Components
+       │
+       ▼
+     Outputs
+```
+
+## Project status
+
+`quick-convert` is an active research codebase.
+
+Some parts of the package structure reflect earlier iterations of the design. In particular, several task-level systems currently live beneath `quick_convert/pipelines/`; these are expected to move gradually into `quick_convert/systems/`.
+
+Optional dependency groups are also being revised and tested. Consult `pyproject.toml` when installing dependencies for a specific workflow.
