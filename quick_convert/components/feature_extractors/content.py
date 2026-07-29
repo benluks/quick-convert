@@ -5,6 +5,7 @@ from __future__ import annotations
 import torch
 
 from quick_convert.components.ssl.base import ContentFeatures
+from quick_convert.data.types import AudioSample
 
 from ...data.base_dataset import AudioBatch
 from .base import BaseFeatureExtractor
@@ -23,6 +24,13 @@ class ContentFeatureExtractor(BaseFeatureExtractor):
     @torch.inference_mode()
     def extract_batch(self, batch: AudioBatch) -> list[dict[str, torch.Tensor]]:
         features: ContentFeatures = self.encoder(batch)
+        outputs = [val[:len].cpu() for val, len in zip(features.values, features.lengths)]
+
+        return outputs
+
+    @torch.inference_mode()
+    def extract_sample(self, sample: AudioSample) -> list[dict[str, torch.Tensor]]:
+        features: ContentFeatures = self.encoder(sample)
         outputs = [val[:len].cpu() for val, len in zip(features.values, features.lengths)]
 
         return outputs

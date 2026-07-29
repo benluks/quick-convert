@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import replace
 from fnmatch import fnmatch
 from os import PathLike
 from pathlib import Path
-from typing import Callable, Iterable, Literal, Optional, Union, Any
+from typing import Any, Literal, Optional, Union
 
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
 
-from .resources import load_resource, ResourceRef, BaseResourceProvider, ResourceCollection
-
-from quick_convert.utils.paths import TemplateFormatter
-from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 from ..utils.audio import get_supported_formats, load_audio
+from ..utils.paths import TemplateFormatter
+from .resources import BaseResourceProvider, ResourceCollection, ResourceRef, load_resource
+from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 
 
 class BaseDataset(Dataset):
@@ -20,8 +20,8 @@ class BaseDataset(Dataset):
 
     def __init__(
         self,
-        root: Optional[Union[str, Path]] = None,
-        splits: Optional[Iterable[str]] = None,
+        root: str | Path | None = None,
+        splits: Iterable[str] | None = None,
         file_format: Optional[Union[str, Iterable[str]]] = None,
         paths: Optional[Iterable[Union[str, Path]]] = None,
         rows: Optional[Iterable[MetadataSample]] = None,

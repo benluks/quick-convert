@@ -1,0 +1,26 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /dataset@dataset.dataset: librispeech
+  - /components/ssl@w2vbert: w2vbert
+  - _self_
+
+w2vbert:
+  layer: -1
+
+dataset:
+  _target_: quick_convert.data.frame_dataset.FrameDataset
+  dataset:
+    splits:
+      - test-other
+    load: audio
+    resource_providers:
+      - _target_: quick_convert.data.resources.providers.OnlineFeatureProvider
+        name: w2vbert
+        extractor:
+          _target_: quick_convert.components.feature_extractors.content.ContentFeatureExtractor
+          encoder: ${w2vbert}
+  resources:
+    - w2vbert
+  length_resource: w2vbert

@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import torch
 
+from quick_convert.components.feature_extractors.base import BaseFeatureExtractor
 from quick_convert.data.types import AudioBatch, AudioSample
 
 
 class OnlineFeatureProvider:
     def __init__(
         self,
-        extractor: Any,
-        key: Optional[str] = None,
+        extractor: BaseFeatureExtractor,
+        key: str | None = None,
     ):
         self.extractor = extractor
         self.key = self.extractor.feature_name if key is None else key

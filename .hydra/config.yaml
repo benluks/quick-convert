@@ -1,0 +1,47 @@
+out_root: outputs
+out_dir_suffix: ''
+device: mps
+use_flash_attention: false
+data_root: /Users/ben
+dataset:
+  dataset:
+    _target_: quick_convert.data.BaseDataset
+    root: ${data_root}/librispeech/Librispeech
+    splits:
+    - test-other
+    file_format: flac
+    utt_id_template: '{path.stem}'
+    transcript_provider:
+      _target_: quick_convert.data.resources.CSVTranscriptProvider
+      path_template: '{path.parent}/{path.parent.parent.name}-{path.parent.name}.trans.txt'
+      utterance_key: path.stem
+      key_column: 0
+      text_column: 1
+      delimiter: ' '
+      join_text_columns: true
+    spkid_provider:
+      _target_: quick_convert.data.resources.TemplateResourceProvider
+      kind: text
+      name: spkid
+      template: '{path.parent.parent.name}'
+    load: audio
+    resource_providers:
+    - _target_: quick_convert.data.resources.providers.OnlineFeatureProvider
+      name: w2vbert
+      extractor:
+        _target_: quick_convert.components.feature_extractors.content.ContentFeatureExtractor
+        encoder: ${w2vbert}
+  _target_: quick_convert.data.frame_dataset.FrameDataset
+  resources:
+  - w2vbert
+  length_resource: w2vbert
+w2vbert:
+  _target_: quick_convert.components.ssl.W2VBertContentEncoder
+  sample_rate: 16000
+  device: ${device}
+  model_name: facebook/w2v-bert-2.0
+  feature_dim: 1024
+  downsample_factor: 0
+  layer: -1
+pipeline:
+  out_dir: ''
