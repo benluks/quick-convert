@@ -2,16 +2,14 @@ from __future__ import annotations
 
 from functools import lru_cache
 from os import PathLike
-from typing import Set
 
 import soundfile as sf
-
 import torchaudio
 import torchaudio.transforms as T
 
 
 def load_audio(
-    audio_path: PathLike, target_sr: int = None, mono: bool = False, device="cpu"
+    audio_path: PathLike, target_sr: int | None = None, mono: bool = False, device="cpu"
 ) -> tuple[float["1 t"], int]:
     x, sr = torchaudio.load(str(audio_path))
     if target_sr:
@@ -47,7 +45,7 @@ class AudioBackendError(RuntimeError):
 
 
 @lru_cache(maxsize=1)
-def get_supported_formats() -> Set[str]:
+def get_supported_formats() -> set[str]:
     """
     Return a normalized set of supported audio file extensions.
 

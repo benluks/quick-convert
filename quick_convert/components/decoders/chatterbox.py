@@ -1,25 +1,25 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from quick_convert.utils.masking import make_padding_mask, masked_loss, trim_to_min
 
 from ...external.chatterbox.bridges.load_vocoder import load_vocoder
-from ...external.chatterbox.s3gen.utils.mel import mel_spectrogram
 from ...external.chatterbox.s3gen.flow import CausalMaskedDiffWithXvec
 from ...external.chatterbox.s3gen.hifigan import HiFTGenerator
+from ...external.chatterbox.s3gen.utils.mel import mel_spectrogram
 
 
 class ChatterboxSpectrogramGenerator(nn.Module):
     def __init__(
         self,
         flow: CausalMaskedDiffWithXvec,
-        cond_strategy: Literal["rvq", "mel", None] = None,
-        device: Optional[torch.device] = None,
+        cond_strategy: Literal["rvq", "mel"] | None = None,
+        device: torch.device | None = None,
         # content_dim: int,
         # speaker_dim: int,
         mel_dim: int = 80,
@@ -125,8 +125,8 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         # adding max_len because this only suppoorts batch size 1, so in parent class we iterate through batch and
         # call forward on each sample. Instead of unpadding them and then padding them together later, we just
         # pass in the max length for the batch and let the flow handle the masking and padding.
-        max_len: Optional[int] = 0,
-        cond: Optional[torch.Tensor] = None,
+        max_len: int | None = 0,
+        cond: torch.Tensor | None = None,
         run_vocoder: bool = False,
     ):
         mel, _ = self.flow.inference(
