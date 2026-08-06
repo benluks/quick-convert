@@ -1,0 +1,3 @@
+_target_: quick_convert.systems.ser.odyssey_ser.OdysseySER
+model_name: 3loi/SER-Odyssey-Baseline-WavLM-Categorical
+device: ${device}

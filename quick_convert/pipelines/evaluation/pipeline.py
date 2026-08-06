@@ -21,13 +21,18 @@ class EvalPipeline:
         out_dir: PathLike,
         batch_size: int,
         num_workers: int = 0,
+        ref_dataset: BaseDataset | None = None,  # optional argument
     ):
         self.dataset = dataset
+        self.ref_dataset = ref_dataset  # Store the reference dataset
         self.system = system
         self.metrics = list(metrics or [])
         self.out_dir = Path(out_dir)
         self.batch_size = batch_size
         self.num_workers = num_workers
+
+        if self.ref_dataset is None:
+            print("No reference dataset provided. Falling back to predictions for evaluation.")
 
     def run(self) -> dict:
         records = self.generate_records()
@@ -40,8 +45,8 @@ class EvalPipeline:
         aggregate_scores = {}
         for metric in self.metrics:
             refs = [record[metric.ref_key] for record in records]
-            hyps = [record[metric.pred_key] for record in records]
-            aggregate_scores.update(metric.compute(refs, hyps))
+            preds = [record[metric.pred_key] for record in records]
+            aggregate_scores.update(metric.compute(refs, preds))
 
         results = {
             **aggregate_scores,
@@ -49,39 +54,60 @@ class EvalPipeline:
             "predictions_path": str(self.out_dir / "predictions.csv"),
         }
 
+        print(f"Results saved to {self.out_dir / 'results.json'}")
+        print(json.dumps(results, indent=2))
+
         self.write_results_json(results)
 
         return results
 
     def generate_records(self) -> list[dict]:
-        loader = self.dataset.make_dataloader(
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
+
+        # Create DataLoaders for both datasets
+        pred_loader = self.dataset.make_dataloader(
+            batch_size=self.batch_size, num_workers=self.num_workers
         )
 
-        records = []
+        ref_loader = (
+            self.ref_dataset.make_dataloader(batch_size=self.batch_size, num_workers=self.num_workers)
+            if self.ref_dataset
+            else None
+        )
 
-        for batch in tqdm(loader, desc="Evaluating"):
-            batch_refs = {}
+        ref_iter = iter(ref_loader) if ref_loader else None
+
+        records = []
+        for pred_batch in tqdm(pred_loader, desc="Evaluating"):
+            refs = {}
+            preds = {}
 
             for metric in self.metrics:
-                batch_refs[metric.key] = metric.get_references(batch)
 
-            batch_preds = self.system.predict_batch(batch)
+                if ref_iter is not None:
+                    ref_batch = next(ref_iter)
+                    if len(ref_batch) != len(pred_batch):
+                        raise ValueError("Mismatch between reference and prediction batches.")    
+                    refs[metric.key] = metric.get_references(ref_batch)
+                else:
+                    # If no reference dataset is provided, use predictions as references
+                    refs[metric.key] = metric.get_references(pred_batch)
+                
+                preds[metric.key] = self.system.get_labels(pred_batch)
 
-            for key, values in batch_preds.items():
-                if len(values) != len(batch):
+            # Validate batch sizes
+            for key, values in preds.items():
+                if len(values) != len(pred_batch):
                     raise ValueError(
-                        f"System returned {len(values)} predictions for key {key!r}, but batch has size {len(batch)}"
+                        f"Anonymized dataset returned {len(values)} predictions for key {key!r}, but batch has size {len(pred_batch)}"
+                    )
+            for key, values in refs.items():
+                if len(values) != len(ref_batch):
+                    raise ValueError(
+                        f"Original dataset returned {len(values)} references for key {key!r}, but batch has size {len(ref_batch)}"
                     )
 
-            for key, values in batch_refs.items():
-                if len(values) != len(batch):
-                    raise ValueError(
-                        f"Metric returned {len(values)} references for key {key!r}, but batch has size {len(batch)}"
-                    )
-
-            for i, sample in enumerate(batch):
+            # Combine reference and prediction data into records
+            for i, sample in enumerate(pred_batch):
                 record = {
                     "utt_id": sample.utt_id,
                     "path": str(sample.path),
@@ -91,11 +117,11 @@ class EvalPipeline:
                 if getattr(sample, "spk_id", None) is not None:
                     record["spk_id"] = sample.spk_id
 
-                for key, values in batch_refs.items():
+                for key, values in refs.items():
                     record[f"ref_{key}"] = values[i]
 
-                for key, values in batch_preds.items():
-                    record[f"hyp_{key}"] = values[i]
+                for key, values in preds.items():
+                    record[f"pred_{key}"] = values[i]
 
                 records.append(record)
 

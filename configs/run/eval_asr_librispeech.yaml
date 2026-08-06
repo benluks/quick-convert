@@ -18,5 +18,7 @@ dataset:
   resource_providers:
     - ${dataset.transcript_provider}
 
+ref_dataset: ${}
+
 metrics:
   - _target_: quick_convert.pipelines.evaluation.metrics.JiwerWER

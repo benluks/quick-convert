@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 import torchaudio
+import whisper
 
 
 from ...data.types import AudioBatch, MetadataSample
@@ -24,7 +25,6 @@ class WhisperASR(ASRSystem):
         self.model_name = model_name
         self.language = language
         self._model = None
-        import whisper
 
         self.decoding_options = whisper.DecodingOptions(language=language)
         if self.device == "mps":
@@ -53,4 +53,4 @@ class WhisperASR(ASRSystem):
         mel = whisper.log_mel_spectrogram(wav)
         decoding_results: Iterable[whisper.DecodingResult] = model.decode(mel, self.decoding_options)
 
-        return {self.pred_key: [res.text for res in decoding_results]}
+        return [res.text for res in decoding_results]

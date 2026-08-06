@@ -33,6 +33,11 @@ conflicts = [
         { extra = "dac" },
         { extra = "espnet-wavlm-joint" },
     ],
+    [
+        { extra = "eval" },
+        { extra = "eval-emotion" },
+        { extra = "conditional-rvq" },
+    ],
 ]
 
 override-dependencies = ["hydra-core==1.3.2", "omegaconf==2.3.0"]
@@ -83,7 +88,12 @@ lightning = [
 conditional-rvq = ["funasr>=1.3.6", "transformers>=5.7.0"]
 mpm = ["masked-prosody-model>=0.3.0"]
 whisper = ["openai-whisper>=20231117"]
-jiwer = ["jiwer>=3.0"]
+eval-intelligibility = ["jiwer>=3.0"]
+eval-emotion = ["transformers<4.39.0"]
+eval = [
+    "jiwer>=3.0",
+    "transformers<4.39.0",
+]
 
 [project.scripts]
 anonymize = "main:main"

@@ -1,0 +1,32 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: evaluation
+  - /ser@system: odyssey
+  - _self_
+
+system:
+  name: OdysseySER
+  model_name: 3loi/SER-Odyssey-Baseline-WavLM-Categorical
+
+dataset:
+  _target_: quick_convert.data.base_dataset.BaseDataset
+  name: local_anon
+  root: /scratch/work/nguyent166/emotion-compensation/results_audio/flow_306_epochs/IEMOCAP_test/w_0.25_step_10_emo
+  utt_id_template: "{path.stem}"
+  load: true
+  target_sr: 16000
+
+ref_dataset:
+  _target_: quick_convert.data.base_dataset.BaseDataset
+  name: local_orig
+  root: /scratch/work/nguyent166/emotion-compensation/results_audio/original/IEMOCAP_test
+  utt_id_template: "{path.stem}"  
+  load: true
+  target_sr: 16000
+
+metrics:
+  - _target_: quick_convert.pipelines.evaluation.metrics.emo.med.MED
+    device: cuda
+    model_name: 3loi/SER-Odyssey-Baseline-WavLM-Categorical
