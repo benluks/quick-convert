@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """Load path-backed resources into memory.
 
 Resource providers resolve *what* belongs to a sample and where it is stored.
@@ -5,6 +6,8 @@ This module handles the separate concern of materializing a ``ResourceRef``
 according to its ``kind``.
 """
 
+=======
+>>>>>>> 79ae067 (refactor data module)
 from dataclasses import replace
 
 import torch
@@ -13,6 +16,7 @@ from . import ResourceRef
 
 
 def load_torch(ref, device="cpu"):
+<<<<<<< HEAD
     """Load a torch-serialized resource from ``ref.path``."""
     return torch.load(ref.path, map_location=device)
 
@@ -45,6 +49,15 @@ def load_resource(ref: ResourceRef, **kwargs):
         ValueError:
             If no loader is registered for the resource kind.
     """
+=======
+    return torch.load(ref.path, map_location=device)
+
+
+LOADER_REGISTRY = {"torch_tensor": load_torch, "token_ids": load_torch}
+
+
+def load_resource(ref: ResourceRef, **kwargs):
+>>>>>>> 79ae067 (refactor data module)
     if ref.kind not in LOADER_REGISTRY:
         raise ValueError(f"No loader registered for resource kind {ref.kind}")
 

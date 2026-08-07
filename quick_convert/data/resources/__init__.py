@@ -15,7 +15,10 @@ from .base import (
     ResourceRef,
     collate_resources,
 )
+<<<<<<< HEAD
 from .factory import load_resource_provider
+=======
+>>>>>>> 79ae067 (refactor data module)
 from .loading import load_resource
 from .providers import (
     BaseResourceProvider,
@@ -36,5 +39,8 @@ __all__ = [
     "TemplateResourceProvider",
     "collate_resources",
     "load_resource",
+<<<<<<< HEAD
     "load_resource_provider",
+=======
+>>>>>>> 79ae067 (refactor data module)
 ]
