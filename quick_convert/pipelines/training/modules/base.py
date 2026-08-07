@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import abc
-from collections.abc import Callable
-from typing import Protocol, TypeVar, Union
+from typing import Protocol, TypeVar
 
 import lightning as L
 import torch
 
 from quick_convert.data import AudioBatch, BaseDataset
+
 from ..optim.base import Optimization
 
 
@@ -99,7 +99,6 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
         batch_idx: int,
     ) -> None:
         """Optionally log qualitative validation outputs."""
-        pass
 
     def configure_optimizers(self):
         return self.optimization.configure(

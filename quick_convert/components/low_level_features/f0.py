@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from ..feature_extractors.base import BaseFeatureExtractor
 
 
