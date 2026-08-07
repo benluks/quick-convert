@@ -261,31 +261,6 @@ class CSVAnnotationProvider(BaseResourceProvider):
 
 
 class OnlineResourceProvider:
-    """Compute a resource dynamically using a feature extractor.
-
-    Online providers are intended for resources that should be computed during
-    an experiment rather than loaded from precomputed sidecar files. The
-    wrapped extractor must provide ``extract_sample`` and ``extract_batch``
-    methods.
-
-    If ``name`` is omitted, ``extractor.feature_name`` is used.
-
-    Example::
-
-        provider = OnlineResourceProvider(
-            extractor=wavlm_encoder,
-            name="wavlm",
-        )
-
-        frame_features = provider.provide_batch(batch)
-
-    Args:
-        extractor:
-            Feature extractor used to compute the resource.
-        name:
-            Optional resource name.
-    """
-
     def __init__(
         self,
         *,
