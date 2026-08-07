@@ -15,7 +15,6 @@ from typing import Any
 import torch
 
 from ...utils.paths import SamplePathFormatter
-from ..types import AudioBatch, AudioSample
 from .base import ResourceRef
 
 
@@ -33,7 +32,7 @@ class BaseResourceProvider:
     def __init__(self, name: str):
         self.name = name
 
-    def __call__(self, sample: AudioSample) -> ResourceRef:
+    def __call__(self, sample) -> ResourceRef:
         """Return the resource associated with ``sample``."""
         raise NotImplementedError
 
@@ -295,10 +294,10 @@ class OnlineResourceProvider:
         self.extractor = extractor
         self.name = extractor.feature_name if name is None else name
 
-    def provide_sample(self, sample: AudioSample) -> torch.Tensor:
+    def provide_sample(self, sample) -> torch.Tensor:
         """Compute the resource for one sample."""
         return self.extractor.extract_sample(sample)
 
-    def provide_batch(self, batch: AudioBatch) -> torch.Tensor:
+    def provide_batch(self, batch) -> torch.Tensor:
         """Compute the resource for a batch."""
         return self.extractor.extract_batch(batch)

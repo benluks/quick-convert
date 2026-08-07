@@ -14,8 +14,9 @@ Dataset classes deliberately remain agnostic to experiment-specific resources.
 from __future__ import annotations
 
 from .base_dataset import BaseDataset
+from .loading import load_dataset
 from .manifest_dataset import ManifestDataset
 from .types import AudioBatch, AudioSample
 
 
-__all__ = ["AudioBatch", "AudioSample", "BaseDataset", "ManifestDataset"]
+__all__ = ["AudioBatch", "AudioSample", "BaseDataset", "ManifestDataset", "load_dataset"]
