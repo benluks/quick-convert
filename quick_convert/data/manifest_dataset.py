@@ -1,7 +1,7 @@
 import csv
+from collections.abc import Iterable
 from os import PathLike
 from pathlib import Path
-from typing import Iterable
 
 from quick_convert.data.resources.base import ResourceCollection, ResourceRef
 
@@ -28,9 +28,11 @@ class ManifestDataset(BaseDataset):
         # {"resource_name": "resource_column_name"} for every resource ALREADY_APPEARING IN THE CSV
         # e.g. if you want the contents of the column `trans` to appear as a resource named `transcript`, you would pass
         # resources = {"transcript": "trans"}
-        resources: dict[str, dict[str, str]] = {},
+        resources: dict[str, dict[str, str]] | None = None,
         **kwargs,
     ):
+
+        resources = resources or {}
         rows = []
 
         if isinstance(manifest_path, (str, Path)):

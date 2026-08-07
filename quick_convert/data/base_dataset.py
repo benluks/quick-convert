@@ -1,18 +1,19 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import replace
 from fnmatch import fnmatch
 from os import PathLike
 from pathlib import Path
-from typing import Callable, Iterable, Literal, Optional, Union, Any
+from typing import Any, Literal
 
-from torch.utils.data import Dataset, DataLoader
-
-from .resources import load_resource, ResourceRef, BaseResourceProvider, ResourceCollection
+from torch.utils.data import DataLoader, Dataset
 
 from quick_convert.utils.paths import TemplateFormatter
-from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
+
 from ..utils.audio import get_supported_formats, load_audio
+from .resources import BaseResourceProvider, ResourceCollection, ResourceRef, load_resource
+from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 
 
 class BaseDataset(Dataset):
@@ -20,27 +21,23 @@ class BaseDataset(Dataset):
 
     def __init__(
         self,
-        root: Optional[Union[str, Path]] = None,
-        splits: Optional[Iterable[str]] = None,
-        file_format: Optional[Union[str, Iterable[str]]] = None,
-        paths: Optional[Iterable[Union[str, Path]]] = None,
-        rows: Optional[Iterable[MetadataSample]] = None,
-        load: Optional[bool | list[str] | Literal["all"]] = False,
-        return_spkid: bool = False,
-        target_sr: Optional[int] = None,
+        root: str | Path | None = None,
+        splits: Iterable[str] | None = None,
+        file_format: str | Iterable[str] | None = None,
+        paths: Iterable[str | Path] | None = None,
+        rows: Iterable[MetadataSample] | None = None,
+        load: bool | list[str] | Literal["all"] | None = False,
+        target_sr: int | None = None,
         convert_to_mono: bool = True,
-        # pass a spkid function to avoid subclassing just to implement get_spkid logic
-        utt_id_template: Optional[str] = None,
-        get_utt_id_fn: Optional[Callable[[PathLike], str]] = None,
-        get_spkid_fn: Optional[Callable[[PathLike], str]] = None,
-        # feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
-        pattern: Optional[str] = None,
-        exclude_patterns: Optional[Iterable[str]] = None,
-        resource_providers: Iterable[BaseResourceProvider] = [],
-        sort_key: Optional[str] = "{row.path}",
+        utt_id_template: str | None = None,
+        get_utt_id_fn: Callable[[PathLike], str] | None = None,
+        pattern: str | None = None,
+        exclude_patterns: Iterable[str] | None = None,
+        resource_providers: Iterable[BaseResourceProvider] | None = None,
+        sort_key: str | None = "{row.path}",
         # length to extend collated audio files to beyond the maximum sample length. This is used in
         # cudnn benchmark where all batches must have the same shape. Expressed in number of samples after resampling
-        max_length: Optional[int] = None,
+        max_length: int | None = None,
         **kwargs,
     ):
         sources = [
@@ -65,14 +62,9 @@ class BaseDataset(Dataset):
         self.target_sr = target_sr
         self.root = Path(root) if root is not None else None
 
-        self.return_spkid = return_spkid
-        if get_spkid_fn is not None:
-            self.get_spkid = get_spkid_fn
-        # self.feature_resolvers = feature_resolvers or []
-
         self.pattern = pattern or "*"
         self.exclude_patterns = exclude_patterns or []
-        self.resource_providers = resource_providers
+        self.resource_providers = resource_providers or []
 
         self.load = self._normalize_load(load)
         self.max_length = max_length
@@ -82,13 +74,13 @@ class BaseDataset(Dataset):
             return
 
         elif paths is not None:
+            rows = []
             files = [Path(p) for p in paths if Path(p).is_file()]
             for p in files:
                 rows.append(
                     MetadataSample(
                         utt_id=self.get_utt_id(p),
                         path=p,
-                        spk_id=self.get_spkid(p) if return_spkid else None,
                     )
                 )
         else:
@@ -124,7 +116,6 @@ class BaseDataset(Dataset):
                             utt_id=self.get_utt_id(p),
                             path=p,
                             split=split,
-                            # spk_id=self.get_spkid(p) if return_spkid else None,
                         )
                     )
 
@@ -132,7 +123,7 @@ class BaseDataset(Dataset):
         self.rows = sorted(rows, key=lambda row: TemplateFormatter.format_str(sort_key, row=row))
 
     @classmethod
-    def _normalize_and_validate_format(cls, file_format: Optional[Union[str, Iterable[str]]]) -> Optional[set[str]]:
+    def _normalize_and_validate_format(cls, file_format: str | Iterable[str] | None) -> set[str] | None:
         if file_format is None:
             return None
 
@@ -221,12 +212,6 @@ class BaseDataset(Dataset):
             sample_rate=sample_rate,
             resources=sample.resources,
         )
-
-    def _collate_dicts(self, batch: list[AudioSample], property="resources") -> dict[str, list[Any]]:
-        return {
-            key: [d.get(key) for d in (getattr(item, property) or {} for item in batch)]
-            for key in {k for item in batch for k in (getattr(item, property) or {})}
-        }
 
     def collate_fn(self, batch: list[AudioSample]) -> MetadataBatch | AudioBatch:
         return AudioBatch.from_samples(batch, max_length=self.max_length)

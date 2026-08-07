@@ -1,37 +1,31 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Callable, Iterable, Optional
+from typing import Any
 
 import torch
 import torch.nn.functional as F
+from torch.nn.utils.rnn import pad_sequence
 
-from .resources import TemplateResourceProvider, load_resource, collate_resources
 from quick_convert.utils.audio import load_audio
 
-from .resources import ResourceCollection
-from torch.nn.utils.rnn import pad_sequence
+from .resources import ResourceCollection, TemplateResourceProvider, collate_resources, load_resource
 
 
 @dataclass(frozen=True)
 class MetadataSample:
     utt_id: str
     path: Path
-    split: Optional[str] = None
+    split: str | None = None
     resources: ResourceCollection = field(default_factory=ResourceCollection)
 
 
 @dataclass(frozen=True)
-class LoadedSample(MetadataSample):
+class AudioSample(MetadataSample):
     waveform: float["1 t"] | None = None
     sample_rate: int | None = None
-
-
-@dataclass(frozen=True)
-class AudioSample(MetadataSample):
-    waveform: Optional[float["1 t"]] = None
-    sample_rate: Optional[int] = None
 
     @classmethod
     def from_path(cls, path: str | Path, utt_id: str | None = None, **kwargs):
@@ -52,7 +46,7 @@ class MetadataBatch:
     utt_ids: list[str]
     paths: list[Path]
     splits: list[str | None]
-    resources: ResourceCollection
+    resources: dict[str, Any]
 
     def __len__(self) -> int:
         return len(self.paths)
@@ -71,28 +65,21 @@ class MetadataBatch:
 
 
 @dataclass
-class LoadedBatch(MetadataBatch):
-    waveforms: float["b t"]
-    lengths: int["b"]
-    sample_rates: int["b"]
-
-
-@dataclass
 class AudioBatch(MetadataBatch):
-    waveforms: Optional[float["b t"]] = None
-    lengths: Optional[int["b"]] = None
-    sample_rates: Optional[int["b"]] = None
+    waveforms: float["b t"] | None = None
+    lengths: int["b"] | None = None
+    sample_rates: int["b"] | None = None
 
     @classmethod
-    def from_samples(cls, samples: list[AudioSample], max_length: Optional[int] = None) -> "AudioBatch":
+    def from_samples(cls, samples: list[AudioSample], max_length: int | None = None) -> "AudioBatch":
         has_audio = all(s.waveform is not None for s in samples)
 
-        common_kwargs = dict(
-            utt_ids=[s.utt_id for s in samples],
-            paths=[s.path for s in samples],
-            splits=[s.split for s in samples],
-            resources=collate_resources(samples),
-        )
+        common_kwargs = {
+            "utt_ids": [s.utt_id for s in samples],
+            "paths": [s.path for s in samples],
+            "splits": [s.split for s in samples],
+            "resources": collate_resources(samples),
+        }
 
         if not has_audio:
             return cls(**common_kwargs)
@@ -116,11 +103,11 @@ class AudioBatch(MetadataBatch):
     def from_paths(
         cls,
         paths: str | Path | list[str | Path],
-        resource_providers: Optional[Iterable[TemplateResourceProvider]] = [],
-        target_sr: Optional[int] = None,
+        resource_providers: Iterable[TemplateResourceProvider] | None = [],
+        target_sr: int | None = None,
         mono: bool = True,
-        max_length: Optional[int] = None,
-        utt_id_fn: Optional[Callable[[Path], str]] = None,
+        max_length: int | None = None,
+        utt_id_fn: Callable[[Path], str] | None = None,
         **kwargs,
     ) -> "AudioBatch":
         if isinstance(paths, (str, Path)):

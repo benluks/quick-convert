@@ -2,7 +2,7 @@ from dataclasses import replace
 
 import torch
 
-from .. import ResourceRef
+from . import ResourceRef
 
 
 def load_torch(ref, device="cpu"):

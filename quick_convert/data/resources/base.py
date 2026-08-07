@@ -1,22 +1,10 @@
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Literal, Optional
+from typing import Any, Literal
 
 import torch
 from torch.nn.utils.rnn import pad_sequence
-
-
-class BaseResourceProvider:
-    """
-    An abstracton class for resource providers, which are responsible for providing access to various types of
-    resources (e.g. annotation files, precompute feature files, etc.) associated with samples in a dataset.
-    """
-
-    def __init__(self, name: str):
-        self.name = name
-
-    def __call__(self, sample):
-        raise NotImplementedError
 
 
 ResourceKind = Literal[
@@ -34,7 +22,6 @@ ResourceKind = Literal[
     # model-specific semantic categories
     "ssl_features",
     "speaker_embedding",
-    "prosody",
     "token_ids",
 ]
 
@@ -42,24 +29,12 @@ ResourceKind = Literal[
 @dataclass
 class ResourceRef:
     name: str
-    kind: Optional[ResourceKind] = None
-    path: Optional[Path] = None
-    value: Optional[Any] = None
+    kind: ResourceKind | None = None
+    path: Path | None = None
+    value: Any | None = None
 
     # Only set if using cudnn benchmark
-    max_length: Optional[int] = None
-
-
-@dataclass
-class Annotation(ResourceRef):
-    """
-    Since annotations are automatically loaded into memory when accessed,
-    we can also include the annotation value directly in the object for convenience.
-    This abstraction also lets us distinguish which resources need to be loaded at runtime
-    """
-
-    value: Any
-    path: Path
+    max_length: int | None = None
 
 
 @dataclass
@@ -173,7 +148,7 @@ def _normalize_tensor_resource(x: torch.Tensor) -> torch.Tensor:
 
 
 def _collate_tensor_resources(
-    refs: list[ResourceRef], squeeze_single_frame: bool = False, max_length: Optional[int] = None
+    refs: list[ResourceRef], squeeze_single_frame: bool = False, max_length: int | None = None
 ) -> TensorResourceBatch:
     """
     max_length: An optional arbitrary max length to pad or trim batch. Useful in the case of cudnn, which needs
@@ -251,7 +226,7 @@ def collate_resources(
     for name in resource_names:
         refs = []
         for item in batch:
-            if item.resources is None or name not in item.resources.keys():
+            if item.resources is None or name not in item.resources:
                 raise ValueError(f"Sample {item.utt_id!r} is missing resource {name!r}")
             refs.append(item.resources[name])
 

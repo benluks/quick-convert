@@ -1,8 +1,8 @@
 from dataclasses import dataclass, replace
-from typing import Any, Optional, Tuple
+from typing import Any
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 from quick_convert.components.layers import AttentiveStatisticsPooling
 from quick_convert.components.losses.speaker_losses import BaseSpeakerLoss
@@ -11,9 +11,9 @@ from quick_convert.components.losses.speaker_losses import BaseSpeakerLoss
 @dataclass
 class SpeakerASRHeadOutput:
     speaker_features: torch.FloatTensor
-    accuracy: Optional[torch.FloatTensor] = None
-    predictions: Optional[torch.LongTensor] = None
-    loss: Optional[torch.FloatTensor] = None
+    accuracy: torch.FloatTensor | None = None
+    predictions: torch.LongTensor | None = None
+    loss: torch.FloatTensor | None = None
 
 
 class SpeakerASPHead(nn.Module):
