@@ -15,6 +15,7 @@ from .base import (
     ResourceRef,
     collate_resources,
 )
+from .factory import load_resource_provider
 from .loading import load_resource
 from .providers import (
     BaseResourceProvider,
@@ -35,4 +36,5 @@ __all__ = [
     "TemplateResourceProvider",
     "collate_resources",
     "load_resource",
+    "load_resource_provider",
 ]
