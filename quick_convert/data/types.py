@@ -1,3 +1,5 @@
+"""Sample and batch containers used by the quick-convert data pipeline."""
+
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
@@ -16,6 +18,13 @@ from .resources import ResourceCollection, TemplateResourceProvider, collate_res
 
 @dataclass(frozen=True)
 class MetadataSample:
+    """Metadata and resources describing one dataset item.
+
+    ``MetadataSample`` does not imply that audio has been loaded. Dataset
+    subclasses can construct these rows cheaply and allow ``BaseDataset`` to
+    materialize audio and resources later.
+    """
+
     utt_id: str
     path: Path
     split: str | None = None
@@ -24,11 +33,21 @@ class MetadataSample:
 
 @dataclass(frozen=True)
 class AudioSample(MetadataSample):
+    """A sample with optionally materialized audio.
+
+    ``waveform`` and ``sample_rate`` remain ``None`` until audio is loaded.
+    Because samples are immutable, :meth:`load_audio` returns a new sample.
+    """
+
     waveform: float["1 t"] | None = None
     sample_rate: int | None = None
 
     @classmethod
     def from_path(cls, path: str | Path, utt_id: str | None = None, **kwargs):
+        """Construct an unloaded sample from an audio path.
+
+        If ``utt_id`` is omitted, the filename stem is used.
+        """
         path = Path(path)
         return cls(
             utt_id=utt_id or path.stem,
@@ -37,6 +56,7 @@ class AudioSample(MetadataSample):
         )
 
     def load_audio(self, *args, **kwargs) -> "AudioSample":
+        """Return a copy of the sample with its waveform loaded."""
         waveform, sr = load_audio(self.path, *args, **kwargs)
         return replace(self, waveform=waveform, sample_rate=sr)
 
@@ -66,12 +86,31 @@ class MetadataBatch:
 
 @dataclass
 class AudioBatch(MetadataBatch):
+    """Batch of samples with optionally loaded, padded audio.
+
+    When audio is present, ``waveforms`` has shape ``[B, T]`` and ``lengths``
+    stores the unpadded length of each waveform. If the source samples did not
+    load audio, all audio-specific fields remain ``None``.
+    """
+
     waveforms: float["b t"] | None = None
     lengths: int["b"] | None = None
     sample_rates: int["b"] | None = None
 
     @classmethod
     def from_samples(cls, samples: list[AudioSample], max_length: int | None = None) -> "AudioBatch":
+        """Collate samples into a batch.
+
+        Audio is padded along time, and named resources are independently
+        collated according to their resource kind.
+
+        Args:
+            samples:
+                Samples to collate.
+            max_length:
+                Optional fixed waveform length to pad to. It must not be
+                shorter than any waveform in the batch.
+        """
         has_audio = all(s.waveform is not None for s in samples)
 
         common_kwargs = {
@@ -110,6 +149,14 @@ class AudioBatch(MetadataBatch):
         utt_id_fn: Callable[[Path], str] | None = None,
         **kwargs,
     ) -> "AudioBatch":
+        """Load audio paths directly into a batch.
+
+        This convenience constructor is useful for inference and ad-hoc feature
+        extraction when constructing a full dataset would be unnecessary.
+
+        Optional resource providers may attach additional resources before
+        batching.
+        """
         if isinstance(paths, (str, Path)):
             paths = [paths]
 

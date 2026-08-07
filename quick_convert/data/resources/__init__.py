@@ -1,5 +1,13 @@
-"""
-resources allow you to pass arbitrary metadata or sidecar files associated with each sample in the dataset. This can include metadata (anotations), features, or any path.
+"""Composable resources associated with dataset samples.
+
+A resource is any named value associated with an utterance, including
+transcripts, labels, embeddings, token sequences, SSL features, or acoustic
+measurements.
+
+Providers resolve resources for samples, ``ResourceRef`` describes either an
+in-memory value or a path-backed value, loaders materialize path-backed
+resources, and collation converts sample-level resources into batch-level
+representations.
 """
 
 from .base import (

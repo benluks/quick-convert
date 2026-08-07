@@ -10,12 +10,60 @@ from .types import MetadataSample
 
 
 class ManifestDataset(BaseDataset):
-    """
-    Because you can add multiple manifests, you may choose to see different files as "splits". At least for the time being,
-    that will only be reflected in the `split` field of the MetadataSample if you fill the `split` column in your manifest CSVs.
+    """Dataset backed by one or more CSV manifests.
 
-    We could potentially add a `default_split` argument to the constructor that fills in missing splits with a default value based
-    on the manifest file they came from, if that would be helpful.
+    Each CSV row becomes a :class:`MetadataSample`. At minimum, manifests
+    normally contain an utterance ID and audio path; an optional split column
+    is copied directly onto the sample.
+
+    Additional manifest columns can be exposed as resources through
+    ``resources``. This is useful for values already present in the manifest,
+    while :class:`BaseResourceProvider` objects remain appropriate for
+    resources resolved externally.
+
+    Args:
+        manifest_path:
+            Path or paths to CSV manifest files.
+        path_column:
+            Column containing the audio path.
+        utt_id_column:
+            Column containing the utterance ID.
+        split_column:
+            Optional column containing the dataset split.
+        resources:
+            Mapping from resource name to a specification containing
+            ``"column"`` and ``"kind"``. For example::
+
+                resources={
+                    "transcript": {
+                        "column": "text",
+                        "kind": "text",
+                    },
+                }
+
+        **kwargs:
+            Additional arguments forwarded to :class:`BaseDataset`.
+
+    Example:
+        Given::
+
+            utt_id,path,split,text
+            001,/data/001.wav,train,hello world
+
+        construct::
+
+            dataset = ManifestDataset(
+                "manifest.csv",
+                resources={
+                    "transcript": {
+                        "column": "text",
+                        "kind": "text",
+                    }
+                },
+            )
+
+            dataset[0].resources.transcript.value
+            # "hello world"
     """
 
     def __init__(
@@ -24,10 +72,6 @@ class ManifestDataset(BaseDataset):
         path_column: str = "path",
         utt_id_column: str = "utt_id",
         split_column: str = "split",
-        spk_id_column: str = "spk_id",
-        # {"resource_name": "resource_column_name"} for every resource ALREADY_APPEARING IN THE CSV
-        # e.g. if you want the contents of the column `trans` to appear as a resource named `transcript`, you would pass
-        # resources = {"transcript": "trans"}
         resources: dict[str, dict[str, str]] | None = None,
         **kwargs,
     ):

@@ -1,3 +1,13 @@
+"""Resource providers for attaching data to dataset samples.
+
+Providers separate dataset membership from experiment-specific data. A
+``BaseDataset`` determines which utterances exist; providers determine which
+additional resources belong to each utterance.
+
+Reference-based providers return :class:`ResourceRef` objects. Online providers
+compute values dynamically from an ``AudioSample`` or ``AudioBatch``.
+"""
+
 import csv
 from pathlib import Path
 from typing import Any
@@ -10,10 +20,22 @@ from .base import ResourceRef
 
 
 class BaseResourceProvider:
+    """Base interface for sample-level resource providers.
+
+    A provider maps a sample to a named :class:`ResourceRef`. Providers should
+    resolve *where a resource comes from* without deciding whether a
+    path-backed resource should be loaded; loading is controlled by the
+    dataset's ``load`` policy.
+
+    Subclasses implement :meth:`__call__`.
     """
-    An abstracton class for resource providers, which are responsible for providing access to various types of
-    resources (e.g. annotation files, precompute feature files, etc.) associated with samples in a dataset.
-    """
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def __call__(self, sample: AudioSample) -> ResourceRef:
+        """Return the resource associated with ``sample``."""
+        raise NotImplementedError
 
     def __init__(self, name: str):
         self.name = name
@@ -23,6 +45,30 @@ class BaseResourceProvider:
 
 
 class TemplateResourceProvider(BaseResourceProvider):
+    """Provide an in-memory resource by formatting sample metadata.
+
+    This is useful for lightweight metadata that can be derived directly from
+    the sample, such as speaker IDs, session names, language labels, or other
+    path-derived values.
+
+    Example:
+        Derive the LibriSpeech speaker ID from its directory structure::
+
+            provider = TemplateResourceProvider(
+                name="speaker_id",
+                template="{path.parent.parent.name}",
+                kind="text",
+            )
+
+    Args:
+        name:
+            Resource name exposed on the sample.
+        template:
+            Template evaluated against the sample.
+        kind:
+            Resource kind assigned to the resulting reference.
+    """
+
     def __init__(self, name: str, template: str, kind: str = "text"):
         super().__init__(name)
         self.template = template
@@ -36,6 +82,34 @@ class TemplateResourceProvider(BaseResourceProvider):
 
 
 class PathResourceProvider(TemplateResourceProvider):
+    """Associate each sample with a path-backed resource.
+
+    The path is produced by formatting ``path_template`` against the sample.
+    The returned :class:`ResourceRef` remains unresolved until the dataset's
+    ``load`` policy requests the resource.
+
+    Example:
+        Associate each utterance with a precomputed WavLM tensor::
+
+            provider = PathResourceProvider(
+                name="wavlm",
+                path_template="/features/wavlm/{sample.utt_id}.pt",
+                kind="torch_tensor",
+            )
+
+    Args:
+        name:
+            Resource name exposed on the sample.
+        path_template:
+            Template resolving to the resource path.
+        kind:
+            Resource kind used for loading and collation.
+        max_length:
+            Optional fixed padding length for tensor resources.
+        must_exist:
+            Whether to raise immediately if the resolved path does not exist.
+    """
+
     def __init__(
         self,
         name,
@@ -59,6 +133,48 @@ class PathResourceProvider(TemplateResourceProvider):
 
 
 class CSVAnnotationProvider(BaseResourceProvider):
+    """Look up per-utterance text annotations from shared delimited files.
+
+    The provider resolves an annotation file for each sample, parses each file
+    once, and caches an ``utterance_id -> text`` lookup table for subsequent
+    samples.
+
+    This is useful for corpora such as LibriSpeech where many utterances share
+    a transcript file.
+
+    The annotation file can be located either with ``path_template`` or from a
+    path stored on the sample via ``transcript_path_key``.
+
+    Args:
+        name:
+            Resource name. Defaults to ``"transcript"``.
+        path_template:
+            Optional template resolving directly to the annotation file.
+        transcript_path_key:
+            Sample field containing a transcript path when
+            ``path_template`` is not supplied.
+        utterance_key:
+            Sample expression used to determine the lookup key.
+        key_column:
+            Column containing utterance IDs.
+        text_column:
+            First column containing annotation text.
+        delimiter:
+            Optional CSV delimiter.
+        encoding:
+            Text encoding used to read annotation files.
+        join_text_columns:
+            If true, join all columns beginning at ``text_column``.
+
+    Raises:
+        FileNotFoundError:
+            If a resolved annotation file does not exist.
+        KeyError:
+            If the current sample has no annotation in the resolved file.
+        ValueError:
+            If an annotation file is malformed or contains duplicate keys.
+    """
+
     def __init__(
         self,
         name: str = "transcript",
@@ -146,6 +262,31 @@ class CSVAnnotationProvider(BaseResourceProvider):
 
 
 class OnlineResourceProvider:
+    """Compute a resource dynamically using a feature extractor.
+
+    Online providers are intended for resources that should be computed during
+    an experiment rather than loaded from precomputed sidecar files. The
+    wrapped extractor must provide ``extract_sample`` and ``extract_batch``
+    methods.
+
+    If ``name`` is omitted, ``extractor.feature_name`` is used.
+
+    Example::
+
+        provider = OnlineResourceProvider(
+            extractor=wavlm_encoder,
+            name="wavlm",
+        )
+
+        frame_features = provider.provide_batch(batch)
+
+    Args:
+        extractor:
+            Feature extractor used to compute the resource.
+        name:
+            Optional resource name.
+    """
+
     def __init__(
         self,
         extractor: Any,
@@ -155,7 +296,9 @@ class OnlineResourceProvider:
         self.name = extractor.feature_name if name is None else name
 
     def provide_sample(self, sample: AudioSample) -> torch.Tensor:
+        """Compute the resource for one sample."""
         return self.extractor.extract_sample(sample)
 
     def provide_batch(self, batch: AudioBatch) -> torch.Tensor:
+        """Compute the resource for a batch."""
         return self.extractor.extract_batch(batch)
