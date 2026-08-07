@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import Optional
 
 import torch
 import torchaudio
@@ -20,11 +19,11 @@ class W2VBertContentEncoder(ContentEncoder):
         self,
         model_name: str = "facebook/w2v-bert-2.0",
         sample_rate: int = 16000,
-        layer: Optional[int] = None,
+        layer: int | None = None,
         device: str | None = None,
         local_files_only: bool = False,
         downsample_factor: int = 0,
-        max_length: Optional[int] = None,
+        max_length: int | None = None,
         **kwargs,
     ) -> None:
         super().__init__(device=device)
@@ -97,9 +96,9 @@ class W2VBertContentEncoder(ContentEncoder):
     def encode_waveforms(
         self,
         waveforms: torch.Tensor,
-        lengths: Optional[torch.Tensor] = None,
-        sample_rate: Optional[int] = None,
-        max_length: Optional[int] = None,
+        lengths: torch.Tensor | None = None,
+        sample_rate: int | None = None,
+        max_length: int | None = None,
     ) -> ContentFeatures:
         """
         Args:

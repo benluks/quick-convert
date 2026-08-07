@@ -1,11 +1,8 @@
-from pathlib import Path
-from typing import Iterable, Optional
-
 import lightning as L
 import torch
 
 from quick_convert.data import BaseDataset
-from quick_convert.data.index.base import Indexer
+
 from .base_trainer import BaseTrainer
 
 
@@ -13,25 +10,25 @@ class LightningTrainer(BaseTrainer):
     def __init__(
         self,
         module: L.LightningModule,
-        train_dataloader_kwargs: Optional[dict] = {},
-        val_dataloader_kwargs: Optional[dict] = {},
-        trainer_kwargs: Optional[dict] = None,
-        compile: Optional[dict] = None,
-        cudnn_benchmark: Optional[bool] = None,
-        ddp: Optional[dict] = None,
-        precision: Optional[str] = None,
+        train_dataloader_kwargs: dict | None = None,
+        val_dataloader_kwargs: dict | None = None,
+        trainer_kwargs: dict | None = None,
+        compile: dict | None = None,
+        cudnn_benchmark: bool | None = None,
+        ddp: dict | None = None,
+        precision: str | None = None,
     ):
 
         self.module = module
-        self.train_dataloader_kwargs = train_dataloader_kwargs
-        self.val_dataloader_kwargs = val_dataloader_kwargs
+        self.train_dataloader_kwargs = train_dataloader_kwargs or {}
+        self.val_dataloader_kwargs = val_dataloader_kwargs or {}
         self.trainer_kwargs = trainer_kwargs or {}
         self.compile_cfg = compile or {"enabled": False}
         self.cudnn_benchmark = cudnn_benchmark
         self.ddp_cfg = ddp or {"enabled": False}
         self.precision = precision
 
-    def _trainer_kwargs_with_ddp(self, kwargs: Optional[dict] = None) -> dict:
+    def _trainer_kwargs_with_ddp(self, kwargs: dict | None = None) -> dict:
         """Merge DDP defaults into trainer kwargs when requested."""
         trainer_kwargs = dict(kwargs or {})
 
@@ -110,7 +107,7 @@ class LightningTrainer(BaseTrainer):
     def train(
         self,
         train_dataset: BaseDataset,
-        val_dataset: Optional[BaseDataset] = None,
+        val_dataset: BaseDataset | None = None,
     ):
 
         self._maybe_enable_cudnn_benchmark()

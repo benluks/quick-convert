@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from quick_convert.data.base_dataset import BaseDataset
 from quick_convert.pipelines.training.base_trainer import BaseTrainer
@@ -15,9 +15,9 @@ class TrainingPipeline:
         self,
         trainer: BaseTrainer,
         train_dataset: BaseDataset,
-        val_dataset: Optional[BaseDataset] = None,
-        test_dataset: Optional[BaseDataset] | None = None,
-        out_dir: PathLike = None,
+        val_dataset: BaseDataset | None = None,
+        test_dataset: BaseDataset | None = None,
+        out_dir: PathLike | None = None,
         **kwargs,
     ) -> None:
         self.trainer = trainer
