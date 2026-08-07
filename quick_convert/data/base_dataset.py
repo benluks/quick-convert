@@ -289,8 +289,6 @@ class BaseDataset(Dataset):
             if self._should_load(ref):
                 resources[name] = load_resource(ref)
 
-        # materialize resources here
-
         return replace(sample, resources=resources)
 
     def _is_excluded(self, path: Path) -> bool:
