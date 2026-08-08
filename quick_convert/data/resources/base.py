@@ -92,6 +92,9 @@ class ResourceCollection:
 
     _items: dict[str, ResourceRef] = field(default_factory=dict)
 
+    def __contains__(self, name: str) -> bool:
+        return name in self._items
+
     def __getitem__(self, name: str) -> ResourceRef:
         return self._items[name]
 

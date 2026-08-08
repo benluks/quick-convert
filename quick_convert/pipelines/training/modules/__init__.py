@@ -1,6 +1,5 @@
-from .tokenizer.bpe import SentencePieceBPETrainer
 from .base import BaseTrainingModule
+from .tokenizer.bpe import SentencePieceBPETrainer
 from .vq_asr import VQASRTrainingModule
 
-
-__all__ = ["SentencePieceBPETrainer", "BaseTrainingModule", "VQASRTrainingModule"]
+__all__ = ["BaseTrainingModule", "SentencePieceBPETrainer", "VQASRTrainingModule"]

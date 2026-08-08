@@ -160,7 +160,7 @@ class WavLMContentEncoder(ContentEncoder):
 
         # Hugging Face's audio processor accepts unpadded individual
         # waveforms, then pads them and constructs the sample-level mask.
-        waveform_list = [waveforms[i, : int(lengths[i])].detach().cpu() for i in range(batch_size)]
+        waveform_list = [waveforms[i, : int(lengths[i])].numpy() for i in range(batch_size)]
 
         inputs = self.processor(
             waveform_list,
