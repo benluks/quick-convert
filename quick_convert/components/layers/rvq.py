@@ -1,14 +1,17 @@
 from dataclasses import dataclass
-from typing import List, Optional, Union
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
-from einops import rearrange
+try:
+    from einops import rearrange
+except ModuleNotFoundError:
+    pass
+from torch import nn
 
-from quick_convert.utils.masking import make_padding_mask, masked_loss
+from quick_convert.utils.masking import masked_loss
+
 from .conv import WNConv1d
 
 # from DAC: https://github.com/descriptinc/descript-audio-codec/blob/main/dac/nn/quantize.py
@@ -25,7 +28,7 @@ class VQOutput:
     z_q: torch.Tensor
     indices: torch.Tensor
     latents: torch.Tensor
-    loss: Optional[VQLoss] = None
+    loss: VQLoss | None = None
 
 
 class VectorQuantize(nn.Module):
@@ -41,7 +44,13 @@ class VectorQuantize(nn.Module):
             improves training stability
     """
 
-    def __init__(self, input_dim: int, codebook_size: int, codebook_dim: int, output_dim: Optional[int] = None):
+    def __init__(
+        self,
+        input_dim: int,
+        codebook_size: int,
+        codebook_dim: int,
+        output_dim: int | None = None,
+    ):
         super().__init__()
         self.codebook_size = codebook_size
         self.codebook_dim = codebook_dim
@@ -51,7 +60,9 @@ class VectorQuantize(nn.Module):
         # for backward compat, default to outputting input dim, but optionally skip output proj
         self.output_dim = output_dim or input_dim
         self.out_proj = (
-            nn.Identity() if output_dim == codebook_dim else WNConv1d(codebook_dim, self.output_dim, kernel_size=1)
+            nn.Identity()
+            if output_dim == codebook_dim
+            else WNConv1d(codebook_dim, self.output_dim, kernel_size=1)
         )
         self.codebook = nn.Embedding(codebook_size, codebook_dim)
 
@@ -83,13 +94,23 @@ class VectorQuantize(nn.Module):
         z_q, indices = self.decode_latents(z_e)
 
         commitment_loss = masked_loss(
-            F.mse_loss, z_e.transpose(1, 2), z_q.detach().transpose(1, 2), mask=padding_mask, reduction=loss_reduction
+            F.mse_loss,
+            z_e.transpose(1, 2),
+            z_q.detach().transpose(1, 2),
+            mask=padding_mask,
+            reduction=loss_reduction,
         )
         codebook_loss = masked_loss(
-            F.mse_loss, z_q.transpose(1, 2), z_e.detach().transpose(1, 2), mask=padding_mask, reduction=loss_reduction
+            F.mse_loss,
+            z_q.transpose(1, 2),
+            z_e.detach().transpose(1, 2),
+            mask=padding_mask,
+            reduction=loss_reduction,
         )
 
-        z_q = z_e + (z_q - z_e).detach()  # noop in forward pass, straight-through gradient estimator in backward pass
+        z_q = (
+            z_e + (z_q - z_e).detach()
+        )  # noop in forward pass, straight-through gradient estimator in backward pass
 
         z_q = self.out_proj(z_q)
 
@@ -134,10 +155,10 @@ class RVQLosses:
 @dataclass
 class RVQOutput:
     z_q: torch.Tensor
-    layer_z_qs: List[torch.Tensor]
+    layer_z_qs: list[torch.Tensor]
     codes: torch.Tensor
     latents: torch.Tensor
-    loss: Optional[RVQLosses] = None
+    loss: RVQLosses | None = None
 
 
 class ResidualVectorQuantizer(nn.Module):
@@ -151,7 +172,7 @@ class ResidualVectorQuantizer(nn.Module):
         input_dim: int = 512,
         n_codebooks: int = 9,
         codebook_size: int = 1024,
-        codebook_dim: Union[int, list] = 8,
+        codebook_dim: int | list = 8,
         quantizer_dropout: float = 0.0,
     ):
         super().__init__()
@@ -163,7 +184,10 @@ class ResidualVectorQuantizer(nn.Module):
         self.codebook_size = codebook_size
 
         self.quantizers = nn.ModuleList(
-            [VectorQuantize(input_dim, codebook_size, codebook_dim[i]) for i in range(n_codebooks)]
+            [
+                VectorQuantize(input_dim, codebook_size, codebook_dim[i])
+                for i in range(n_codebooks)
+            ]
         )
         self.quantizer_dropout = quantizer_dropout
 
@@ -226,7 +250,9 @@ class ResidualVectorQuantizer(nn.Module):
             vq_output = quantizer(residual, lengths)
 
             # Create mask to apply quantizer dropout
-            mask = torch.full((z.shape[0],), fill_value=i, device=z.device) < n_quantizers
+            mask = (
+                torch.full((z.shape[0],), fill_value=i, device=z.device) < n_quantizers
+            )
             z_q = z_q + vq_output.z_q * mask[:, None, None]
             residual = residual - vq_output.z_q
 
@@ -247,7 +273,9 @@ class ResidualVectorQuantizer(nn.Module):
             layer_z_qs=z_qs,
             codes=codes,
             latents=latents,
-            loss=RVQLosses(commitment_loss=commitment_loss, codebook_loss=codebook_loss),
+            loss=RVQLosses(
+                commitment_loss=commitment_loss, codebook_loss=codebook_loss
+            ),
         )
 
     def from_codes(self, codes: torch.Tensor):
@@ -293,7 +321,9 @@ class ResidualVectorQuantizer(nn.Module):
         codes = []
         dims = np.cumsum([0] + [q.codebook_dim for q in self.quantizers])
 
-        n_codebooks = np.where(dims <= latents.shape[1])[0].max(axis=0, keepdims=True)[0]
+        n_codebooks = np.where(dims <= latents.shape[1])[0].max(axis=0, keepdims=True)[
+            0
+        ]
         for i in range(n_codebooks):
             j, k = dims[i], dims[i + 1]
             z_p_i, codes_i = self.quantizers[i].decode_latents(latents[:, j:k, :])

@@ -8,6 +8,7 @@ defaults:
   - /dataset@val_dataset: librispeech
   - /dataset@source_dataset: librispeech
   - /components/ssl@trainer.module.online_encoders.content: w2vbert
+  - resource_providers/librispeech@transcript_provider: transcript
   - _self_
 
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
@@ -38,7 +39,7 @@ data: &data
       kind: token_ids
       name: token_ids
       path_template: ${resources_path}/tokenizer/{sample.split}/{sample.utt_id}.pt
-    - ${train_dataset.transcript_provider}
+    - ${transcript}
 
   load:
     - audio

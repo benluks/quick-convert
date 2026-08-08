@@ -12,7 +12,6 @@ dataset_path: ${out_root}/${dataset_name}
 
 dataset:
   resource_providers:
-    # - ${dataset.transcript_provider}
     - _target_: quick_convert.data.resources.PathResourceProvider
       kind: torch_tensor
       name: w2vbert

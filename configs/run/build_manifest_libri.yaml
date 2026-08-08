@@ -4,6 +4,9 @@ defaults:
   - /global: default
   - /pipeline: build_manifest
   - /dataset: librispeech
+  - resource_providers/librispeech@transcript_provider: transcript
+  - resource_providers/librispeech@spkid_provider: spkid
+
   - _self_
 
 columns:
@@ -24,5 +27,5 @@ dataset:
   splits:
     - ${split}
   resource_providers:
-    - ${dataset.transcript_provider}
-    - ${dataset.spkid_provider}
+    - ${transcript}
+    - ${spkid}

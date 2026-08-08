@@ -16,7 +16,7 @@ anonymizer:
       root: /cfs/home/u036742/emotion-compensation/results/IEMOCAP_dev_ohnn_pre_esd_msp_sad1
       pattern: "{stem}_{step}.xvector"
       step: 1
-    - _target_: quick_convert.components.feature_providers.online.OnlineFeatureProvider
+    - _target_: quick_convert.data.resources.providers.OnlineResourceProvider
       extractor:
         _target_: quick_convert.components.donors.emotion_compensation.f0.PYAAPTF0Extractor
 
