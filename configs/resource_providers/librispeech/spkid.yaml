@@ -1,0 +1,4 @@
+_target_: quick_convert.data.resources.TemplateResourceProvider
+kind: text
+name: spkid
+template: "{path.parent.parent.name}"

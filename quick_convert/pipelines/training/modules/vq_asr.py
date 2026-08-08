@@ -1,25 +1,21 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import torch
 from torch import nn
-from sentencepiece import SentencePieceProcessor
-
 
 from quick_convert.components.encoders import LinguisticCTCHead
-from quick_convert.components.layers import VectorQuantize, LayerWeightedSum
+from quick_convert.components.layers import LayerWeightedSum, VectorQuantize
 from quick_convert.components.layers.rvq import VQOutput
 from quick_convert.components.losses.asr_losses import CTCOutput
 from quick_convert.components.mixins.resource import OnlineResourceMixin
 from quick_convert.components.ssl import ContentEncoder
-
 from quick_convert.data.types import AudioBatch
+from quick_convert.pipelines.evaluation.metrics.wer.jiwer_wer import JiwerWER
 from quick_convert.pipelines.training.modules.base import BaseTrainingModule
 from quick_convert.pipelines.training.optim.base import Optimization
-from quick_convert.utils.masking import make_padding_mask
 from quick_convert.systems.asr.utils import greedy_ctc_decode
-from quick_convert.pipelines.evaluation.metrics.wer.jiwer_wer import JiwerWER
+from quick_convert.utils.masking import make_padding_mask
 
 
 @dataclass
@@ -36,11 +32,11 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         ctc_head: LinguisticCTCHead,
         optimization: Optimization,
         tokenizer_model_path: Path = None,
-        layer_fusion: Optional[LayerWeightedSum] = None,
+        layer_fusion: LayerWeightedSum | None = None,
         # contextual model to be able to break the independence sampling,
         # something but cpaable of modelling context
-        post_quantization_network: Optional[nn.Module] = None,
-        online_encoders: Optional[dict[str, ContentEncoder]] = None,
+        post_quantization_network: nn.Module | None = None,
+        online_encoders: dict[str, ContentEncoder] | None = None,
         ctc_loss_weight: float = 1.0,
         commitment_loss_weight: float = 1.0,
         codebook_loss_weight: float = 1.0,
@@ -57,6 +53,8 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         self.commitment_loss_weight = commitment_loss_weight
         self.codebook_loss_weight = codebook_loss_weight
         self.post_quantization_network = post_quantization_network
+
+        from sentencepiece import SentencePieceProcessor
 
         # decoding for eval
         self.tokenizer = SentencePieceProcessor(model_file=tokenizer_model_path)
@@ -93,7 +91,9 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         )
 
         features = self.layer_fusion(features)
-        quantizer_output = self.quantizer(features.transpose(1, 2), padding_mask, loss_reduction="batch_by_sample")
+        quantizer_output = self.quantizer(
+            features.transpose(1, 2), padding_mask, loss_reduction="batch_by_sample"
+        )
 
         # back to [B, T, D]
         quantized = quantizer_output.z_q.transpose(1, 2)
@@ -134,23 +134,37 @@ class VQASRTrainingModule(OnlineResourceMixin, BaseTrainingModule):
 
     def on_validation_epoch_start(self):
         self.hypothesis_fp = (Path(self.trainer.log_dir) / "hypothesis.txt").open("w+")
-        self.references_fp = (Path(self.trainer.log_dir) / "ground_truth.txt").open("w+")
+        self.references_fp = (Path(self.trainer.log_dir) / "ground_truth.txt").open(
+            "w+"
+        )
 
-    def log_validation_output(self, batch: AudioBatch, output: VQASROutput, batch_idx: int):
+    def log_validation_output(
+        self, batch: AudioBatch, output: VQASROutput, batch_idx: int
+    ):
         writer: torch.utils.tensorboard.SummaryWriter = self.logger.experiment
 
         transcripts = self.get_resource(batch, "transcript")
         self.references_fp.write("\n".join(transcripts) + "\n")
         # reshape logits to [B T V]
-        for i, (item, logits) in enumerate(zip(batch, output.ctc.logits.transpose(0, 1))):
+        for i, (item, logits) in enumerate(
+            zip(batch, output.ctc.logits.transpose(0, 1))
+        ):
             if self.tokenizer is not None:
                 hypothesis_ids = greedy_ctc_decode(logits=logits)
                 hypothesis = self.tokenizer.decode_ids(hypothesis_ids.tolist())
                 self.hypothesis_fp.write(hypothesis + "\n")
 
                 if batch_idx == 0:
-                    writer.add_text(f"transcript/{item.utt_id}/hypothesis", hypothesis, self.global_step)
-                    writer.add_text(f"transcript/{item.utt_id}/ground_truth", transcripts[i], self.global_step)
+                    writer.add_text(
+                        f"transcript/{item.utt_id}/hypothesis",
+                        hypothesis,
+                        self.global_step,
+                    )
+                    writer.add_text(
+                        f"transcript/{item.utt_id}/ground_truth",
+                        transcripts[i],
+                        self.global_step,
+                    )
 
     def on_validation_epoch_end(self):
         self.hypothesis_fp.seek(0)

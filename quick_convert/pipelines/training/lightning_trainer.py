@@ -114,7 +114,11 @@ class LightningTrainer(BaseTrainer):
         self._maybe_compile_module()
 
         train_loader = train_dataset.make_dataloader(**self.train_dataloader_kwargs)
-        val_loader = val_dataset.make_dataloader(**self.val_dataloader_kwargs) if val_dataset else None
+        val_loader = (
+            val_dataset.make_dataloader(**self.val_dataloader_kwargs)
+            if val_dataset
+            else None
+        )
 
         return self.pl_trainer.fit(
             model=self.module,

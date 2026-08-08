@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Optional, Union
-
-import sentencepiece as spm
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +46,12 @@ class SentencePieceBPETrainer:
         unk_id: int = 1,
         bos_id: int = 2,
         eos_id: int = 3,
-        user_defined_symbols: Optional[list[str]] = None,
+        user_defined_symbols: list[str] | None = None,
         input_sentence_size: int = 0,
         shuffle_input_sentence: bool = True,
         num_threads: int = 4,
     ) -> None:
-        
+
         self.vocab_size = vocab_size
         self.character_coverage = character_coverage
         self.pad_id = pad_id
@@ -65,7 +63,9 @@ class SentencePieceBPETrainer:
         self.shuffle_input_sentence = shuffle_input_sentence
         self.num_threads = num_threads
 
-        self._model: Optional[spm.SentencePieceProcessor] = None
+        import sentencepiece as spm
+
+        self._model: spm.SentencePieceProcessor | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -74,7 +74,7 @@ class SentencePieceBPETrainer:
     def train_from_iterator(
         self,
         sentences: Iterable[str],
-        output_dir: Union[str, Path],
+        output_dir: str | Path,
         model_prefix: str = "tokenizer",
     ) -> Path:
         """Train from an in-memory iterable of sentences.
@@ -109,16 +109,20 @@ class SentencePieceBPETrainer:
     def encode(self, text: str) -> list[int]:
         """Encode *text* to a list of token IDs."""
         if self._model is None:
-            raise ValueError("Tokenizer model not loaded. Call train_from_iterator() or load() first.")
+            raise ValueError(
+                "Tokenizer model not loaded. Call train_from_iterator() or load() first."
+            )
         return self._model.encode(text)
 
     def decode(self, ids: list[int]) -> str:
         """Decode a list of token IDs back to a string."""
         if self._model is None:
-            raise ValueError("Tokenizer model not loaded. Call train_from_iterator() or load() first.")
+            raise ValueError(
+                "Tokenizer model not loaded. Call train_from_iterator() or load() first."
+            )
         return self._model.decode(ids)
 
-    def load(self, model_path: Union[str, Path]) -> "SentencePieceBPETrainer":
+    def load(self, model_path: str | Path) -> SentencePieceBPETrainer:
         """Load a previously saved ``.model`` file."""
         self._model = self._load(Path(model_path))
         return self
@@ -146,7 +150,9 @@ class SentencePieceBPETrainer:
     def vocab_size_actual(self) -> int:
         """Actual vocabulary size of the loaded model."""
         if self._model is None:
-            raise ValueError("Tokenizer model not loaded. Call train_from_iterator() or load() first.")
+            raise ValueError(
+                "Tokenizer model not loaded. Call train_from_iterator() or load() first."
+            )
         return self._model.get_piece_size()
 
     @staticmethod
@@ -154,4 +160,3 @@ class SentencePieceBPETrainer:
         processor = spm.SentencePieceProcessor()
         processor.load(str(model_path))
         return processor
-

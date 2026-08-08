@@ -9,10 +9,11 @@ from typing import Any, Protocol
 import torch
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import (
-    LRScheduler,
     LinearLR,
+    LRScheduler,
     SequentialLR,
 )
+
 
 Parameter = torch.nn.Parameter
 
@@ -136,7 +137,7 @@ class Optimization:
     optimizer: OptimizerFactory = torch.optim.AdamW
     optimizer_kwargs: dict[str, Any] = field(default_factory=dict)
 
-    lr_scheduler: SchedulerFactory | None = None
+    lr_scheduler: SchedulerFactory | None = torch.optim.lr_scheduler.CosineAnnealingLR
     lr_scheduler_kwargs: dict[str, Any] = field(default_factory=dict)
 
     warmup: WarmupProtocol | None = None
@@ -161,7 +162,7 @@ class Optimization:
             if total_steps <= 0:
                 raise ValueError(f"total_steps must be positive, got {total_steps}.")
 
-            setattr(optimizer, "total_steps", total_steps)
+            optimizer.total_steps = total_steps
 
         scheduler = self._build_scheduler(optimizer)
 

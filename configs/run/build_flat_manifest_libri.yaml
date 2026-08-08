@@ -4,6 +4,7 @@ defaults:
   - /global: default
   - /pipeline: build_manifest
   - /dataset: librispeech
+  - resource_providers/librispeech@spkid: spkid
   - _self_
 
 columns:
@@ -29,5 +30,5 @@ dataset:
     - dev-clean
     - dev-other
   resource_providers:
-    - ${dataset.spkid_provider}
+    - ${spkid}
   sort_key: "{row.utt_id}"
