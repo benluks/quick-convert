@@ -5,6 +5,7 @@ defaults:
   - /trainer: tokenizer
   - /pipeline: training
   - /dataset@train_dataset: librispeech
+  - resource_providers/librispeech@transcript_provider: transcript
   - _self_
 
 dataset: ${train_dataset}
@@ -17,6 +18,6 @@ train_dataset:
     - train-other-500
   load: false
   resource_providers:
-    - ${dataset.transcript_provider}
+    - ${transcript}
 
 val_dataset: null

@@ -5,10 +5,8 @@ from pathlib import Path
 
 import torch
 
-
 from ....data import AudioBatch
 from ....utils.audio import load_audio
-
 from .base import SpeakerEmbedding, SpeakerEncoder
 
 
