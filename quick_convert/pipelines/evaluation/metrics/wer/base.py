@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+
 from .. import Metric
 
 
 class WERMetric(Metric):
     ref_key = "ref_transcript"
-    pred_key = "hyp_transcript"
+    pred_key = "pred_transcript"
 
     def __init__(self, key="transcript"):
         self.key = key
