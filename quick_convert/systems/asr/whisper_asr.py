@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import Any, Iterable
+
+from collections.abc import Iterable
+from typing import Any
 
 import torchaudio
-import whisper
 
-
-from ...data.types import AudioBatch, MetadataSample
 from .base import ASRSystem
+
 
 _WHISPER_SR = 16000
 
@@ -26,7 +26,9 @@ class WhisperASR(ASRSystem):
         self.language = language
         self._model = None
 
-        self.decoding_options = whisper.DecodingOptions(language=language)
+        import whisper
+
+
         if self.device == "mps":
             self.device = "cpu"
 

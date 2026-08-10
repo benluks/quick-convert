@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Any
+
 import numpy as np
-import torch
-import soundfile as sf
-from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
+
 from quick_convert.pipelines.evaluation.metrics.base import Metric
 from quick_convert.systems.ser.odyssey_ser import OdysseySER
-from typing import Any, Iterable
 
-class MED(Metric):
+
+class MeanEuclideanDistanceMetric(Metric):
     key = "ser_embedding"
     ref_key = "ref_ser_embedding"
     pred_key = "pred_ser_embedding"

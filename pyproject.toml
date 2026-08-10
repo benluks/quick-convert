@@ -34,7 +34,6 @@ conflicts = [
         { extra = "espnet-wavlm-joint" },
     ],
     [
-        { extra = "eval" },
         { extra = "eval-emotion" },
         { extra = "conditional-rvq" },
     ],
@@ -90,13 +89,9 @@ mpm = ["masked-prosody-model>=0.3.0"]
 whisper = ["openai-whisper>=20231117"]
 eval-intelligibility = ["jiwer>=3.0"]
 eval-emotion = ["transformers<4.39.0"]
-eval = [
-    "jiwer>=3.0",
-    "transformers<4.39.0",
-]
+
 
 [project.scripts]
 anonymize = "main:main"
 eval_asr = "main:main"
 test = "quick_convert.cli.test:main"
-# eval_asv = "main:main"

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from quick_convert.pipelines.evaluation.metrics.base import Metric
 
-#TODO: Implement UAR metric for SER evaluation
+
+# TODO: Implement UAR metric for SER evaluation
 class UAR(Metric):
     key = "ser_label"
     ref_key = "ref_ser_label"

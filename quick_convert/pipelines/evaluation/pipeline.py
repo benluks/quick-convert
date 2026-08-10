@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import csv
 import json
+from collections.abc import Iterable
 from os import PathLike
 from pathlib import Path
-from typing import Iterable
 
 from tqdm import tqdm
 
@@ -64,9 +64,7 @@ class EvalPipeline:
     def generate_records(self) -> list[dict]:
 
         # Create DataLoaders for both datasets
-        pred_loader = self.dataset.make_dataloader(
-            batch_size=self.batch_size, num_workers=self.num_workers
-        )
+        pred_loader = self.dataset.make_dataloader(batch_size=self.batch_size, num_workers=self.num_workers)
 
         ref_loader = (
             self.ref_dataset.make_dataloader(batch_size=self.batch_size, num_workers=self.num_workers)
@@ -82,16 +80,15 @@ class EvalPipeline:
             preds = {}
 
             for metric in self.metrics:
-
                 if ref_iter is not None:
                     ref_batch = next(ref_iter)
                     if len(ref_batch) != len(pred_batch):
-                        raise ValueError("Mismatch between reference and prediction batches.")    
+                        raise ValueError("Mismatch between reference and prediction batches.")
                     refs[metric.key] = metric.get_references(ref_batch)
                 else:
                     # If no reference dataset is provided, use predictions as references
                     refs[metric.key] = metric.get_references(pred_batch)
-                
+
                 preds[metric.key] = self.system.get_labels(pred_batch)
 
             # Validate batch sizes

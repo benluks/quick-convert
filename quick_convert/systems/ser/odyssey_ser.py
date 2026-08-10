@@ -1,30 +1,29 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Any
+
 import numpy as np
-import torch
 import soundfile as sf
+import torch
 from transformers import AutoModelForAudioClassification
-from quick_convert.pipelines.evaluation.metrics.base import Metric
-from typing import Any, Iterable
-from torch import nn
-from abc import ABC, abstractmethod
+
 from .base import SERSystem
 
-import logging
-import warnings
 
 # Suppress warnings from transformers and torch
-warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub")
-warnings.filterwarnings("ignore", category=UserWarning, module="torch.nn.functional")
-logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
+# warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub")
+# warnings.filterwarnings("ignore", category=UserWarning, module="torch.nn.functional")
+# logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
 
 
 class OdysseySER(SERSystem):
-
-    def __init__(self, 
-                 device: str = "cpu",
-                 name: str = "OdysseySER",
-                 model_name: str = "3loi/SER-Odyssey-Baseline-WavLM-Categorical"):
+    def __init__(
+        self,
+        device: str = "cpu",
+        name: str = "OdysseySER",
+        model_name: str = "3loi/SER-Odyssey-Baseline-WavLM-Categorical",
+    ):
         """
         Initialize the OdysseySER metric and SER system.
         Uses lazy-loading for the SER model.
@@ -43,10 +42,9 @@ class OdysseySER(SERSystem):
         Also initialize normalization parameters (mean and std).
         """
         if self._model is None:
-            self._model = AutoModelForAudioClassification.from_pretrained(
-                self.model_name,
-                trust_remote_code=True
-                ).to(self.device)
+            self._model = AutoModelForAudioClassification.from_pretrained(self.model_name, trust_remote_code=True).to(
+                self.device
+            )
             self.mean = self._model.config.mean
             self.std = self._model.config.std
             self._model.eval()
