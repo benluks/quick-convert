@@ -1,11 +1,10 @@
 from dataclasses import replace
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 from quick_convert.components.layers.heads import HeadOutput, HeadTarget, SupervisedHead
-from quick_convert.components.losses.distil_losses import BaseDistilLoss, MaskedMSELoss, MSELoss
-from quick_convert.utils.masking import masked_loss
+from quick_convert.components.losses.distil_losses import BaseDistilLoss, MaskedMSELoss
 
 
 class LinearHead(SupervisedHead):
