@@ -1,5 +1,6 @@
 _target_: quick_convert.pipelines.evaluation.pipeline.EvalPipeline
 dataset: ${dataset}
+ref_dataset: ${ref_dataset}
 system: ${system}
 metrics: ${metrics}
 out_dir: ${out_root}/eval_${system.name}_${hydra:runtime.choices.dataset}/

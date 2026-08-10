@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from os import PathLike
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from ....data.types import AudioBatch
 
@@ -18,4 +18,3 @@ class Metric(ABC):
         """
         Get task-specific references
         """
-        ...
