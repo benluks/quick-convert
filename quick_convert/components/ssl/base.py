@@ -7,7 +7,7 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from quick_convert.utils import ConfigurableDevice, configure_device
+from quick_convert.utils import DeviceLike, configure_device
 
 
 @dataclass
@@ -27,7 +27,7 @@ class ContentEncoder(nn.Module, ABC):
     TIME_D: int = 1
     FEATURE_DIM: int | None = None
 
-    def __init__(self, device: ConfigurableDevice = None):
+    def __init__(self, device: DeviceLike = None):
         super().__init__()
         self.device = torch.device(configure_device(device))
 

@@ -10,6 +10,10 @@ from omegaconf import DictConfig, OmegaConf
 OmegaConf.register_new_resolver("add", lambda x, y: int(x) + int(y))
 OmegaConf.register_new_resolver("mul", lambda x, y: int(x) * int(y))
 OmegaConf.register_new_resolver("bool", lambda x: bool(x))
+OmegaConf.register_new_resolver(
+    "len",
+    lambda value: len(value),
+)
 
 
 @hydra.main(

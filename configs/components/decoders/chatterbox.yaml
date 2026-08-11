@@ -7,9 +7,8 @@ flow:
   # encoder has to accept `tokens` and `token_sizes` in the forward method and have a property accessible by a function `output_size()`
   # TODO: change to conformer
 
-  encoder:
-    ${architecture.flow.encoder}
-    # this is a placeholder because the upsampling conformer is not necessary. Subject to change, replaced by something in `quick_convert.components.layers`
+  # this is a placeholder because the upsampling conformer is not necessary. Subject to change, replaced by something in `quick_convert.components.layers`
+  encoder: ???
 
   decoder:
     _target_: quick_convert.external.chatterbox.s3gen.flow_matching.CausalConditionalCFM

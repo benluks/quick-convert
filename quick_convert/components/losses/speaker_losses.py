@@ -1,10 +1,9 @@
-from ast import Tuple
-from typing import Optional
+import math
+from dataclasses import dataclass
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import math
+from torch import nn
 
 
 class BaseSpeakerLoss(nn.Module):
@@ -30,11 +29,18 @@ class CosineDistanceLoss(BaseSpeakerLoss):
     def forward(self, speaker_features: torch.FloatTensor, speaker_embs: torch.FloatTensor) -> torch.Tensor:
         loss = 1 - torch.cosine_similarity(speaker_features, speaker_embs, dim=1)
         if self.reduction == "mean":
-            return loss.mean()
+            loss = loss.mean()
         elif self.reduction == "sum":
-            return loss.sum()
-        else:
-            return loss
+            loss = loss.sum()
+
+        return SpeakerLossOutput(loss=loss, accuracy=None, predictions=None)
+
+
+@dataclass
+class SpeakerLossOutput:
+    loss: torch.FloatTensor
+    accuracy: float
+    predictions: torch.LongTensor
 
 
 class AAMSoftmaxLoss(BaseSpeakerLoss):
@@ -73,15 +79,12 @@ class AAMSoftmaxLoss(BaseSpeakerLoss):
 
         self.ce = nn.CrossEntropyLoss(reduction=self.reduction)
 
-    def forward(
-        self, speaker_features: torch.FloatTensor, speaker_labels: torch.LongTensor
-    ) -> tuple[torch.Tensor, float, torch.Tensor]:
+    def forward(self, speaker_features: torch.FloatTensor, speaker_labels: torch.LongTensor) -> SpeakerLossOutput:
         # Apply linear transformation to get "cosine similarities"
         cosine = F.linear(F.normalize(speaker_features), F.normalize(self.weight))  # Output: (batch_size, nclasses)
 
         # Get predictions and accuracy for monitoring
         preds = torch.argmax(cosine, dim=1)
-        speaker_labels = speaker_labels
         accuracy = (preds == speaker_labels).float().mean()
 
         # Convert cosine similarities to sine values using the identity sin^2 + cos^2 = 1
@@ -109,4 +112,4 @@ class AAMSoftmaxLoss(BaseSpeakerLoss):
 
         accuracy = accuracy.item()
         preds = preds.detach().cpu()
-        return loss, accuracy, preds
+        return SpeakerLossOutput(loss=loss, accuracy=accuracy, predictions=preds)

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import functools
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -5,6 +8,7 @@ import torch
 from torch import nn
 
 from quick_convert.components.layers import AttentiveStatisticsPooling
+from quick_convert.components.layers.heads import HeadOutput, HeadTarget, SupervisedHead
 from quick_convert.components.losses.speaker_losses import BaseSpeakerLoss
 
 
@@ -16,7 +20,7 @@ class SpeakerASRHeadOutput:
     loss: torch.FloatTensor | None = None
 
 
-class SpeakerASPHead(nn.Module):
+class SpeakerASPHead(SupervisedHead):
     """
     Simple speaker head that applies a linear layer to the content encoder output, followed by attentive statistics pooling and another linear layer.
     """
@@ -27,10 +31,10 @@ class SpeakerASPHead(nn.Module):
         input_dim: int = 512,
         hidden_dim: int = 128,
         output_dim: int = 192,
-        supervision: str = "cosine",
         loss_index_key: str = "speaker",
     ):
         super().__init__()
+
         self.ln = nn.LayerNorm(input_dim)
 
         self.pre_pool = nn.Sequential(
@@ -44,75 +48,100 @@ class SpeakerASPHead(nn.Module):
         )
 
         self.output_dim = output_dim
-
-        if supervision not in ["cosine", "aam"]:
-            raise ValueError(f"Unsupported supervision type: {supervision}")
-        self.supervision = supervision
         self.loss_index_key = loss_index_key
+        self.loss = loss
 
-        if supervision == "aam":
-            self.loss_partial = loss
-        else:
-            self.loss = loss
+    def build_loss(self, indexers: dict[str, Any]) -> None:
+        """
+        Build losses whose shape depends on an index created during dataset setup.
 
-    def build_loss(self, indexers: dict[str, Any]):
+        For AAM supervision, the classifier output dimension is determined by
+        the number of speakers in ``indexers[self.loss_index_key]``.
         """
-        A function for modules whose losses depend on a specific output shape.
-        `indexers` is a dictionary of the dimenstion-bearing objects passed recursively
-        through the root module. The key to access the correct object is defined in the constructor.
-        You'll need to know how to determine the desired dimension from the object beforehand. This avoids needing
-        to redundantly pass the loss dim in the hydra config (before the index is built).
-        --
-        This isn't ideal. Maybe in the future th ewprk should go towards pre-building the index in the first place
-        so we know the number of speakers beforehand.
-        """
-        if self.supervision == "aam":
-            num_speakers = len(indexers[self.loss_index_key])
-            self.loss = self.loss_partial(
-                num_classes=num_speakers,
+
+        # build loss only needed for partial, because it depends on the training data (i.e. number of speakers)
+        if not isinstance(self.loss, functools.partial):
+            return
+
+        if self.loss_index_key not in indexers:
+            raise KeyError(
+                f"Cannot build speaker AAM loss: no indexer named "
+                f"{self.loss_index_key!r}. Available indexers: "
+                f"{sorted(indexers)}"
             )
 
-    def forward(self, x: torch.Tensor, padding_mask: torch.LongTensor = None) -> torch.Tensor:
+        num_speakers = len(indexers[self.loss_index_key])
+
+        self.loss = self.loss(
+            num_classes=num_speakers,
+        )
+
+    def forward(
+        self,
+        features: torch.Tensor,
+        *,
+        lengths: torch.Tensor | None = None,
+        padding_mask: torch.Tensor | None = None,
+    ) -> HeadOutput:
         """
+        Produce one speaker embedding per sequence.
+
         Args:
-            x: (B, T, output_dim) output of the content encoder
+            features:
+                Routed frame-level features with shape ``(B, T, input_dim)``.
+            lengths:
+                Valid sequence lengths. Accepted for the generic head
+                interface; currently the padding mask is used directly.
+            padding_mask:
+                Padding mask passed to attentive statistics pooling.
+
         Returns:
-            speaker_features: (B, output_dim)
+            A speaker-head output containing embeddings of shape
+            ``(B, output_dim)``.
         """
-        x = self.ln(x)
+        del lengths
+
+        x = self.ln(features)
         x = self.pre_pool(x)
         x = self.pool(x, padding_mask=padding_mask)
         x = self.post_pool(x)
-        return SpeakerASRHeadOutput(speaker_features=x)
+
+        return HeadOutput(features={"speaker_embedding": x})
+
+    def predict(
+        self,
+        features: torch.Tensor,
+        *,
+        lengths: torch.Tensor,
+        padding_mask: torch.Tensor,
+    ) -> HeadOutput:
+        return self.forward(
+            features,
+            lengths=lengths,
+            padding_mask=padding_mask,
+        )
 
     def compute_loss(
         self,
-        speaker_features: torch.FloatTensor,
-        speaker_labels: torch.LongTensor = None,
-        padding_mask: torch.LongTensor = None,
-    ) -> SpeakerASRHeadOutput:
-        """Compute cosine distance loss between predicted speaker features and target speaker embeddings."""
+        features: torch.Tensor,
+        *,
+        targets: HeadTarget,
+        lengths: torch.Tensor,
+        padding_mask: torch.Tensor,
+    ) -> HeadOutput:
+        """Compute speaker-classification loss from pooled speaker embeddings."""
 
-        spk_output = self.forward(speaker_features, padding_mask=padding_mask)
-        x = spk_output.speaker_features
+        spk_output = self.forward(features, padding_mask=padding_mask)
+        embedding = spk_output.features["speaker_embedding"]
         # only need padding if
-        if x.ndim == 3:
+        if embedding.ndim == 3:
             raise NotImplementedError("Loss padding not yet implemented for frame-wise speaker embeddings")
 
-        if self.supervision == "cosine":
-            if speaker_labels is None:
-                raise ValueError("Speaker embeddings must be provided for cosine supervision.")
-            loss = self.loss(x, speaker_labels)
-            accuracy = None
-            preds = None
+        loss_output = self.loss(embedding, targets.values)
 
-        elif self.supervision == "aam":
-            if speaker_labels is None:
-                raise ValueError("Speaker labels must be provided for AAM supervision.")
-            # AAM loss has an internal classifier
-            loss, accuracy, preds = self.loss(x, speaker_labels)
-
-        else:
-            raise ValueError(f"Unsupported supervision type: {self.supervision}")
-
-        return replace(spk_output, loss=loss, accuracy=accuracy, predictions=preds)
+        return replace(
+            spk_output,
+            loss=loss_output.loss,
+            metrics={"accuracy": loss_output.accuracy},
+            predictions=loss_output.predictions,
+        )
