@@ -1,0 +1,26 @@
+# this is the one system where the target is an abstraction, i.e. it takes a base trainer type (e.g. `lightning_trainer`)
+# and then passes the specific class. It's because these types are redundant, i.e. `controllable_rvq` is always a lightning trainer.
+
+defaults:
+  - /global: default
+  - lightning
+  - /architecture: w2vbert_chatterbox
+  - /trainer/optimizer@module.optimization: adamw_cosine
+  - _self_
+
+# cudnn, ddp and compile are disabled by default. Switch enabled to true to turn on
+cudnn_benchmark: false
+
+ddp:
+  enabled: false
+
+compile:
+  enabled: false
+  targets:
+    - decoder
+
+module:
+  _target_: quick_convert.pipelines.training.modules.ssl_reconstruction.SSLReconstructionTrainingModule
+  decoder: ${architecture.decoder}
+  feature_transform: ${architecture.feature_transform}
+  online_encoders: ${architecture.online_encoders}

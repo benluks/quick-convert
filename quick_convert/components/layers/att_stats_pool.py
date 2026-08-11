@@ -1,5 +1,6 @@
 import torch
-import torch.nn as nn
+from torch import nn
+
 
 # From WeSpeaker: https://github.com/wenet-e2e/wespeaker/blob/master/wespeaker/models/pooling_layers.py
 

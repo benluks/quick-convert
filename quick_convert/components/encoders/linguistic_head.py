@@ -1,14 +1,13 @@
-from dataclasses import dataclass
-
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch import nn
 
 from quick_convert.components.layers import ConformerBlock
 from quick_convert.components.losses import CTCLoss
 
+from ..layers.heads import HeadOutput, HeadTarget, SupervisedHead
 
-class LinguisticCTCHead(nn.Module):
+
+class LinguisticCTCHead(SupervisedHead):
     def __init__(self, hidden_dim: int, loss: CTCLoss):
         super().__init__()
         """
@@ -23,27 +22,52 @@ class LinguisticCTCHead(nn.Module):
         )
         """
         self.ln = nn.LayerNorm(hidden_dim)
-        self.ctc_loss = loss
+        self.loss = loss
 
     def forward(self, x: torch.Tensor, *kwargs) -> torch.Tensor:
         x = self.ln(x)
         return x
 
+    def predict(
+        self,
+        features: torch.Tensor,
+        *,
+        lengths: torch.Tensor,
+        padding_mask: torch.Tensor,
+    ) -> HeadOutput:
+        del lengths, padding_mask
+
+        logits = self.forward(features)
+
+        return HeadOutput(
+            predictions=logits,
+            states={"logits": logits},
+        )
+
     def compute_loss(
         self,
-        x: torch.FloatTensor,
-        linguistic_targets: torch.LongTensor,
-        input_lengths: torch.LongTensor,
-        target_lengths: torch.LongTensor,
-    ) -> torch.Tensor:
+        features,
+        *,
+        targets: HeadTarget,
+        padding_mask,
+        lengths=None,
+    ) -> HeadOutput:
         """
         Implementation assumes tokenization happens outside the model,
         and that 0 is reserved for the CTC blank token.
         """
-        x = self.forward(x)
+
+        if targets.lengths is None:
+            raise ValueError("Linguistic CTC targets require target lengths.")
+
+        x = self.forward(features)
         x = x.transpose(0, 1)  # (T, B, output_dim) for CTC loss
-        output = self.ctc_loss(x, linguistic_targets, input_lengths, target_lengths)
-        return output
+        output = self.loss(x, targets.values, lengths, targets.lengths)
+        return HeadOutput(
+            loss=output.loss,
+            predictions=output.log_probs,
+            states={"logits": output.logits, "log_probs": output.log_probs},
+        )
 
 
 class LinguisticConformerCTCHead(nn.Module):

@@ -1,17 +1,17 @@
-from .parallel_conformer import ParallelConformerEncoder
-from .rvq_disentangler import RVQDisentangler, RVQLayerRouter
-from .speaker_head import SpeakerASPHead
-from .linguistic_head import LinguisticCTCHead
-from .linear_head import LinearHead
 from .conformer_encoder import ConformerEncoder, ConformerEncoderSSL
+from .linear_head import LinearHead
+from .linguistic_head import LinguisticCTCHead
+from .parallel_conformer import ParallelConformerEncoder
+from .rvq_disentangler import RVQDisentangler
+from .speaker_head import SpeakerASPHead
+
 
 __all__ = [
-    "ParallelConformerEncoder",
-    "RVQDisentangler",
-    "RVQLayerRouter",
-    "SpeakerASPHead",
-    "LinguisticCTCHead",
-    "LinearHead",
     "ConformerEncoder",
     "ConformerEncoderSSL",
+    "LinearHead",
+    "LinguisticCTCHead",
+    "ParallelConformerEncoder",
+    "RVQDisentangler",
+    "SpeakerASPHead",
 ]

@@ -1,139 +1,71 @@
 from __future__ import annotations
 
-import copy
+from copy import deepcopy
 from dataclasses import dataclass, replace
-from typing import Any, List, Optional
+from typing import Any
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from quick_convert.components.encoders.conformer_encoder import ConformerEncoderSSL
+from quick_convert.components.layers.grl import GradientReversalLayer
+from quick_convert.components.layers.heads import HeadOutput, HeadTarget, SupervisedHead
+from quick_convert.components.layers.routers import DeterministicRVQLayerRouter, LearnedRVQLayerRouter, RouterOutput
 from quick_convert.components.layers.rvq import RVQOutput
-from quick_convert.utils.masking import make_padding_mask, masked_loss, trim_to_min
+from quick_convert.utils.masking import make_padding_mask, masked_loss
 
-from .speaker_head import SpeakerASPHead, SpeakerASRHeadOutput
-from .linguistic_head import LinguisticCTCHead
-from .linear_head import LinearHead
-
-from ..layers import ResidualVectorQuantizer, GradientReversalLayer, VectorQuantize
+from ..layers import ResidualVectorQuantizer
 
 
-@dataclass
-class RouterOutput:
-    zs: list[torch.Tensor]
-    layer_mask: Optional[torch.Tensor] = None
-    layer_probabilities: Optional[torch.Tensor] = None
-    layer_logits: Optional[torch.Tensor] = None
-    loss: Optional[torch.Tensor] = None
-
-
-class RVQLayerRouter(nn.Module):
+@dataclass(frozen=True)
+class HeadSpec:
     """
-    Routes the output of the RVQ to different heads for disentanglement.
+    Wiring for a supervised head.
+
+    Args:
+        route:
+            Routed RVQ representation consumed by the head.
+        target:
+            Resource name used as supervision.
+        loss_weight:
+            Weight applied to the supervised loss.
+        indexer:
+            Optional indexer used to convert categorical resources into
+            integer class labels.
+        optional:
+            Whether the head may be skipped when its target resource is absent.
     """
 
-    def __init__(self, n_classes: int, codebook_dim: int, codebook_size: int, gumbel_tau: float = 1.0, init_zeros=True):
-        super().__init__()
-        self.n_classes = n_classes
-        self.codebook_dim = codebook_dim
-        self.codebook_size = codebook_size
-        self.gumbel_tau = gumbel_tau
-        self.classifier = nn.Linear(codebook_size, n_classes)
+    route: str
+    target: str
+    loss_weight: float = 1.0
+    indexer: str | None = None
+    optional: bool = False
 
-        if init_zeros:
-            # initialize with zeros. The small number of rvq layers and
-            # heads can mean unstable training if initialization favors one head
-            nn.init.zeros_(self.classifier.weight)
-            nn.init.zeros_(self.classifier.bias)
 
-        self.init_zeros = init_zeros
+@dataclass(frozen=True)
+class AdversarialSpec:
+    """
+    Describes an adversarial prediction task.
 
-    def _compute_mask(
-        self,
-        quantizers: List[VectorQuantize],
-        compute_loss: bool = False,
-    ) -> tuple[torch.Tensor, Optional[torch.Tensor], torch.Tensor, torch.Tensor]:
-        weights = torch.stack(
-            [q.codebook.weight.mean(dim=1).detach() for q in quantizers],
-            dim=0,
-        )
+    `predictor` identifies the task whose target and head type should be used.
+    `source_route` identifies the representation from which that task should
+    not be recoverable.
+    """
 
-        layer_logits = self.classifier(weights)
-        layer_probabilities = F.softmax(layer_logits, dim=-1)
-
-        cached_mask = getattr(self, "layer_mask", None)
-
-        if self.training:
-            layer_mask = F.gumbel_softmax(
-                layer_logits,
-                tau=self.gumbel_tau,
-                hard=True,
-                dim=-1,
-            )
-            self.layer_mask = layer_mask
-        else:
-            if cached_mask is not None:
-                layer_mask = cached_mask.to(
-                    device=layer_logits.device,
-                    dtype=layer_logits.dtype,
-                )
-            else:
-                selected = torch.argmax(layer_logits, dim=-1)
-                layer_mask = torch.zeros_like(layer_probabilities).scatter_(
-                    1,
-                    selected.unsqueeze(-1),
-                    1.0,
-                )
-                self.layer_mask = layer_mask.detach()
-
-        if compute_loss:
-            router_loss = self.compute_loss(layer_probabilities, layer_mask)
-        else:
-            router_loss = None
-
-        return layer_mask, router_loss, layer_probabilities, layer_logits
-
-    def forward(
-        self, quantizers: List[VectorQuantize], z_quantized: List[torch.Tensor], compute_loss: bool = False
-    ) -> RouterOutput:
-        layer_mask, router_loss, layer_probabilities, layer_logits = self._compute_mask(
-            quantizers, compute_loss=compute_loss
-        )
-        z_quantized = torch.stack(z_quantized, dim=0)
-
-        z_s = []
-        for n in range(self.n_classes):
-            z_n = (z_quantized * layer_mask[:, n].view(-1, 1, 1, 1)).sum(dim=0)
-            z_s.append(z_n)
-
-        return RouterOutput(
-            zs=z_s,
-            layer_mask=layer_mask,
-            layer_probabilities=layer_probabilities,
-            layer_logits=layer_logits,
-            loss=router_loss,
-        )
-
-    def compute_loss_orig(self, layer_probabilities: torch.Tensor, one_hot_mask: torch.Tensor) -> torch.Tensor:
-        p_expert = layer_probabilities.mean(dim=0)
-        f_expert = one_hot_mask.float().mean(dim=0)
-        loss = self.n_classes * torch.sum(f_expert * p_expert)
-        return loss
-
-    def compute_loss(self, layer_probabilities, one_hot_mask):
-        p = layer_probabilities.mean(dim=0)
-        target = torch.full_like(p, 1.0 / self.n_classes)
-        return F.mse_loss(p, target)
+    predictor: str
+    source_route: str
+    loss_weight: float = 1.0
 
 
 @dataclass
 class RVQDisentanglerLoss:
     rvq: dict[str, torch.Tensor]
-    distill: dict[str, torch.Tensor]
-    adv: Optional[dict[str, torch.Tensor]] = None
-    metrics: Optional[dict[str, torch.Tensor]] = None
-    states: Optional[dict[str, torch.Tensor]] = None
+    supervised: dict[str, torch.Tensor]
+    adv: dict[str, torch.Tensor] | None = None
+    metrics: dict[str, torch.Tensor] | None = None
+    states: dict[str, Any] | None = None
 
 
 @dataclass
@@ -148,14 +80,9 @@ class RVQDisentanglerOutput:
     rvq: RVQOutput
     router: RouterOutput
 
-    # # head inputs
-    # z_spk: torch.Tensor
-    # z_ling: torch.Tensor
-    # z_pros: torch.Tensor
-
     # the head output exists on the disentangler (encoder) level. It's akin to an x-vector
-    head_outputs: Optional[dict[str, Any]] = None
-    loss: Optional[RVQDisentanglerLoss] = None
+    head_outputs: dict[str, HeadOutput] | None = None
+    loss: RVQDisentanglerLoss | None = None
 
 
 class RVQDisentangler(nn.Module):
@@ -163,52 +90,95 @@ class RVQDisentangler(nn.Module):
         self,
         content_encoder: ConformerEncoderSSL,
         rvq: ResidualVectorQuantizer,
-        linguistic_head: LinguisticCTCHead,
-        speaker_head: SpeakerASPHead,
-        emotion_head: LinearHead,
-        prosody_head: LinearHead | None,
-        router: dict[str, int] | RVQLayerRouter = {"linguistic_content": 0, "speaker": 1, "prosody": 2, "emotion": 2},
-        *kwargs,
+        router: LearnedRVQLayerRouter | DeterministicRVQLayerRouter,
+        heads: dict[str, SupervisedHead],
+        head_specs: dict[str, HeadSpec],
+        adversarial_specs: dict[str, AdversarialSpec] | None = None,
+        **kwargs,
     ):
         super().__init__()
 
         self.content_encoder = content_encoder
         self.rvq = rvq
-
-        self.speaker_head = speaker_head
-        self.linguistic_head = linguistic_head
-        self.emotion_head = emotion_head
-        self.prosody_head = prosody_head
-
-        if isinstance(router, dict):
-            valid_keys = {"linguistic_content", "speaker", "prosody", "emotion"}
-            given_keys = set(router.keys())
-            assert given_keys == valid_keys, f"keys in router dict must be exactly: {valid_keys}, got: {given_keys}"
-
         self.router = router
-        self._create_adversarial_heads()
 
-    def _create_adversarial_heads(self):
-        self.adv_speaker_head_ling = copy.deepcopy(self.speaker_head)
-        self.adv_speaker_head_pros = copy.deepcopy(self.speaker_head)
-        self.adv_linguistic_head_spk = copy.deepcopy(self.linguistic_head)
-        self.adv_linguistic_head_pros = copy.deepcopy(self.linguistic_head)
+        self.heads = nn.ModuleDict(heads)
+        self.head_specs = dict(head_specs)
+
+        self._validate_head_configuration()
+
+        self.adversarial_specs = dict(adversarial_specs or {})
+        self._validate_adversarial_configuration()
+
+        self.adversarial_heads = nn.ModuleDict(
+            {name: deepcopy(self.heads[spec.predictor]) for name, spec in self.adversarial_specs.items()}
+        )
+
         self.grl = GradientReversalLayer()
 
-    def forward(self, features: torch.Tensor, lengths: torch.Tensor) -> RVQDisentanglerOutput:
-        with torch.no_grad():
-            return self.encode(features, lengths)
+    def _validate_head_configuration(self) -> None:
+        head_names = set(self.heads)
+        spec_names = set(self.head_specs)
+
+        if missing := head_names - spec_names:
+            raise ValueError(f"Heads missing HeadSpec entries: {sorted(missing)}")
+
+        if unknown := spec_names - head_names:
+            raise ValueError(f"HeadSpec entries without heads: {sorted(unknown)}")
+
+        for name, spec in self.head_specs.items():
+            if not spec.route:
+                raise ValueError(f"Head {name!r} has an empty route.")
+
+            if not spec.target:
+                raise ValueError(f"Head {name!r} has an empty target resource.")
+
+    def _validate_adversarial_configuration(self) -> None:
+        for adversary_name, spec in self.adversarial_specs.items():
+            if spec.predictor not in self.heads:
+                raise ValueError(
+                    f"Adversary {adversary_name!r} references unknown "
+                    f"predictor head {spec.predictor!r}. "
+                    f"Available heads: {sorted(self.heads)}"
+                )
+
+            if not spec.source_route:
+                raise ValueError(f"Adversary {adversary_name!r} has an empty source route.")
+
+            predictor_route = self.head_specs[spec.predictor].route
+
+            if spec.source_route == predictor_route:
+                raise ValueError(
+                    f"Adversary {adversary_name!r} predicts "
+                    f"{spec.predictor!r} from its own supervised route "
+                    f"{spec.source_route!r}. This would directly oppose the "
+                    "normal supervised objective."
+                )
+
+    def forward(
+        self,
+        features: torch.Tensor,
+        lengths: torch.Tensor,
+    ) -> RVQDisentanglerOutput:
+        padding_mask = make_padding_mask(
+            lengths,
+            max_length=features.shape[1],
+        )
+        return self.encode(
+            features,
+            padding_mask,
+            lengths=lengths,
+        )
 
     def encode(
         self,
         features: int["b t d"],
         padding_mask: int["b t [1]"],
-        # cursory addition, because the output of this function should
-        lengths: Optional[int["b"]] = None,
+        lengths: int["b"] | None = None,
     ) -> RVQDisentanglerOutput:
         content = self.content_encoder(features, padding_mask=padding_mask)
 
-        B, T, F = content.shape
+        # RVQ expects B, D, T.
         content = content.transpose(1, 2)
 
         rvq_output: RVQOutput = self.rvq(content, padding_mask)
@@ -226,40 +196,16 @@ class RVQDisentangler(nn.Module):
         )
 
     def _route(self, layer_z_qs) -> RouterOutput:
-        if isinstance(self.router, dict):
-            z_spk = layer_z_qs[self.router["speaker"]].transpose(1, 2)
-            z_ling = layer_z_qs[self.router["linguistic_content"]].transpose(1, 2)
-
-            z_pros = torch.stack(layer_z_qs[self.router["emo_pros"] :], dim=3).sum(dim=3).transpose(1, 2)
-            return RouterOutput(zs=[z_spk, z_ling, z_pros], router_loss=layer_z_qs[0].new_tensor(0.0))
-
-        router_output = self.router(self.rvq.quantizers, layer_z_qs, compute_loss=True)
-        z_spk = router_output.zs[0].transpose(1, 2)
-        z_ling = router_output.zs[1].transpose(1, 2)
-        z_pros = router_output.zs[2].transpose(1, 2)
-
-        return replace(router_output, zs=[z_spk, z_ling, z_pros])
-
-    def _shared_step(self, features, lengths, emotion_seq, emotion_lengths):
-        features, emotion_seq, lengths = trim_to_min(
-            features, emotion_seq, lengths, emotion_lengths, time_dim=1, max_diff=4
+        return self.router(
+            self.rvq.quantizers,
+            layer_z_qs,
+            compute_loss=True,
         )
-        padding_mask = make_padding_mask(lengths, max_length=max(features.shape[1], emotion_seq.shape[1]))
-        return self.encode(features, padding_mask, lengths=lengths)
 
     def compute_loss(
-        self,
-        features,
-        lengths,
-        linguistic_targets,
-        target_lengths,
-        speaker_seq,
-        emotion_seq,
-        emotion_lengths,
-        prosody_seq=None,
-        run_adv=True,
+        self, features, lengths, head_targets: dict[str, HeadTarget], run_adv: bool = True
     ) -> RVQDisentanglerOutput:
-        output = self._shared_step(features, lengths, emotion_seq, emotion_lengths)
+        output = self.forward(features, lengths)
 
         rvq_mse_loss = masked_loss(
             F.mse_loss,
@@ -275,97 +221,133 @@ class RVQDisentangler(nn.Module):
             "load_balancing_loss": output.router.loss,
         }
 
-        z_spk, z_ling, z_pros = output.router.zs
-        spk_output = self.speaker_head.compute_loss(z_spk, speaker_seq, output.padding_mask)
-        emo_loss = self.emotion_head.compute_loss(z_pros, emotion_seq, output.padding_mask)
+        head_outputs: dict[str, HeadOutput] = {}
+        supervised_losses: dict[str, torch.Tensor] = {}
+        metrics: dict[str, torch.Tensor] = {}
 
-        if self.prosody_head is not None and prosody_seq is not None:
-            pros_loss = self.prosody_head.compute_loss(z_pros, prosody_seq)
-        else:
-            pros_loss = 0.0
+        unknown_targets = set(head_targets) - set(self.heads)
+        if unknown_targets:
+            raise ValueError(f"Targets were provided for unknown heads: {sorted(unknown_targets)}")
 
-        ctc_output = self.linguistic_head.compute_loss(
-            z_ling,
-            linguistic_targets,
-            input_lengths=lengths,
-            target_lengths=target_lengths,
-        )
+        for name, head in self.heads.items():
+            target = head_targets.get(name)
 
-        distill_losses = {
-            "ctc_loss": ctc_output.loss,
-            "spk_loss": spk_output.loss,
-            "pros_loss": pros_loss,
-            "emo_loss": emo_loss,
-        }
+            # This permits optional heads whose target is not present in a
+            # particular dataset or batch.
+            if target is None:
+                continue
+
+            spec = self.head_specs[name]
+
+            try:
+                routed_features = output.router.zs[spec.route]
+            except KeyError as error:
+                available = sorted(output.router.zs.keys())
+                raise KeyError(
+                    f"Head {name!r} requires route {spec.route!r}, but the router produced: {available}"
+                ) from error
+
+            head_output = head.compute_loss(
+                routed_features,
+                targets=target,
+                lengths=output.lengths,
+                padding_mask=output.padding_mask,
+            )
+
+            head_outputs[name] = head_output
+
+            if head_output.loss is not None:
+                supervised_losses[name] = head_output.loss
+
+            for metric_name, metric in head_output.metrics.items():
+                metrics[f"{name}/{metric_name}"] = metric
+
+        adversarial_outputs: dict[str, HeadOutput] = {}
+        adversarial_losses: dict[str, torch.Tensor] = {}
 
         if run_adv:
-            _, adv_spk_loss_ling, adv_spk_acc_ling, _ = self.adv_speaker_head_ling.compute_loss(
-                self.grl(z_ling), speaker_seq
-            )
+            for adversary_name, adversarial_head in self.adversarial_heads.items():
+                spec = self.adversarial_specs[adversary_name]
 
-            _, adv_spk_loss_pros, adv_spk_acc_pros, _ = self.adv_speaker_head_pros.compute_loss(
-                self.grl(z_pros), speaker_seq
-            )
+                target = head_targets.get(spec.predictor)
 
-            adv_ling_loss_spk = self.adv_linguistic_head_spk.compute_loss(
-                self.grl(z_spk),
-                linguistic_targets,
-                input_lengths=lengths,
-                target_lengths=target_lengths,
-            )
+                # This also handles an optional predictor target that was absent
+                # from this batch.
+                if target is None:
+                    continue
 
-            adv_ling_loss_pros = self.adv_linguistic_head_pros.compute_loss(
-                self.grl(z_pros),
-                linguistic_targets,
-                input_lengths=lengths,
-                target_lengths=target_lengths,
-            )
-        else:
-            (
-                adv_spk_loss_ling,
-                adv_spk_loss_pros,
-                adv_ling_loss_spk,
-                adv_ling_loss_pros,
-                adv_spk_acc_ling,
-                adv_spk_acc_pros,
-            ) = (0,) * 6
+                try:
+                    source_features = output.router.zs[spec.source_route]
+                except KeyError as error:
+                    available = sorted(output.router.zs)
 
-        adv_losses = {
-            "spk_loss_ling": adv_spk_loss_ling,
-            "spk_loss_pros": adv_spk_loss_pros,
-            "ling_loss_spk": adv_ling_loss_spk,
-            "ling_loss_pros": adv_ling_loss_pros,
-        }
+                    raise KeyError(
+                        f"Adversary {adversary_name!r} requires route "
+                        f"{spec.source_route!r}, but the router produced "
+                        f"{available}."
+                    ) from error
 
-        metrics = {
-            "spk_acc": spk_output.accuracy,
-            "spk_acc_ling": adv_spk_acc_ling,
-            "spk_acc_pros": adv_spk_acc_pros,
-        }
-        states = {
-            "router_probabilities": output.router.layer_probabilities,
-            "router_logits": output.router.layer_logits,
-        }
-        head_outputs = {
-            "spk": spk_output,
-            "ctc": ctc_output,
-        }
+                adversarial_output = adversarial_head.compute_loss(
+                    self.grl(source_features),
+                    targets=target,
+                    lengths=output.lengths,
+                    padding_mask=output.padding_mask,
+                )
+
+                adversarial_outputs[adversary_name] = adversarial_output
+
+                if adversarial_output.loss is not None:
+                    adversarial_losses[adversary_name] = adversarial_output.loss
+
+                for metric_name, metric in adversarial_output.metrics.items():
+                    metrics[f"adversarial/{adversary_name}/{metric_name}"] = metric
 
         loss = RVQDisentanglerLoss(
-            rvq=rvq_losses, distill=distill_losses, adv=adv_losses, metrics=metrics, states=states
+            rvq=rvq_losses,
+            supervised=supervised_losses,
+            adv=adversarial_losses,
+            metrics=metrics,
+            states={
+                "router_probabilities": output.router.layer_probabilities,
+                "router_logits": output.router.layer_logits,
+                "adversarial_outputs": adversarial_outputs,
+            },
         )
 
-        return replace(output, loss=loss, head_outputs=head_outputs)
+        return replace(
+            output,
+            head_outputs=head_outputs,
+            loss=loss,
+        )
 
     @torch.inference_mode()
     def inference(
         self,
-        features,
-        lengths,
-        emotion_seq,
-        emotion_lengths,
-        prosody_seq=None,
+        features: torch.Tensor,
+        lengths: torch.Tensor,
+        head_names: list[str] | tuple[str, ...] | None = None,
     ) -> RVQDisentanglerOutput:
-        output = self._shared_step(features, lengths, emotion_seq, emotion_lengths)
-        spk_output = self.speaker_head(output.router.zs[0], padding_mask=output.padding_mask)
-        return replace(output, head_outputs={"spk": spk_output})
+        output = self.forward(features, lengths)
+
+        names = tuple(head_names) if head_names is not None else tuple(self.heads.keys())
+
+        head_outputs: dict[str, HeadOutput] = {}
+
+        for name in names:
+            if name not in self.heads:
+                raise KeyError(f"Unknown head: {name!r}")
+
+            head = self.heads[name]
+            spec = self.head_specs[name]
+            routed_features = output.router.zs[spec.route]
+
+            head_outputs[name] = head.predict(
+                routed_features,
+                lengths=output.lengths,
+                padding_mask=output.padding_mask,
+            )
+
+        return replace(
+            output,
+            head_outputs=head_outputs,
+        )

@@ -4,13 +4,24 @@ from __future__ import annotations
 
 import abc
 from typing import Protocol, TypeVar
+from collections.abc import Iterable, Mapping
+from os import PathLike
+from pathlib import Path
+from typing import Protocol, Self, TypeVar
 
 import lightning as L
 import torch
+from hydra.utils import instantiate
+from omegaconf import OmegaConf
+from torch import nn
+from torch.optim import Optimizer
 
 from quick_convert.data import AudioBatch, BaseDataset
 from quick_convert.utils import configure_device
 
+from quick_convert.utils.device import DeviceLike, configure_device, override_devices
+
+from ..logging.base import MediaLogger, make_media_logger
 from ..optim.base import Optimization
 
 
@@ -50,10 +61,141 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
     def __init__(
         self,
         optimization: Optimization,
+        checkpoint_exclude_prefixes: Iterable[str] = (),
+        enable_grad_norm_logging: bool = True,
     ) -> None:
         super().__init__()
 
         self.optimization = optimization
+        self.checkpoint_exclude_prefixes = tuple(
+            self._normalize_checkpoint_prefix(prefix) for prefix in checkpoint_exclude_prefixes
+        )
+        self.enable_grad_norm_logging = enable_grad_norm_logging
+
+    @classmethod
+    def from_run(
+        cls,
+        run_dir: PathLike,
+        *,
+        checkpoint: PathLike = "checkpoints/last.ckpt",
+        config: PathLike = "config.yaml",
+        map_location: DeviceLike = None,
+        strict: bool = True,
+    ) -> Self:
+        run_dir = Path(run_dir)
+
+        cfg = OmegaConf.load(run_dir / config)
+        module_cfg = cfg.pipeline.trainer.module
+
+        map_location = configure_device(map_location)
+        override_devices(module_cfg, str(map_location))
+
+        model = instantiate(module_cfg)
+
+        checkpoint_path = Path(checkpoint)
+        if not checkpoint_path.is_absolute():
+            checkpoint_path = run_dir / checkpoint_path
+
+        state = torch.load(
+            checkpoint_path,
+            map_location=map_location,
+            weights_only=False,
+        )
+
+        model.load_state_dict(
+            state["state_dict"],
+            strict=strict,
+        )
+
+        return model.to(map_location)
+
+    @staticmethod
+    def _normalize_checkpoint_prefix(prefix: str) -> str:
+        """
+        Normalize a module path for prefix matching.
+
+        Both ``online_encoders`` and ``online_encoders.`` become
+        ``online_encoders.``.
+        """
+        return prefix.rstrip(".") + "."
+
+    @property
+    def media_logger(self) -> MediaLogger:
+        if not hasattr(self, "_media_logger"):
+            self._media_logger = make_media_logger(self.logger)
+
+        return self._media_logger
+
+    def _is_checkpoint_excluded(self, key: str) -> bool:
+        return key.startswith(self.checkpoint_exclude_prefixes)
+
+    def _clean_compiled_state_dict(
+        self,
+        state_dict: dict[str, torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
+        return {key.replace("._orig_mod.", "."): value for key, value in state_dict.items()}
+
+    def on_save_checkpoint(self, checkpoint: dict) -> None:
+        state_dict = self._clean_compiled_state_dict(checkpoint["state_dict"])
+
+        checkpoint["state_dict"] = {
+            key: value for key, value in state_dict.items() if not self._is_checkpoint_excluded(key)
+        }
+
+        # Record this for transparency/debugging. Loading does not need to rely
+        # on it because the current module configuration is authoritative.
+        checkpoint["checkpoint_exclude_prefixes"] = list(self.checkpoint_exclude_prefixes)
+
+    def _prepare_checkpoint_state_dict(
+        self,
+        state_dict: dict[str, torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
+        """
+        Prepare a checkpoint for strict loading.
+
+        Excluded components are expected to have been reconstructed by the
+        module configuration. Their current state is inserted so that strict
+        loading does not report those keys as missing.
+        """
+        state_dict = self._clean_compiled_state_dict(state_dict)
+
+        if not self.checkpoint_exclude_prefixes:
+            return state_dict
+
+        current_state = self._clean_compiled_state_dict(self.state_dict())
+
+        for key, value in current_state.items():
+            if self._is_checkpoint_excluded(key):
+                state_dict.setdefault(key, value)
+
+        return state_dict
+
+    def on_load_checkpoint(self, checkpoint: dict) -> None:
+        checkpoint["state_dict"] = self._prepare_checkpoint_state_dict(checkpoint["state_dict"])
+
+    def load_for_inference(
+        self,
+        checkpoint_path,
+        map_location: str | torch.device = "cpu",
+        strict: bool = True,
+    ) -> tuple[list[str], list[str]]:
+        checkpoint = torch.load(
+            checkpoint_path,
+            weights_only=False,
+            map_location=map_location,
+        )
+
+        state_dict = self._prepare_checkpoint_state_dict(checkpoint["state_dict"])
+
+        missing, unexpected = self.load_state_dict(
+            state_dict,
+            strict=strict,
+        )
+
+        self.eval()
+        self.freeze()
+
+        return missing, unexpected
 
     def setup_training(self, train_dataset: BaseDataset) -> None:
         """Perform dataset-dependent initialization before training.
@@ -110,7 +252,7 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
             total_steps=self.trainer.estimated_stepping_batches,
         )
 
-    def load_for_inference(
+    def log_grad_norms(
         self,
         checkpoint_path,
         map_location: str | torch.device | None = None,
