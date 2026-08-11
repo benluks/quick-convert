@@ -13,16 +13,17 @@
 # limitations under the License.
 import logging
 import random
-from typing import Dict, Literal, Optional
+from typing import Literal
+
 
 logger = logging.getLogger(__name__)
 import torch
-import torch.nn as nn
-from torch.nn import functional as F
-from .utils.mask import make_pad_mask
-from .configs import CFM_PARAMS
 from omegaconf import DictConfig
+from torch import nn
+from torch.nn import functional as F
+
 from .flow_matching import CausalConditionalCFM
+from .utils.mask import make_pad_mask
 
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
         pre_lookahead_len: int = 3,
         encoder: torch.nn.Module = None,
         decoder: CausalConditionalCFM = None,
-        decoder_conf: Dict = {
+        decoder_conf: dict = {
             "in_channels": 240,
             "out_channel": 80,
             "spk_emb_dim": 80,
@@ -80,7 +81,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
                 "act_fn": "gelu",
             },
         },
-        mel_feat_conf: Dict = {
+        mel_feat_conf: dict = {
             "n_fft": 1024,
             "num_mels": 80,
             "sampling_rate": 22050,
@@ -119,7 +120,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
         mask: torch.Tensor,
         device: torch.device,
         cond_strategy: Literal["rvq", "mel", None] = "rvq",
-    ) -> Dict[str, Optional[torch.Tensor]]:
+    ) -> dict[str, torch.Tensor | None]:
         token = batch["speech_token"].to(device)
         token_len = batch["speech_token_len"].to(device)
         feat = batch["speech_feat"].to(device)  # (B, 80, T)
@@ -171,7 +172,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
             except RuntimeError:
                 logger.error("It looks like your encoder doesn't output lengths in the forward pass.")
 
-        loss, y = self.decoder.compute_loss(
+        loss, pred = self.decoder.compute_loss(
             feat.contiguous()[..., : token.shape[1]],  # (B, mel_dim, T) -> (B, mel_dim, T')
             mask.unsqueeze(1),
             h.transpose(1, 2).contiguous(),
@@ -179,7 +180,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
             cond=conds,
             # streaming=streaming,
         )
-        return {"loss": loss, "y": y}
+        return {"loss": loss, "pred": pred}
 
     @torch.inference_mode()
     def inference(
@@ -196,17 +197,23 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
         n_timesteps=10,
         noised_mels=None,
         meanflow=False,
-        cond_strategy: Literal["rvq", "mel", None] = None,
+        cond_strategy: Literal["rvq", "mel"] | None = None,
     ):
         # token: (B, n_toks)
         # token_len: (B,)
         B = token.size(0)
-        assert B == 1, "Only batch size of 1 is supported for inference, but got {}".format(B)
+        # assert B == 1, "Only batch size of 1 is supported for inference, but got {}".format(B)
 
         # xvec projection
         embedding = torch.atleast_2d(embedding)
-        embedding = F.normalize(embedding, dim=1)
-        embedding = self.spk_embed_affine_layer(embedding)  # (1 or B, emb_dim)
+
+        if embedding.shape[0] == 1 and B > 1:
+            embedding = embedding.expand(B, -1)
+        elif embedding.shape[0] != B:
+            raise ValueError(f"Expected 1 or {B} speaker embeddings, got {embedding.shape[0]}")
+
+        embedding = F.normalize(embedding, dim=-1)
+        embedding = self.spk_embed_affine_layer(embedding)
 
         if prompt_feat is not None and prompt_token is not None:
             # adjust shapes (batching logic)
@@ -267,5 +274,11 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
             meanflow=meanflow,
         )
         feat = feat[:, :, mel_len1:]
+
+        output_lengths = token_len.clone()
+
+        if not finalize:
+            trim = self.pre_lookahead_len * self.token_mel_ratio
+            output_lengths = (output_lengths - trim).clamp_min(0)
         # assert feat.shape[2] == mel_len2
-        return feat, None  # NOTE jrm: why are they returning None here?
+        return feat, output_lengths  # NOTE jrm: why are they returning None here?

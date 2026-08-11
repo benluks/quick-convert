@@ -7,7 +7,7 @@ optimizer:
   path: torch.optim.AdamW
 
 optimizer_kwargs:
-  lr: ???
+  lr: 1e-4
 
 lr_scheduler:
   _target_: hydra.utils.get_class

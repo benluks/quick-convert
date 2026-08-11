@@ -2,30 +2,29 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, replace
-from typing import Any, List, Optional
+from typing import Any
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from quick_convert.components.encoders.conformer_encoder import ConformerEncoderSSL
 from quick_convert.components.layers.rvq import RVQOutput
 from quick_convert.utils.masking import make_padding_mask, masked_loss, trim_to_min
 
-from .speaker_head import SpeakerASPHead, SpeakerASRHeadOutput
-from .linguistic_head import LinguisticCTCHead
+from ..layers import GradientReversalLayer, ResidualVectorQuantizer, VectorQuantize
 from .linear_head import LinearHead
-
-from ..layers import ResidualVectorQuantizer, GradientReversalLayer, VectorQuantize
+from .linguistic_head import LinguisticCTCHead
+from .speaker_head import SpeakerASPHead
 
 
 @dataclass
 class RouterOutput:
     zs: list[torch.Tensor]
-    layer_mask: Optional[torch.Tensor] = None
-    layer_probabilities: Optional[torch.Tensor] = None
-    layer_logits: Optional[torch.Tensor] = None
-    loss: Optional[torch.Tensor] = None
+    layer_mask: torch.Tensor | None = None
+    layer_probabilities: torch.Tensor | None = None
+    layer_logits: torch.Tensor | None = None
+    loss: torch.Tensor | None = None
 
 
 class RVQLayerRouter(nn.Module):
@@ -51,9 +50,9 @@ class RVQLayerRouter(nn.Module):
 
     def _compute_mask(
         self,
-        quantizers: List[VectorQuantize],
+        quantizers: list[VectorQuantize],
         compute_loss: bool = False,
-    ) -> tuple[torch.Tensor, Optional[torch.Tensor], torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor, torch.Tensor]:
         weights = torch.stack(
             [q.codebook.weight.mean(dim=1).detach() for q in quantizers],
             dim=0,
@@ -95,7 +94,7 @@ class RVQLayerRouter(nn.Module):
         return layer_mask, router_loss, layer_probabilities, layer_logits
 
     def forward(
-        self, quantizers: List[VectorQuantize], z_quantized: List[torch.Tensor], compute_loss: bool = False
+        self, quantizers: list[VectorQuantize], z_quantized: list[torch.Tensor], compute_loss: bool = False
     ) -> RouterOutput:
         layer_mask, router_loss, layer_probabilities, layer_logits = self._compute_mask(
             quantizers, compute_loss=compute_loss
@@ -131,9 +130,9 @@ class RVQLayerRouter(nn.Module):
 class RVQDisentanglerLoss:
     rvq: dict[str, torch.Tensor]
     distill: dict[str, torch.Tensor]
-    adv: Optional[dict[str, torch.Tensor]] = None
-    metrics: Optional[dict[str, torch.Tensor]] = None
-    states: Optional[dict[str, torch.Tensor]] = None
+    adv: dict[str, torch.Tensor] | None = None
+    metrics: dict[str, torch.Tensor] | None = None
+    states: dict[str, torch.Tensor] | None = None
 
 
 @dataclass
@@ -154,8 +153,8 @@ class RVQDisentanglerOutput:
     # z_pros: torch.Tensor
 
     # the head output exists on the disentangler (encoder) level. It's akin to an x-vector
-    head_outputs: Optional[dict[str, Any]] = None
-    loss: Optional[RVQDisentanglerLoss] = None
+    head_outputs: dict[str, Any] | None = None
+    loss: RVQDisentanglerLoss | None = None
 
 
 class RVQDisentangler(nn.Module):
@@ -204,7 +203,7 @@ class RVQDisentangler(nn.Module):
         features: int["b t d"],
         padding_mask: int["b t [1]"],
         # cursory addition, because the output of this function should
-        lengths: Optional[int["b"]] = None,
+        lengths: int["b"] | None = None,
     ) -> RVQDisentanglerOutput:
         content = self.content_encoder(features, padding_mask=padding_mask)
 

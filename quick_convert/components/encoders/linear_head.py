@@ -1,13 +1,14 @@
+from dataclasses import replace
+
 import torch
 import torch.nn as nn
 
+from quick_convert.components.layers.heads import HeadOutput, HeadTarget, SupervisedHead
+from quick_convert.components.losses.distil_losses import BaseDistilLoss, MaskedMSELoss, MSELoss
 from quick_convert.utils.masking import masked_loss
 
-from quick_convert.utils.masking import masked_loss
-from quick_convert.components.losses.distil_losses import BaseDistilLoss, MSELoss, MaskedMSELoss
 
-
-class LinearHead(nn.Module):
+class LinearHead(SupervisedHead):
     """
     Simple linear head that applies a linear layer to the content encoder output.
     """
@@ -16,12 +17,12 @@ class LinearHead(nn.Module):
         self,
         input_dim: int = 512,
         output_dim: int = 128,
-        loss: BaseDistilLoss = MaskedMSELoss("frame"),
+        loss: BaseDistilLoss = None,
     ):
         super().__init__()
         self.ln = nn.LayerNorm(input_dim)
         self.linear_head = nn.Linear(input_dim, output_dim)
-        self.loss = loss
+        self.loss = loss or MaskedMSELoss("frame")
 
     def forward(self, content_features: torch.Tensor) -> torch.Tensor:
         """
@@ -31,10 +32,34 @@ class LinearHead(nn.Module):
         Returns:
             predicted_features: (B, T, output_dim)
         """
-        return self.linear_head(self.ln(content_features))
+        return HeadOutput(predictions=self.linear_head(self.ln(content_features)))
 
-    def compute_loss(self, x: torch.FloatTensor, targets: torch.FloatTensor, mask: torch.LongTensor) -> torch.Tensor:
+    def predict(
+        self,
+        features: torch.Tensor,
+        *,
+        lengths: torch.Tensor,
+        padding_mask: torch.Tensor,
+    ) -> HeadOutput:
+        del lengths, padding_mask
+        return self.forward(features)
+
+    def compute_loss(
+        self,
+        features,
+        *,
+        targets: HeadTarget,
+        padding_mask,
+        lengths=None,
+    ) -> torch.Tensor:
         """Compute loss between predicted features and target features."""
-        x = self.forward(x)
+        output = self.forward(features)
 
-        return self.loss(x, targets, mask=mask)
+        if output.predictions.shape[1] != targets.values.shape[1]:
+            raise ValueError(
+                "Frame-level head prediction and target lengths differ: "
+                f"{output.predictions.shape[1]} vs "
+                f"{targets.values.shape[1]}."
+            )
+
+        return replace(output, loss=self.loss(output.predictions, targets.values, mask=padding_mask))

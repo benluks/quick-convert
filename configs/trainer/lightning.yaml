@@ -15,7 +15,7 @@ train_dataloader_kwargs:
   num_workers: ${pipeline.dataloader.num_workers}
   pin_memory: ${pipeline.dataloader.pin_memory}
   drop_last: ${pipeline.dataloader.drop_last}
-  persistent_workers: true
+  persistent_workers: ${pipeline.dataloader.persistent_workers}
 
 val_dataloader_kwargs:
   batch_size: ${pipeline.val_batch_size}
@@ -23,7 +23,7 @@ val_dataloader_kwargs:
   num_workers: ${pipeline.dataloader.num_workers}
   pin_memory: ${pipeline.dataloader.pin_memory}
   drop_last: ${pipeline.dataloader.drop_last}
-  persistent_workers: true
+  persistent_workers: ${pipeline.dataloader.persistent_workers}
 
 trainer_kwargs:
   max_steps: -1
@@ -36,7 +36,7 @@ trainer_kwargs:
   enable_checkpointing: true
   enable_progress_bar: true
   enable_model_summary: true
-  max_epochs: 9
+  max_epochs: 10
 
   callbacks:
     - _target_: lightning.pytorch.callbacks.ModelCheckpoint
@@ -54,3 +54,6 @@ trainer_kwargs:
 
     - _target_: lightning.pytorch.callbacks.LearningRateMonitor
       logging_interval: step
+  logger:
+    _target_: lightning.pytorch.loggers.WandbLogger
+    save_dir: ${pipeline.out_dir}
