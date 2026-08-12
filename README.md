@@ -31,6 +31,12 @@ Many components rely on optional dependencies. These are grouped into extras so 
 | `nac`                  | Neural audio codec anonymizer. Relies on Coqui TTS, which is deprecated. Also a total nightmare.        |
 | `web`                  | Web interface components. I think she's currently broken.             |
 
+* **Hydra-based configuration** for reproducible, composable experiments.
+* **Flexible datasets** with pluggable resource providers.
+* **Preprocessing pipelines** for manifest generation, feature precomputation, and tokenizer training.
+* **Training pipelines** for speech models and auxiliary components.
+* **Evaluation pipelines** for benchmarking and analysis.
+* **Reusable components**, including encoders, decoders, feature extractors, SSL models, quantizers, and losses.
 
 Normally, when you import a module, you'll get a `ModuleNotFoundError` if the requisite dependencies are missing. Check out `pyproject.toml` to see which extras are needed to run whatever it is you're trying to run.
 

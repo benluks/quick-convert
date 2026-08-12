@@ -58,7 +58,7 @@ LibriSpeech
 
 without requiring a different dataset class.
 
----
+Experiments are configured through Hydra, allowing architectures, datasets, feature extractors, trainers, and evaluation systems to be composed without rewriting the surrounding infrastructure.
 
 # Samples and batches
 
@@ -172,7 +172,10 @@ for sample in batch:
     ...
 ```
 
----
+1. training a SentencePiece tokenizer;
+2. precomputing token IDs;
+3. building a CSV manifest;
+4. training a VQ-ASR model from that manifest.
 
 # Datasets
 
@@ -318,7 +321,11 @@ sort_key="{row.path}"
 
 A different template may be supplied when another ordering is useful.
 
----
+* training;
+* evaluation;
+* anonymization;
+* feature precomputation;
+* manifest generation.
 
 # Loading audio
 
@@ -384,7 +391,9 @@ sample.sample_rate
 
 contain the loaded 16 kHz audio.
 
----
+* automatic speech recognition;
+* automatic speaker verification;
+* speech anonymization and voice conversion.
 
 # Resources
 
@@ -468,7 +477,7 @@ ResourceRef(
 )
 ```
 
----
+Components are reusable model and signal-processing building blocks. They are analogous to PyTorch `nn.Module` objects and may be composed recursively.
 
 # `ResourceCollection`
 
@@ -515,7 +524,10 @@ resources = resources_a.merge(resources_b)
 
 By default, duplicate names raise an error. Explicit overwrite behavior can be requested where appropriate.
 
----
+* [Installation](installation.md)
+* [Quickstart](quickstart.md)
+* [Configuration and Hydra](configuration.md)
+* [Running pipelines](pipelines/index.md)
 
 # Resource providers
 
