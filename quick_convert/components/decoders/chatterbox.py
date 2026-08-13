@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import torch
 import torch.nn.functional as F
@@ -8,10 +8,8 @@ from torch import nn
 
 from quick_convert.utils.masking import make_padding_mask, masked_loss, trim_to_min
 
-from ...external.chatterbox.bridges.load_vocoder import load_vocoder
-from ...external.chatterbox.s3gen.flow import CausalMaskedDiffWithXvec
+# from ...external.chatterbox.s3gen.flow import CausalMaskedDiffWithXvec
 from ...external.chatterbox.s3gen.hifigan import HiFTGenerator
-from ...external.chatterbox.s3gen.utils.mel import mel_spectrogram
 
 
 class ChatterboxSpectrogramGenerator(nn.Module):
@@ -27,9 +25,14 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         super().__init__()
 
         self.flow = flow
+        from ...external.chatterbox.s3gen.utils.mel import mel_spectrogram
+
         self.mel_extractor = mel_spectrogram
         self.cond_strategy = cond_strategy
         self.device = device
+
+        from ...external.chatterbox.bridges.load_vocoder import load_vocoder
+
         self.vocoder: HiFTGenerator = load_vocoder(device=device)[0]
 
     def project_speaker(
@@ -43,7 +46,9 @@ class ChatterboxSpectrogramGenerator(nn.Module):
         pad = (n_fft - hop_size) // 2
         return ((lengths + 2 * pad - n_fft) // hop_size) + 1
 
-    def _compute_mels(self, wav: torch.Tensor, lengths: torch.Tensor, sampling_rate: int, max_len=None):
+    def _compute_mels(
+        self, wav: torch.Tensor, lengths: torch.Tensor, sampling_rate: int, max_len=None
+    ):
         n_fft = int(sampling_rate / 12.5)
         hop_size = int(sampling_rate / 50)
 
@@ -88,7 +93,9 @@ class ChatterboxSpectrogramGenerator(nn.Module):
             target_wav, wav_lens, sampling_rate.item(), max_len=features.shape[1]
         )
 
-        features, target_mel, lengths = trim_to_min(features.transpose(1, 2), target_mel, lengths, target_mel_lengths)
+        features, target_mel, lengths = trim_to_min(
+            features.transpose(1, 2), target_mel, lengths, target_mel_lengths
+        )
 
         batch = {
             "speech_token": features.transpose(1, 2),
@@ -110,7 +117,9 @@ class ChatterboxSpectrogramGenerator(nn.Module):
 
         pred_mel = output["y"]
 
-        mae = masked_loss(F.l1_loss, pred_mel.transpose(1, 2), target_mel.transpose(1, 2), mask=mask)
+        mae = masked_loss(
+            F.l1_loss, pred_mel.transpose(1, 2), target_mel.transpose(1, 2), mask=mask
+        )
 
         return output["loss"], pred_mel, mae
 
