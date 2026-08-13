@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 """Resource providers for attaching data to dataset samples.
 
 Providers separate dataset membership from experiment-specific data. A
@@ -9,8 +8,6 @@ Reference-based providers return :class:`ResourceRef` objects. Online providers
 compute values dynamically from an ``AudioSample`` or ``AudioBatch``.
 """
 
-=======
->>>>>>> 79ae067 (refactor data module)
 import csv
 from pathlib import Path
 from typing import Any
@@ -18,15 +15,10 @@ from typing import Any
 import torch
 
 from ...utils.paths import SamplePathFormatter
-<<<<<<< HEAD
-=======
-from ..types import AudioBatch, AudioSample
->>>>>>> 79ae067 (refactor data module)
 from .base import ResourceRef
 
 
 class BaseResourceProvider:
-<<<<<<< HEAD
     """Base interface for sample-level resource providers.
 
     A provider maps a sample to a named :class:`ResourceRef`. Providers should
@@ -43,12 +35,6 @@ class BaseResourceProvider:
     def __call__(self, sample) -> ResourceRef:
         """Return the resource associated with ``sample``."""
         raise NotImplementedError
-=======
-    """
-    An abstracton class for resource providers, which are responsible for providing access to various types of
-    resources (e.g. annotation files, precompute feature files, etc.) associated with samples in a dataset.
-    """
->>>>>>> 79ae067 (refactor data module)
 
     def __init__(self, name: str):
         self.name = name
@@ -146,7 +132,6 @@ class PathResourceProvider(TemplateResourceProvider):
 
 
 class CSVAnnotationProvider(BaseResourceProvider):
-<<<<<<< HEAD
     """Look up per-utterance text annotations from shared delimited files.
 
     The provider resolves an annotation file for each sample, parses each file
@@ -189,8 +174,6 @@ class CSVAnnotationProvider(BaseResourceProvider):
             If an annotation file is malformed or contains duplicate keys.
     """
 
-=======
->>>>>>> 79ae067 (refactor data module)
     def __init__(
         self,
         name: str = "transcript",
@@ -278,29 +261,44 @@ class CSVAnnotationProvider(BaseResourceProvider):
 
 
 class OnlineResourceProvider:
+    """Compute a resource dynamically using a feature extractor.
+
+    Online providers are intended for resources that should be computed during
+    an experiment rather than loaded from precomputed sidecar files. The
+    wrapped extractor must provide ``extract_sample`` and ``extract_batch``
+    methods.
+
+    If ``name`` is omitted, ``extractor.feature_name`` is used.
+
+    Example::
+
+        provider = OnlineResourceProvider(
+            extractor=wavlm_encoder,
+            name="wavlm",
+        )
+
+        frame_features = provider.provide_batch(batch)
+
+    Args:
+        extractor:
+            Feature extractor used to compute the resource.
+        name:
+            Optional resource name.
+    """
+
     def __init__(
         self,
-<<<<<<< HEAD
         *,
-=======
->>>>>>> 79ae067 (refactor data module)
         extractor: Any,
         name: str | None = None,
     ):
         self.extractor = extractor
         self.name = extractor.feature_name if name is None else name
 
-<<<<<<< HEAD
     def provide_sample(self, sample) -> torch.Tensor:
         """Compute the resource for one sample."""
         return self.extractor.extract_sample(sample)
 
     def provide_batch(self, batch) -> torch.Tensor:
         """Compute the resource for a batch."""
-=======
-    def provide_sample(self, sample: AudioSample) -> torch.Tensor:
-        return self.extractor.extract_sample(sample)
-
-    def provide_batch(self, batch: AudioBatch) -> torch.Tensor:
->>>>>>> 79ae067 (refactor data module)
         return self.extractor.extract_batch(batch)
