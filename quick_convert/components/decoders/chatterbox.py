@@ -59,9 +59,8 @@ class ChatterboxSpectrogramGenerator(nn.Module):
             center=False,
         )
         mel_lengths = self._mel_lengths(lengths, n_fft=n_fft, hop_size=hop_size)
-        if max_len is not None:
-            if max_len > mel.shape[-1]:
-                mel = F.pad(mel, (0, max_len - mel.shape[-1]))
+        if max_len is not None and max_len > mel.shape[-1]:
+            mel = F.pad(mel, (0, max_len - mel.shape[-1]))
         return mel, mel_lengths
 
     def mel2wav(self, mel: torch.Tensor) -> torch.Tensor:
