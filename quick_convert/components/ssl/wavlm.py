@@ -25,6 +25,7 @@ class WavLMContentEncoder(ContentEncoder):
         local_files_only: bool = False,
         downsample_factor: int = 0,
         max_length: int | None = None,
+        do_normalize: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(device=device)
@@ -42,8 +43,7 @@ class WavLMContentEncoder(ContentEncoder):
         from transformers import AutoFeatureExtractor, AutoModel
 
         self.processor = AutoFeatureExtractor.from_pretrained(
-            model_name,
-            local_files_only=local_files_only,
+            model_name, local_files_only=local_files_only, do_normalize=do_normalize
         )
         self.model = AutoModel.from_pretrained(
             model_name,
@@ -54,7 +54,7 @@ class WavLMContentEncoder(ContentEncoder):
 
     def encode_file(self, path: PathLike) -> ContentFeatures:
         path = Path(path)
-        waveform, sample_rate = load_audio(path, target_sr=self.sample_rate, mono=True, device=self.device)
+        waveform, sample_rate = load_audio(path, target_sr=self.sample_rate, mono=True, device="cpu")
 
         # if waveform.ndim == 2 and waveform.shape[0] > 1:
         #     waveform = waveform.mean(dim=0, keepdim=True)
@@ -169,7 +169,6 @@ class WavLMContentEncoder(ContentEncoder):
             padding=True,
             return_attention_mask=True,
         ).to(self.device)
-        inputs["input_values"] = inputs["input_values"].squeeze(0)
 
         # inputs = {name: value.to(self.device) for name, value in inputs.items()}
 
