@@ -15,7 +15,6 @@ import logging
 import random
 from typing import Literal
 
-
 logger = logging.getLogger(__name__)
 import torch
 from omegaconf import DictConfig
@@ -24,9 +23,6 @@ from torch.nn import functional as F
 
 from .flow_matching import CausalConditionalCFM
 from .utils.mask import make_pad_mask
-
-
-logger = logging.getLogger(__name__)
 
 
 def _repeat_batch_dim(tnsr, B, ndim):
@@ -138,7 +134,9 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
 
         if self.input_embedding is not None:
             # if `token` is token indices, project them by input embedding
-            token = self.input_embedding(torch.clamp(token, min=0)) * mask.float().unsqueeze(-1)  # (B, T, emb)
+            token = self.input_embedding(
+                torch.clamp(token, min=0)
+            ) * mask.float().unsqueeze(-1)  # (B, T, emb)
 
         # just for cleanliness, bind `h_lengths` to a value. Originally it would
         # have been returned by the `self.encoder` forward pass.
@@ -160,7 +158,9 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
                 index = random.randint(0, int(0.3 * j))
                 conds[i, :, :index] = feat[i, :, :index]
         elif cond_strategy == "rvq":
-            conds = self.rvq_cond_proj(token).transpose(1, 2)  # (B, T, C) -> (B, T, mel_dim) -> (B, mel_dim, T)
+            conds = self.rvq_cond_proj(token).transpose(
+                1, 2
+            )  # (B, T, C) -> (B, T, mel_dim) -> (B, mel_dim, T)
         elif cond_strategy is None:
             conds = None
 
@@ -170,10 +170,14 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
             try:
                 mask = (~make_pad_mask(h_lengths.sum(dim=-1).squeeze(dim=1))).to(h)
             except RuntimeError:
-                logger.error("It looks like your encoder doesn't output lengths in the forward pass.")
+                logger.error(
+                    "It looks like your encoder doesn't output lengths in the forward pass."
+                )
 
         loss, pred = self.decoder.compute_loss(
-            feat.contiguous()[..., : token.shape[1]],  # (B, mel_dim, T) -> (B, mel_dim, T')
+            feat.contiguous()[
+                ..., : token.shape[1]
+            ],  # (B, mel_dim, T) -> (B, mel_dim, T')
             mask.unsqueeze(1),
             h.transpose(1, 2).contiguous(),
             embedding,
@@ -210,7 +214,9 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
         if embedding.shape[0] == 1 and B > 1:
             embedding = embedding.expand(B, -1)
         elif embedding.shape[0] != B:
-            raise ValueError(f"Expected 1 or {B} speaker embeddings, got {embedding.shape[0]}")
+            raise ValueError(
+                f"Expected 1 or {B} speaker embeddings, got {embedding.shape[0]}"
+            )
 
         embedding = F.normalize(embedding, dim=-1)
         embedding = self.spk_embed_affine_layer(embedding)
@@ -219,15 +225,24 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
             # adjust shapes (batching logic)
             prompt_token = _repeat_batch_dim(prompt_token, B, ndim=2)  # (B, n_prompt)
             prompt_token_len = _repeat_batch_dim(prompt_token_len, B, ndim=1)  # (B,)
-            prompt_feat = _repeat_batch_dim(prompt_feat, B, ndim=3)  # (B, n_feat, feat_dim=80)
-            prompt_feat_len = _repeat_batch_dim(prompt_feat_len, B, ndim=1)  # (B,) or None
+            prompt_feat = _repeat_batch_dim(
+                prompt_feat, B, ndim=3
+            )  # (B, n_feat, feat_dim=80)
+            prompt_feat_len = _repeat_batch_dim(
+                prompt_feat_len, B, ndim=1
+            )  # (B,) or None
 
-            token, token_len = torch.concat([prompt_token, token], dim=1), prompt_token_len + token_len
+            token, token_len = (
+                torch.concat([prompt_token, token], dim=1),
+                prompt_token_len + token_len,
+            )
         embedding = _repeat_batch_dim(embedding, B, ndim=2)  # (B, emb_dim)
 
         # concat text and prompt_text
 
-        mask = make_pad_mask(token_len, max_len=max_feature_len).to(token.device)  # (B, T)
+        mask = make_pad_mask(token_len, max_len=max_feature_len).to(
+            token.device
+        )  # (B, T)
         if self.input_embedding is not None:
             if (token >= self.vocab_size).any():
                 logger.error(
@@ -253,7 +268,9 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
 
         # # get conditions
         if cond_strategy == "mel":
-            conds = torch.zeros([B, mel_len1 + mel_len2, self.output_size], device=token.device).to(h.dtype)
+            conds = torch.zeros(
+                [B, mel_len1 + mel_len2, self.output_size], device=token.device
+            ).to(h.dtype)
             conds[:, :mel_len1] = prompt_feat
             conds = conds.transpose(1, 2)
             mask = (~make_pad_mask(h_lengths)).unsqueeze(1).to(h)
