@@ -14,38 +14,13 @@ from .resources import BaseResourceProvider
 
 
 def load_dataset(
-    name: str,
+    name: str | None = None,
     *,
     root: str | PathLike | None = None,
     splits: Iterable[str] | None = None,
     additional_resource_providers: Iterable[BaseResourceProvider] | None = None,
     **overrides,
 ) -> BaseDataset:
-    """Instantiate a packaged quick-convert dataset recipe.
-
-    Args:
-        name:
-            Name of a dataset config in the ``dataset`` config group.
-        root:
-            Optional local dataset root overriding the packaged recipe.
-        splits:
-            Optional dataset splits overriding the packaged recipe.
-        additional_resource_providers:
-            Providers to append to those already defined by the dataset recipe.
-        **overrides:
-            Additional dataset constructor/config overrides.
-
-    Example:
-        ::
-
-            dataset = load_dataset(
-                "librispeech",
-                root="/data/LibriSpeech",
-                splits=["train-clean-100"],
-                load=["audio"],
-            )
-    """
-
     values = dict(overrides)
 
     if root is not None:
@@ -54,16 +29,21 @@ def load_dataset(
     if splits is not None:
         values["splits"] = list(splits)
 
-    cfg = compose_component(
-        "dataset",
-        name,
-        overrides=values,
-    )
+    if name is None:
+        if root is None:
+            raise ValueError("Either `name` or `root` must be provided.")
 
-    dataset = instantiate(cfg)
+        dataset = BaseDataset(**values)
+    else:
+        cfg = compose_component(
+            "dataset",
+            name,
+            overrides=values,
+        )
+        dataset = instantiate(cfg)
 
     if not isinstance(dataset, BaseDataset):
-        raise TypeError(f"Dataset recipe {name!r} produced {type(dataset).__name__}, expected BaseDataset.")
+        raise TypeError(f"Expected BaseDataset, got {type(dataset).__name__}.")
 
     if additional_resource_providers:
         dataset.resource_providers.extend(additional_resource_providers)
