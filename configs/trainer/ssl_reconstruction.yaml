@@ -20,4 +20,3 @@ module:
   decoder: ${architecture.decoder}
   feature_transform: ${architecture.feature_transform}
   online_encoders: ${architecture.online_encoders}
-  encoder: ${architecture.encoder}

@@ -13,6 +13,8 @@ defaults:
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
 dataset_path: ${out_root}/${dataset_name}
 
+data_file_suffix: "_cfs"
+
 pipeline:
   exp_name: ${hydra:runtime.choices.architecture/sslr@architecture}_${dataset_name}
   project_name: ${hydra:runtime.choices.trainer}
@@ -24,8 +26,8 @@ data: &data
 
 train_dataset:
   <<: *data
-  manifest_path: ${dataset_path}/speaker_split/train.csv
+  manifest_path: ${dataset_path}/speaker_split/train${data_file_suffix}.csv
 
 val_dataset:
   <<: *data
-  manifest_path: ${dataset_path}/speaker_split/val.csv
+  manifest_path: ${dataset_path}/speaker_split/val${data_file_suffix}.csv

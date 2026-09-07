@@ -6,16 +6,14 @@ Deferred maintenance item. The current CosyVoice-based SSL reconstruction path i
 
 Reference architecture:
 
-- `configs/run/train_sslr_w2vbert_cmdiff_rvq.yaml`
-- `configs/architecture/sslr/w2vbert_rvq_cmdiff_cosyvoice.yaml`
+- `configs/run/train_sslr_w2vbert_cmdiff.yaml`
+- `configs/architecture/sslr/w2vbert_cmdiff_cosyvoice.yaml`
 
 Current path:
 
 ```text
 W2V-BERT
 -> layer fusion
--> RVQDisentangler
--> ResidualVectorQuantizerEMA
 -> CosyVoiceSpectrogramGenerator
 -> CausalMaskedDiffWithXvec
 -> CausalConditionalCFM

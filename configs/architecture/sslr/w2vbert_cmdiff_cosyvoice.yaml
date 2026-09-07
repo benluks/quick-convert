@@ -1,0 +1,31 @@
+# @package architecture
+
+defaults:
+  - /components/ssl@content_ssl: w2vbert
+  - /components/decoders@decoder: causal_masked_diff
+  - _self_
+
+mel_dim: 80
+speaker_dim: 192
+feature_dim: 1024
+
+feature_transform:
+  _target_: quick_convert.components.layers.layer_fusion.LayerWeightedSum
+  num_layers: 24
+
+online_encoders:
+  content: ${architecture.content_ssl}
+  speaker:
+    _target_: quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusSpeakerEncoder
+
+decoder:
+  feature_dim: ${architecture.feature_dim}
+  cond_strategy: null
+  flow:
+    spk_embed_dim: ${architecture.speaker_dim}
+    vocab_size: null
+    input_frame_rate: 50
+    token_mel_ratio: 1
+    encoder:
+      do_upsample: false
+      upsample_stride: 1

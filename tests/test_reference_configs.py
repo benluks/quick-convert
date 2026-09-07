@@ -30,7 +30,7 @@ def register_resolvers():
             "quick_convert.pipelines.training.pipeline.TrainingPipeline",
         ),
         (
-            "run/train_sslr_w2vbert_cmdiff_rvq",
+            "run/train_sslr_w2vbert_cmdiff",
             "quick_convert.pipelines.training.pipeline.TrainingPipeline",
         ),
         (
@@ -48,3 +48,15 @@ def test_reference_config_composes(config_name, pipeline_target):
         config = compose(config_name=config_name, return_hydra_config=True)
 
     assert config.pipeline._target_ == pipeline_target
+
+
+def test_ssl_reconstruction_uses_ssl_features_directly():
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
+        config = compose(
+            config_name="run/train_sslr_w2vbert_cmdiff",
+            return_hydra_config=True,
+        )
+
+    assert "encoder" not in config.architecture
+    assert "encoder" not in config.trainer.module
+    assert config.architecture.decoder.feature_dim == config.architecture.feature_dim
