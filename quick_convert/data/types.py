@@ -28,6 +28,7 @@ class MetadataSample:
     utt_id: str
     path: Path
     split: str | None = None
+    spk_id: str | None = None
     resources: ResourceCollection = field(default_factory=ResourceCollection)
 
 
@@ -39,7 +40,7 @@ class AudioSample(MetadataSample):
     Because samples are immutable, :meth:`load_audio` returns a new sample.
     """
 
-    waveform: float["1 t"] | None = None
+    waveform: torch.Tensor | None = None
     sample_rate: int | None = None
 
     @classmethod
@@ -67,6 +68,7 @@ class MetadataBatch:
     paths: list[Path]
     splits: list[str | None]
     resources: dict[str, Any]
+    spk_ids: list[str | None] = field(default_factory=list)
 
     def __len__(self) -> int:
         return len(self.paths)
@@ -76,6 +78,7 @@ class MetadataBatch:
             utt_id=self.utt_ids[idx],
             path=self.paths[idx],
             split=self.splits[idx],
+            spk_id=self.spk_ids[idx] if self.spk_ids else None,
             resources={key: value[idx] for key, value in self.resources.items()},
         )
 
@@ -93,9 +96,9 @@ class AudioBatch(MetadataBatch):
     load audio, all audio-specific fields remain ``None``.
     """
 
-    waveforms: float["b t"] | None = None
-    lengths: int["b"] | None = None
-    sample_rates: int["b"] | None = None
+    waveforms: torch.Tensor | None = None
+    lengths: torch.Tensor | None = None
+    sample_rates: torch.Tensor | None = None
 
     @classmethod
     def from_samples(cls, samples: list[AudioSample], max_length: int | None = None) -> "AudioBatch":
@@ -117,6 +120,7 @@ class AudioBatch(MetadataBatch):
             "utt_ids": [s.utt_id for s in samples],
             "paths": [s.path for s in samples],
             "splits": [s.split for s in samples],
+            "spk_ids": [s.spk_id for s in samples],
             "resources": collate_resources(samples),
         }
 
@@ -163,6 +167,7 @@ class AudioBatch(MetadataBatch):
         samples = []
 
         for path in map(Path, paths):
+            resources = ResourceCollection()
             sample = AudioSample.from_path(
                 path,
                 utt_id=utt_id_fn(path) if utt_id_fn else path.stem,
@@ -190,6 +195,7 @@ class AudioBatch(MetadataBatch):
             utt_id=self.utt_ids[idx],
             path=self.paths[idx],
             split=self.splits[idx],
+            spk_id=self.spk_ids[idx] if self.spk_ids else None,
             waveform=self.waveforms[idx] if self.waveforms is not None else None,
             sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
             # features={key: value[idx] for key, value in self.features.items()},

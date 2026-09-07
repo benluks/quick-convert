@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "integration/**"
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - name: Install development environment
+        run: |
+          uv venv --python 3.11
+          uv pip install -e . pytest ruff
+      - name: Check formatting
+        run: |
+          uv run --no-sync ruff format --check \
+            quick_convert/data/base_dataset.py \
+            quick_convert/data/types.py \
+            quick_convert/components/layers/rvq.py \
+            quick_convert/components/layers/rvq_ema.py \
+            tests
+      - name: Lint
+        run: |
+          uv run --no-sync ruff check --select E4,E7,E9,F,I \
+            quick_convert/data/base_dataset.py \
+            quick_convert/data/types.py \
+            quick_convert/components/layers/rvq.py \
+            quick_convert/components/layers/rvq_ema.py \
+            tests
+      - name: Run fast tests
+        run: uv run --no-sync pytest

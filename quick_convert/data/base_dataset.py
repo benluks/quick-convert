@@ -4,15 +4,15 @@ from dataclasses import replace
 from fnmatch import fnmatch
 from os import PathLike
 from pathlib import Path
-from typing import Callable, Iterable, Literal, Optional, Union, Any
+from typing import Any, Callable, Iterable, Literal, Optional, Union
 
-from torch.utils.data import Dataset, DataLoader
-
-from .resources import load_resource, ResourceRef, BaseResourceProvider, ResourceCollection
+from torch.utils.data import DataLoader, Dataset
 
 from quick_convert.utils.paths import TemplateFormatter
-from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
+
 from ..utils.audio import get_supported_formats, load_audio
+from .resources import BaseResourceProvider, ResourceCollection, ResourceRef, load_resource
+from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 
 
 class BaseDataset(Dataset):
@@ -82,6 +82,7 @@ class BaseDataset(Dataset):
             return
 
         elif paths is not None:
+            rows = []
             files = [Path(p) for p in paths if Path(p).is_file()]
             for p in files:
                 rows.append(
@@ -216,7 +217,7 @@ class BaseDataset(Dataset):
             utt_id=sample.utt_id,
             path=sample.path,
             split=sample.split,
-            # spk_id=sample.spk_id,
+            spk_id=sample.spk_id,
             waveform=waveform,
             sample_rate=sample_rate,
             resources=sample.resources,

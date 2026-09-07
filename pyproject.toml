@@ -42,6 +42,8 @@ fairseq = { git = "https://github.com/facebookresearch/fairseq.git" }
 
 [project]
 dependencies = [
+    "einops>=0.8.0",
+    "einx>=0.3.0",
     "hydra-core",
     "omegaconf",
     "soundfile>=0.13.1",
@@ -55,6 +57,12 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.12",
+]
 
 [project.optional-dependencies]
 nac = ["tts>=0.22.0", "transformers"]
