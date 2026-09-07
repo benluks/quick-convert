@@ -63,7 +63,6 @@ class ConformerEncoder(nn.Module):
         )
         self.embed_dim = embed_dim
 
-    # callable so it works with chatterbox
     def output_size(self):
         return self.embed_dim
 
@@ -142,7 +141,6 @@ class ConformerEncoderSSL(nn.Module):
         self.embed_dim = embed_dim
         self.layer_weights = nn.Parameter(torch.randn(1, num_ssl_layers))  # (1, L)
 
-    # callable so it works with chatterbox
     def output_size(self):
         return self.embed_dim
 
