@@ -4,8 +4,8 @@ defaults:
   - /global: default
   - /pipeline: build_manifest
   - /dataset: librispeech
-  - resource_providers/librispeech@transcript_provider: transcript
-  - resource_providers/librispeech@spkid_provider: spkid
+  - /resource_providers/librispeech@transcript_provider: transcript
+  - /resource_providers/librispeech@spkid_provider: spkid
 
   - _self_
 

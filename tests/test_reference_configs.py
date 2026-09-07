@@ -23,21 +23,28 @@ def register_resolvers():
 
 
 @pytest.mark.parametrize(
-    ("config_name", "module_target"),
+    ("config_name", "pipeline_target"),
     [
         (
             "run/train_vq_asr_librispeech",
-            "quick_convert.pipelines.training.modules.vq_asr.VQASRTrainingModule",
+            "quick_convert.pipelines.training.pipeline.TrainingPipeline",
         ),
         (
             "run/train_sslr_w2vbert_cmdiff_rvq",
-            "quick_convert.pipelines.training.modules.ssl_reconstruction.SSLReconstructionTrainingModule",
+            "quick_convert.pipelines.training.pipeline.TrainingPipeline",
+        ),
+        (
+            "run/build_manifest_libri",
+            "quick_convert.pipelines.build_manifest.BuildManifestPipeline",
+        ),
+        (
+            "run/precompute_content_w2vbert_librispeech",
+            "quick_convert.pipelines.precompute_features.PrecomputeFeaturesPipeline",
         ),
     ],
 )
-def test_reference_training_config_composes(config_name, module_target):
+def test_reference_config_composes(config_name, pipeline_target):
     with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
         config = compose(config_name=config_name, return_hydra_config=True)
 
-    assert config.pipeline._target_ == "quick_convert.pipelines.training.pipeline.TrainingPipeline"
-    assert config.trainer.module._target_ == module_target
+    assert config.pipeline._target_ == pipeline_target

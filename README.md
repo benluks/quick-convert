@@ -21,8 +21,9 @@ Many components rely on optional dependencies. These are grouped into extras so 
 | ---------------------- | ------------------------------------ |
 | `w2vbert`              | W2V-BERT feature extraction          |
 | `whisper`              | Whisper ASR model                    |
-| `jiwer`                | JIWER implementation of WER metric   |
-| `lightning`      | pytorch-lightning, and associated tools for training with lightning.                    |
+| `asr`                  | SentencePiece tokenization and JIWER evaluation |
+| `lightning`            | Lightning training and associated logging tools |
+| `cosyvoice`            | CosyVoice reconstruction decoder dependencies |
 | `espnet-wavlm-joint`   | ESPnet WavLM implementation             |
 | `pyannote`             | For the pyannote WeSpeaker implementation      |
 | `dac`                  | Descript Audio Codec support         |
@@ -41,8 +42,17 @@ Normally, when you import a module, you'll get a `ModuleNotFoundError` if the re
 For example:
 
 ```bash
-uv sync --extra w2vbert --extra module-training
+uv sync --extra w2vbert --extra asr --extra lightning
 ```
+
+The current reference workflows require these extras:
+
+| Workflow | Extras |
+| -------- | ------ |
+| Build a LibriSpeech manifest | none |
+| Precompute W2V-BERT content | `w2vbert` |
+| Train VQ-ASR with W2V-BERT | `w2vbert`, `asr`, `lightning` |
+| Train SSL reconstruction with CosyVoice | `w2vbert`, `cosyvoice`, `lightning` |
 
 > **Note**
 >
