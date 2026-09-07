@@ -11,13 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import threading
 import torch
 import torch.nn.functional as F
-from .matcha.flow_matching import BASECFM
-from .decoder import ConditionalDecoder
-from .configs import CFM_PARAMS
 from tqdm import tqdm
+
+from .configs import CFM_PARAMS
+from .decoder import ConditionalDecoder
+from .matcha.flow_matching import BASECFM
 
 
 def cast_all(*args, dtype):
@@ -202,7 +202,7 @@ class ConditionalCFM(BASECFM):
 
         pred = self.estimator(y, mask, mu, t.squeeze(), spks, cond)
         loss = F.mse_loss(pred * mask, u * mask, reduction="sum") / (torch.sum(mask) * u.shape[1])
-        return loss, y
+        return loss, pred
 
 
 class CausalConditionalCFM(ConditionalCFM):

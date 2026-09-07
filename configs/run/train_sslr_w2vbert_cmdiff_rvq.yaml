@@ -1,0 +1,33 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: ssl_reconstruction
+  - /architecture/sslr@architecture: w2vbert_rvq_cmdiff_cosyvoice
+  - /dataset@train_dataset: manifest
+  - /dataset@val_dataset: manifest
+  - /dataset@source_dataset: librispeech
+  - _self_
+
+dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
+dataset_path: ${out_root}/${dataset_name}
+
+data_file_suffix: "_cfs"
+
+pipeline:
+  exp_name: ${hydra:runtime.choices.architecture/sslr@architecture}_${dataset_name}
+  project_name: ${hydra:runtime.choices.trainer}
+  batch_size: 32
+
+data: &data
+  load:
+    - audio
+
+train_dataset:
+  <<: *data
+  manifest_path: ${dataset_path}/speaker_split/train${data_file_suffix}.csv
+
+val_dataset:
+  <<: *data
+  manifest_path: ${dataset_path}/speaker_split/val${data_file_suffix}.csv

@@ -1,4 +1,4 @@
-_target_: quick_convert.components.layers.ResidualVectorQuantizer
+_target_: quick_convert.components.layers.ResidualVectorQuantizerDAC
 input_dim: ???
 n_codebooks: ???
 codebook_size: ???

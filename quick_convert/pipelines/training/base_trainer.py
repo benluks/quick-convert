@@ -22,7 +22,7 @@ class BaseTrainer(ABC):
 
     def __init__(
         self,
-        # don't set output dir for now. It causes problems because it has to refer circularly to pipeline, 
+        # don't set output dir for now. It causes problems because it has to refer circularly to pipeline,
         # but pipeline has to instantiate trainer.
         output_dir: str | Path | None = None,
     ) -> None:

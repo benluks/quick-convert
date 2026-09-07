@@ -5,16 +5,15 @@ from __future__ import annotations
 import torch
 
 from quick_convert.components.ssl.base import ContentFeatures
-from quick_convert.utils import DeviceLike, configure_device
 
 from ...data.base_dataset import AudioBatch
 from .base import BaseFeatureExtractor
 
 
 class ContentFeatureExtractor(BaseFeatureExtractor):
-    def __init__(self, encoder: torch.nn.Module, device: DeviceLike = None):
+    def __init__(self, encoder: torch.nn.Module, device: str = "cpu"):
         self.encoder = encoder.eval()
-        self.device = configure_device(device)
+        self.device = torch.device(device)
         self.encoder.to(self.device)
 
     @property
@@ -22,5 +21,8 @@ class ContentFeatureExtractor(BaseFeatureExtractor):
         return "content"
 
     @torch.inference_mode()
-    def extract_batch(self, batch: AudioBatch) -> ContentFeatures:
-        return self.encoder(batch)
+    def extract_batch(self, batch: AudioBatch) -> list[dict[str, torch.Tensor]]:
+        features: ContentFeatures = self.encoder(batch)
+        outputs = [val[:len].cpu() for val, len in zip(features.values, features.lengths)]
+
+        return outputs

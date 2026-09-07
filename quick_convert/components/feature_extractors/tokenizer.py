@@ -1,9 +1,9 @@
-from collections.abc import Iterable
+from typing import Iterable
 
 import torch
-from sentencepiece import SentencePieceProcessor
 
 from quick_convert.data.types import AudioBatch
+from sentencepiece import SentencePieceProcessor
 
 from .base import BaseFeatureExtractor
 

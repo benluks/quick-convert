@@ -3,7 +3,7 @@ from .conformer import ConformerBlock
 from .conv import DepthWiseConvolution, WNConv1d
 from .grl import GradientReversalLayer
 from .layer_fusion import LayerWeightedSum
-from .rvq import ResidualVectorQuantizer, VectorQuantize
+from .rvq_dac import ResidualVectorQuantizerDAC, VectorQuantize
 from .stats_pool import AttentiveStatisticsPooling
 
 
@@ -13,7 +13,7 @@ __all__ = [
     "DepthWiseConvolution",
     "GradientReversalLayer",
     "LayerWeightedSum",
-    "ResidualVectorQuantizer",
+    "ResidualVectorQuantizerDAC",
     "Swish",
     "VectorQuantize",
     "WNConv1d",

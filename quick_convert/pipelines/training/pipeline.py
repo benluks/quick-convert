@@ -15,6 +15,7 @@ class TrainingPipeline:
         self,
         trainer: BaseTrainer,
         train_dataset: BaseDataset,
+        exp_name: str,
         val_dataset: BaseDataset | None = None,
         test_dataset: BaseDataset | None = None,
         out_dir: PathLike | None = None,
@@ -36,7 +37,7 @@ class TrainingPipeline:
         )
         self.out_path = Path(self.trainer.log_dir)
 
-    # TODO: abstract this abstract pipeline class
+    # TODO: abstract this to abstract pipeline class
     def write_config(self, config):
 
         self.out_path.mkdir(parents=True, exist_ok=True)

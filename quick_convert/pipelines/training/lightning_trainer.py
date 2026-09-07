@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import lightning as L
 import torch
 
@@ -14,9 +16,9 @@ class LightningTrainer(BaseTrainer):
         val_dataloader_kwargs: dict | None = None,
         trainer_kwargs: dict | None = None,
         compile: dict | None = None,
-        cudnn_benchmark: bool | None = None,
+        cudnn_benchmark: dict | None = None,
         ddp: dict | None = None,
-        precision: str | None = None,
+        precision: dict | None = None,
     ):
 
         self.module = module
@@ -102,7 +104,32 @@ class LightningTrainer(BaseTrainer):
             trainer_kwargs.setdefault("precision", self.precision)
 
         self.pl_trainer = L.Trainer(default_root_dir=out_dir, **trainer_kwargs)
-        self.log_dir = self.pl_trainer.log_dir
+        # self.log_dir = self.pl_trainer.log_dir
+        for logger in self.pl_trainer.loggers:
+            print(
+                type(logger),
+                logger.name,
+                logger.version,
+                logger.save_dir,
+            )
+
+    @property
+    def log_dir(self) -> Path:
+        if not self.pl_trainer.loggers:
+            return Path(self.pl_trainer.default_root_dir)
+
+        logger = self.pl_trainer.loggers[0]
+        _ = logger.experiment
+
+        save_dir = logger.save_dir if logger.save_dir is not None else self.pl_trainer.default_root_dir
+
+        version = logger.version
+        if version is None:
+            raise RuntimeError(
+                "A version must be associated with your logger. This usually means accessing the lazy `logger.experiment` attribute."
+            )
+
+        return Path(save_dir) / logger.name / str(version)
 
     def train(
         self,
@@ -114,11 +141,7 @@ class LightningTrainer(BaseTrainer):
         self._maybe_compile_module()
 
         train_loader = train_dataset.make_dataloader(**self.train_dataloader_kwargs)
-        val_loader = (
-            val_dataset.make_dataloader(**self.val_dataloader_kwargs)
-            if val_dataset
-            else None
-        )
+        val_loader = val_dataset.make_dataloader(**self.val_dataloader_kwargs) if val_dataset else None
 
         return self.pl_trainer.fit(
             model=self.module,

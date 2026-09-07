@@ -499,5 +499,5 @@ class CAMPPlusSpeakerEncoder(SpeakerEncoder):
         self,
         mode: bool = True,
     ) -> "CAMPPlusSpeakerEncoder":
-        super().train(False)
+        super().train(mode)
         return self

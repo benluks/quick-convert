@@ -1,5 +1,5 @@
 # values are taken from instantiation at https://github.com/resemble-ai/chatterbox/blob/master/src/chatterbox/models/s3gen/s3gen.py
-_target_: quick_convert.components.decoders.ChatterboxSpectrogramGenerator
+_target_: quick_convert.components.decoders.CosyVoiceSpectrogramGenerator
 flow:
   _target_: quick_convert.external.chatterbox.s3gen.flow.CausalMaskedDiffWithXvec
   spk_embed_dim: ???

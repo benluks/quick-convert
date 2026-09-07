@@ -1,6 +1,8 @@
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+import matplotlib.pyplot as plt
 import torch
 from lightning.pytorch.loggers import Logger, TensorBoardLogger, WandbLogger
 
@@ -42,11 +44,13 @@ class MediaLogger(ABC):
     @abstractmethod
     def log_bar(
         self,
-        key: str,
-        values: torch.Tensor,
+        key,
+        values,
+        item_name: str,
+        value_name: str,
         *,
-        labels: list[str] | None = None,
-        step: int,
+        item_labels=None,
+        step,
     ) -> None: ...
 
     @abstractmethod
@@ -57,6 +61,14 @@ class MediaLogger(ABC):
         *,
         step: int,
         max_samples: int = 8,
+    ) -> None: ...
+
+    @abstractmethod
+    def log_text(
+        self,
+        texts: dict[str, str],
+        *,
+        step: int,
     ) -> None: ...
 
 
@@ -72,6 +84,12 @@ class WandbMediaLogger(MediaLogger):
 
         self.logger = logger
         self.wandb = wandb
+
+    def _log(self, data, *, step):
+        try:
+            self.logger.experiment.log(data, step=step)
+        except TimeoutError as exc:
+            warnings.warn(f"W&B logging timed out at step {step}: {exc}")
 
     def log_audio(
         self,
@@ -108,29 +126,83 @@ class WandbMediaLogger(MediaLogger):
         self,
         key,
         values,
+        item_name: str,
+        value_name: str,
         *,
-        labels=None,
+        item_labels=None,
         step,
     ):
         values = values.detach().cpu().float().reshape(-1)
 
-        if labels is None:
-            labels = [str(i) for i in range(len(values))]
+        if item_labels is None:
+            item_labels = list(range(len(values)))
 
         table = self.wandb.Table(
-            data=[[label, value.item()] for label, value in zip(labels, values)],
-            columns=["layer", "weight"],
+            data=[[label, value.item()] for label, value in zip(item_labels, values)],
+            columns=[item_name, value_name],
         )
 
+        bar = self.wandb.plot.bar(
+            table,
+            item_name,
+            value_name,
+            title=key,
+        )
+
+        self._log({key: bar}, step=step)
+
+    def log_heatmap(
+        self,
+        key,
+        values,
+        *,
+        step,
+        x_labels=None,
+        y_labels=None,
+        annotate=False,
+        vmin=None,
+        vmax=None,
+    ):
+
+        values = values.detach().cpu().float()
+
+        fig, ax = plt.subplots(figsize=(6, 5))
+
+        im = ax.imshow(
+            values.numpy(),
+            aspect="auto",
+            vmin=vmin,
+            vmax=vmax,
+        )
+
+        if x_labels is not None:
+            ax.set_xticks(range(len(x_labels)))
+            ax.set_xticklabels(x_labels)
+
+        if y_labels is not None:
+            ax.set_yticks(range(len(y_labels)))
+            ax.set_yticklabels(y_labels)
+
+        if annotate:
+            for i in range(values.shape[0]):
+                for j in range(values.shape[1]):
+                    ax.text(
+                        j,
+                        i,
+                        f"{values[i, j]:.2f}",
+                        ha="center",
+                        va="center",
+                    )
+
+        fig.colorbar(im, ax=ax)
+        fig.tight_layout()
+
+        self.log_figure(key, fig, step=step)
+        plt.close(fig)
+
+    def log_figure(self, key, figure, *, step):
         self.logger.experiment.log(
-            {
-                key: self.wandb.plot.bar(
-                    table,
-                    "layer",
-                    "weight",
-                    title=key,
-                )
-            },
+            {key: self.wandb.Image(figure)},
             step=step,
         )
 
@@ -155,7 +227,7 @@ class WandbMediaLogger(MediaLogger):
     def log_reconstructed_audio(
         self,
         key,
-        media,
+        media: ReconstructedAudio,
         *,
         step,
         max_samples=8,
@@ -172,7 +244,7 @@ class WandbMediaLogger(MediaLogger):
 
         n = min(
             max_samples,
-            len(media.reconstructed_audio),
+            len(media.original_audio),
         )
 
         prepared_original_mels = self._prepare_mel(media.original_mel)
@@ -194,6 +266,9 @@ class WandbMediaLogger(MediaLogger):
                     sample_rate=media.reconstructed_sample_rate,
                 )
 
+            original_mel = None
+            reconstructed_mel = None
+
             if media.original_mel is not None:
                 original_mel = self.wandb.Image(
                     prepared_original_mels[i].detach().cpu().float().numpy()[..., : media.mel_lengths[i]]
@@ -212,8 +287,19 @@ class WandbMediaLogger(MediaLogger):
                 reconstructed_mel,
             )
 
-        self.logger.experiment.log(
+        self._log(
             {key: table},
+            step=step,
+        )
+
+    def log_text(
+        self,
+        texts: dict[str, str],
+        *,
+        step: int,
+    ) -> None:
+        self._log(
+            texts,
             step=step,
         )
 

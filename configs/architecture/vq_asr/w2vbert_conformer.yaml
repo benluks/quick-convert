@@ -1,0 +1,24 @@
+# architecture/vq_asr.yaml
+
+defaults:
+  - /global: default
+  - /components/encoders@ctc_head: linguistic_head
+  - /components/layers@quantizer: rvq_ema
+  - /components/ssl@online_encoders.content: w2vbert
+  - _self_
+
+tokenizer_vocab_size: 1000
+tokenizer_model_path: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
+vq_dim: 256
+
+quantizer:
+  input_dim: ${architecture.online_encoders.content.feature_dim}
+  n_codebooks: 1
+  codebook_dim: ${architecture.vq_dim}
+  codebook_size: 64
+layer_fusion:
+  _target_: quick_convert.components.layers.LayerWeightedSum
+  num_layers: 24
+ctc_head:
+  input_dim: ${architecture.vq_dim}
+  output_dim: ${architecture.tokenizer_vocab_size}

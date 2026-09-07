@@ -4,29 +4,22 @@ defaults:
   - /global: default
   - /pipeline: training
   - /trainer: vq_asr
+  - /architecture/vq_asr@architecture: w2vbert_conformer
   - /dataset@train_dataset: manifest
   - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
   - _self_
 
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
-resources_path: outputs/precomputed/${dataset_name}
+
+resources_root: outputs/precomputed
+resources_path: ${resources_root}/${dataset_name}
 dataset_path: ${out_root}/${dataset_name}
+data_path_suffix: ""
 
 pipeline:
-  batch_size: 2
-  dataloader:
-    num_workers: 1
-
-trainer:
-  train_dataloader_kwargs:
-    shuffle: false
-  ddp:
-    enabled: false
-  compile: false
-  module:
-    commitment_loss_weight: 0.1
-    codebook_loss_weight: 0.1
+  exp_name: ${hydra:runtime.choices.architecture/vq_asr@architecture}_${dataset_name}
+  project_name: ${hydra:runtime.choices.trainer}
 
 data: &data # compute info from sample
   resources:
@@ -45,8 +38,8 @@ data: &data # compute info from sample
 
 train_dataset:
   <<: *data
-  manifest_path: ${dataset_path}/speaker_split/train_cfs.csv
+  manifest_path: ${dataset_path}/speaker_split/train${data_path_suffix}.csv
 
 val_dataset:
   <<: *data
-  manifest_path: ${dataset_path}/speaker_split/val_cfs.csv
+  manifest_path: ${dataset_path}/speaker_split/val${data_path_suffix}.csv

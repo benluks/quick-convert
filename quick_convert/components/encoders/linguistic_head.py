@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torchaudio.models import Conformer
 
 from quick_convert.components.layers import ConformerBlock
 from quick_convert.components.losses import CTCLoss
@@ -8,7 +9,14 @@ from ..layers.heads import HeadOutput, HeadTarget, SupervisedHead
 
 
 class LinguisticCTCHead(SupervisedHead):
-    def __init__(self, hidden_dim: int, loss: CTCLoss):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        output_dim: int,
+        loss: CTCLoss,
+        decoder: Conformer | nn.LSTM | None = None,
+    ):
         super().__init__()
         """
         self.linear_1 = nn.Linear(hidden_dim, hidden_dim)
@@ -21,12 +29,11 @@ class LinguisticCTCHead(SupervisedHead):
             bias=True,
         )
         """
-        self.ln = nn.LayerNorm(hidden_dim)
+        self.ln = nn.LayerNorm(input_dim)
+        self.input_proj = nn.Linear(input_dim, hidden_dim)
+        self.decoder = decoder
+        self.output_proj = nn.Linear(hidden_dim, output_dim)
         self.loss = loss
-
-    def forward(self, x: torch.Tensor, *kwargs) -> torch.Tensor:
-        x = self.ln(x)
-        return x
 
     def predict(
         self,
@@ -60,14 +67,28 @@ class LinguisticCTCHead(SupervisedHead):
         if targets.lengths is None:
             raise ValueError("Linguistic CTC targets require target lengths.")
 
-        x = self.forward(features)
-        x = x.transpose(0, 1)  # (T, B, output_dim) for CTC loss
-        output = self.loss(x, targets.values, lengths, targets.lengths)
+        logits = self.forward(features, lengths=lengths)
+        logits = logits.transpose(0, 1)  # (T, B, output_dim) for CTC loss
+        output = self.loss(logits, targets.values, lengths, targets.lengths)
         return HeadOutput(
             loss=output.loss,
             predictions=output.log_probs,
             states={"logits": output.logits, "log_probs": output.log_probs},
         )
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        *,
+        lengths: torch.Tensor,
+    ) -> torch.Tensor:
+        x = self.ln(x)
+        x = self.input_proj(x)
+
+        if self.decoder is not None:
+            x, _ = self.decoder(x, lengths)
+
+        return self.output_proj(x)
 
 
 class LinguisticConformerCTCHead(nn.Module):

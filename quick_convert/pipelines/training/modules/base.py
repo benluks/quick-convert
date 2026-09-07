@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import abc
-from typing import Protocol, TypeVar
 from collections.abc import Iterable, Mapping
 from os import PathLike
 from pathlib import Path
@@ -17,11 +16,9 @@ from torch import nn
 from torch.optim import Optimizer
 
 from quick_convert.data import AudioBatch, BaseDataset
-from quick_convert.utils import configure_device
-
 from quick_convert.utils.device import DeviceLike, configure_device, override_devices
 
-from ..logging.base import MediaLogger, make_media_logger
+from ..logging.media_logger import MediaLogger, make_media_logger
 from ..optim.base import Optimization
 
 
@@ -39,23 +36,20 @@ StepOutputT = TypeVar("StepOutputT", bound=TrainingStepOutput)
 
 
 class BaseTrainingModule(L.LightningModule, abc.ABC):
-    """Base class for models trained with quick-convert.
+    """Base Lightning module for trainable systems.
 
-    Subclasses implement :meth:`_shared_step`, which is shared between
-    training and validation and returns an object containing at least a
-    scalar ``loss`` tensor.
-
-    Optimizer and scheduler construction is delegated to
-    :class:`Optimization`, allowing training modules to remain independent
-    of the surrounding experiment configuration.
-
-    Dataset-dependent initialization may be implemented in
-    :meth:`setup_training`. This method is called by
-    :class:`LightningTrainer` before the Lightning trainer is constructed.
+    Subclasses implement :meth:`_shared_step` and return an object containing
+    at least a scalar ``loss`` tensor. The concrete output may contain any
+    additional model-specific values needed for logging, validation, inference,
+    or qualitative inspection.
 
     Args:
-        optimization:
-            Optimizer, scheduler, and optional warmup configuration.
+        optimizer:
+            Callable that constructs an optimizer when passed ``params``.
+            This is typically provided through Hydra using ``_partial_: true``.
+        lr_scheduler:
+            Optional callable that constructs a scheduler when passed
+            ``optimizer``. This is also typically a Hydra partial.
     """
 
     def __init__(
@@ -254,33 +248,38 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
 
     def log_grad_norms(
         self,
-        checkpoint_path,
-        map_location: str | torch.device | None = None,
-        strict: bool = True,
-    ) -> tuple[list[str], list[str]]:
-        """Load a Lightning checkpoint and prepare the module for inference."""
+        modules: Mapping[str, nn.Module] | None = None,
+        *,
+        norm_type: float = 2.0,
+        prefix: str = "grad_norm",
+    ) -> None:
+        modules = modules or self.grad_norm_modules
 
-        checkpoint = torch.load(
-            checkpoint_path,
-            weights_only=False,
-            map_location=configure_device(map_location),
-        )
+        metrics: dict[str, torch.Tensor] = {}
 
-        state_dict = {key.replace("._orig_mod.", "."): value for key, value in checkpoint["state_dict"].items()}
+        for name, module in modules.items():
+            parameters = [
+                parameter for parameter in module.parameters() if parameter.requires_grad and parameter.grad is not None
+            ]
 
-        missing, unexpected = self.load_state_dict(
-            state_dict,
-            strict=strict,
-        )
+            if not parameters:
+                continue
 
-        self.eval()
-        self.freeze()
+            metrics[f"{prefix}/{name}"] = torch.nn.utils.get_total_norm(
+                [parameter.grad for parameter in parameters],
+                norm_type=norm_type,
+            )
 
-        return missing, unexpected
+        if metrics:
+            self.log_dict(
+                metrics,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                logger=True,
+                sync_dist=False,
+            )
 
-    def on_save_checkpoint(self, checkpoint: dict) -> None:
-        """Remove names introduced by ``torch.compile`` from saved parameters."""
-
-        checkpoint["state_dict"] = {
-            key.replace("._orig_mod.", "."): value for key, value in checkpoint["state_dict"].items()
-        }
+    def on_before_optimizer_step(self, optimizer: Optimizer) -> None:
+        if self.enable_grad_norm_logging:
+            self.log_grad_norms()

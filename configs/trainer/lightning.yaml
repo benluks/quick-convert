@@ -56,4 +56,6 @@ trainer_kwargs:
       logging_interval: step
   logger:
     _target_: lightning.pytorch.loggers.WandbLogger
-    save_dir: ${pipeline.out_dir}
+    save_dir: ${out_root}
+    project: ${pipeline.project_name}
+    name: ${pipeline.exp_name}

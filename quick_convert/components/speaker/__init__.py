@@ -1,13 +1,18 @@
 from .speaker_encoders import (
-    SpeakerEmbedding, 
-    SpeakerEncoder, 
-    ESPnetSpeakerEncoder, 
-    PyannoteWeSpeakerEncoder
+    CAMPPlusSpeakerEncoder,
+    CosyVoiceCAMPPlusSpeakerEncoder,
+    ESPnetSpeakerEncoder,
+    PyannoteWeSpeakerEncoder,
+    SpeakerEmbedding,
+    SpeakerEncoder,
 )
 
+
 __all__ = [
-    "SpeakerEncoder",
-    "SpeakerEmbedding",
+    "CAMPPlusSpeakerEncoder",
+    "CosyVoiceCAMPPlusSpeakerEncoder",
     "ESPnetSpeakerEncoder",
     "PyannoteWeSpeakerEncoder",
+    "SpeakerEmbedding",
+    "SpeakerEncoder",
 ]

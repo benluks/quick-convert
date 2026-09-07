@@ -15,7 +15,6 @@ the tokenizer/speaker dependencies.
 
 from importlib import import_module
 
-
 __all__ = ["ContentFeatureExtractor", "SpeakerEmbeddingExtractor", "TokenizerFeatureExtractor"]
 
 _MODULES = {

@@ -3,11 +3,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import torch
-from torch import nn
-
-from quick_convert.utils import DeviceLike, configure_device
+import torch.nn as nn
 
 
 @dataclass
@@ -20,16 +19,16 @@ class ContentFeatures:
     backend: str
     model_name: str
     layer: int | str | None
-    frame_hz: float | None = None
+    frame_hz: Optional[float] = None
 
 
 class ContentEncoder(nn.Module, ABC):
     TIME_D: int = 1
-    FEATURE_DIM: int | None = None
+    FEATURE_DIM: Optional[int] = None
 
-    def __init__(self, device: DeviceLike = None):
+    def __init__(self, device):
         super().__init__()
-        self.device = torch.device(configure_device(device))
+        self.device = torch.device(device)
 
     @property
     def feature_dim(self) -> int:

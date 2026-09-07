@@ -15,23 +15,21 @@
 # limitations under the License.
 # Modified from ESPnet(https://github.com/espnet/espnet)
 """Encoder definition."""
-from typing import Tuple
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 
+from ..utils.class_utils import (
+    COSYVOICE_ACTIVATION_CLASSES,
+    COSYVOICE_ATTENTION_CLASSES,
+    COSYVOICE_EMB_CLASSES,
+    COSYVOICE_SUBSAMPLE_CLASSES,
+)
+from ..utils.mask import add_optional_chunk_mask, make_pad_mask
 from .convolution import ConvolutionModule
 from .encoder_layer import ConformerEncoderLayer
 from .positionwise_feed_forward import PositionwiseFeedForward
-from ..utils.class_utils import (
-    COSYVOICE_EMB_CLASSES,
-    COSYVOICE_SUBSAMPLE_CLASSES,
-    COSYVOICE_ATTENTION_CLASSES,
-    COSYVOICE_ACTIVATION_CLASSES,
-)
-from ..utils.mask import make_pad_mask
-from ..utils.mask import add_optional_chunk_mask
 
 
 class Upsample1D(nn.Module):
@@ -69,13 +67,18 @@ class PreLookaheadLayer(nn.Module):
         self.channels = channels
         self.pre_lookahead_len = pre_lookahead_len
         self.conv1 = nn.Conv1d(
-            channels, channels,
+            channels,
+            channels,
             kernel_size=pre_lookahead_len + 1,
-            stride=1, padding=0,
+            stride=1,
+            padding=0,
         )
         self.conv2 = nn.Conv1d(
-            channels, channels,
-            kernel_size=3, stride=1, padding=0,
+            channels,
+            channels,
+            kernel_size=3,
+            stride=1,
+            padding=0,
         )
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
@@ -84,10 +87,10 @@ class PreLookaheadLayer(nn.Module):
         """
         outputs = inputs.transpose(1, 2).contiguous()
         # look ahead
-        outputs = F.pad(outputs, (0, self.pre_lookahead_len), mode='constant', value=0.0)
+        outputs = F.pad(outputs, (0, self.pre_lookahead_len), mode="constant", value=0.0)
         outputs = F.leaky_relu(self.conv1(outputs))
         # outputs
-        outputs = F.pad(outputs, (2, 0), mode='constant', value=0.0)
+        outputs = F.pad(outputs, (2, 0), mode="constant", value=0.0)
         outputs = self.conv2(outputs)
         outputs = outputs.transpose(1, 2).contiguous()
 
@@ -97,7 +100,6 @@ class PreLookaheadLayer(nn.Module):
 
 
 class UpsampleConformerEncoder(torch.nn.Module):
-
     def __init__(
         self,
         input_size: int = 512,
@@ -125,6 +127,8 @@ class UpsampleConformerEncoder(torch.nn.Module):
         cnn_module_norm: str = "batch_norm",
         key_bias: bool = True,
         gradient_checkpointing: bool = False,
+        do_upsample: bool = True,
+        upsample_factor: int = 2,
     ):
         """
         Args:
@@ -165,8 +169,7 @@ class UpsampleConformerEncoder(torch.nn.Module):
             input_size,
             output_size,
             dropout_rate,
-            COSYVOICE_EMB_CLASSES[pos_enc_layer_type](output_size,
-                                                      positional_dropout_rate),
+            COSYVOICE_EMB_CLASSES[pos_enc_layer_type](output_size, positional_dropout_rate),
         )
 
         self.normalize_before = normalize_before
@@ -175,6 +178,8 @@ class UpsampleConformerEncoder(torch.nn.Module):
         self.use_dynamic_chunk = use_dynamic_chunk
         self.use_dynamic_left_chunk = use_dynamic_left_chunk
         self.gradient_checkpointing = gradient_checkpointing
+        self.do_upsample = do_upsample
+        self.upsample_factor = upsample_factor
         activation = COSYVOICE_ACTIVATION_CLASSES[activation_type]()
         # self-attention module definition
         encoder_selfattn_layer_args = (
@@ -191,45 +196,48 @@ class UpsampleConformerEncoder(torch.nn.Module):
             activation,
         )
         # convolution module definition
-        convolution_layer_args = (output_size, cnn_module_kernel, activation,
-                                  cnn_module_norm, causal)
+        convolution_layer_args = (output_size, cnn_module_kernel, activation, cnn_module_norm, causal)
         self.pre_lookahead_layer = PreLookaheadLayer(channels=512, pre_lookahead_len=3)
-        self.encoders = torch.nn.ModuleList([
-            ConformerEncoderLayer(
-                output_size,
-                COSYVOICE_ATTENTION_CLASSES[selfattention_layer_type](
-                    *encoder_selfattn_layer_args),
-                PositionwiseFeedForward(*positionwise_layer_args),
-                PositionwiseFeedForward(
-                    *positionwise_layer_args) if macaron_style else None,
-                ConvolutionModule(
-                    *convolution_layer_args) if use_cnn_module else None,
-                dropout_rate,
-                normalize_before,
-            ) for _ in range(num_blocks)
-        ])
-        self.up_layer = Upsample1D(channels=512, out_channels=512, stride=2)
+        self.encoders = torch.nn.ModuleList(
+            [
+                ConformerEncoderLayer(
+                    output_size,
+                    COSYVOICE_ATTENTION_CLASSES[selfattention_layer_type](*encoder_selfattn_layer_args),
+                    PositionwiseFeedForward(*positionwise_layer_args),
+                    PositionwiseFeedForward(*positionwise_layer_args) if macaron_style else None,
+                    ConvolutionModule(*convolution_layer_args) if use_cnn_module else None,
+                    dropout_rate,
+                    normalize_before,
+                )
+                for _ in range(num_blocks)
+            ]
+        )
+
+        self.up_layer = (
+            Upsample1D(channels=512, out_channels=512, stride=upsample_factor) if do_upsample else None
+        )
         self.up_embed = COSYVOICE_SUBSAMPLE_CLASSES[input_layer](
-            input_size,
+            # changed this from input_size to output size. I think the original was an error,
+            # which was never caught because input_size and output_size are hard-coded to be the same
+            output_size,
             output_size,
             dropout_rate,
-            COSYVOICE_EMB_CLASSES[pos_enc_layer_type](output_size,
-                                                      positional_dropout_rate),
+            COSYVOICE_EMB_CLASSES[pos_enc_layer_type](output_size, positional_dropout_rate),
         )
-        self.up_encoders = torch.nn.ModuleList([
-            ConformerEncoderLayer(
-                output_size,
-                COSYVOICE_ATTENTION_CLASSES[selfattention_layer_type](
-                    *encoder_selfattn_layer_args),
-                PositionwiseFeedForward(*positionwise_layer_args),
-                PositionwiseFeedForward(
-                    *positionwise_layer_args) if macaron_style else None,
-                ConvolutionModule(
-                    *convolution_layer_args) if use_cnn_module else None,
-                dropout_rate,
-                normalize_before,
-            ) for _ in range(4)
-        ])
+        self.up_encoders = torch.nn.ModuleList(
+            [
+                ConformerEncoderLayer(
+                    output_size,
+                    COSYVOICE_ATTENTION_CLASSES[selfattention_layer_type](*encoder_selfattn_layer_args),
+                    PositionwiseFeedForward(*positionwise_layer_args),
+                    PositionwiseFeedForward(*positionwise_layer_args) if macaron_style else None,
+                    ConvolutionModule(*convolution_layer_args) if use_cnn_module else None,
+                    dropout_rate,
+                    normalize_before,
+                )
+                for _ in range(4)
+            ]
+        )
 
     def output_size(self) -> int:
         return self._output_size
@@ -240,7 +248,7 @@ class UpsampleConformerEncoder(torch.nn.Module):
         xs_lens: torch.Tensor,
         decoding_chunk_size: int = 0,
         num_decoding_left_chunks: int = -1,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Embed positions in tensor.
 
         Args:
@@ -270,30 +278,37 @@ class UpsampleConformerEncoder(torch.nn.Module):
             xs = self.global_cmvn(xs)
         xs, pos_emb, masks = self.embed(xs, masks)
         mask_pad = masks  # (B, 1, T/subsample_rate)
-        chunk_masks = add_optional_chunk_mask(xs, masks,
-                                              self.use_dynamic_chunk,
-                                              self.use_dynamic_left_chunk,
-                                              decoding_chunk_size,
-                                              self.static_chunk_size,
-                                              num_decoding_left_chunks)
+        chunk_masks = add_optional_chunk_mask(
+            xs,
+            masks,
+            self.use_dynamic_chunk,
+            self.use_dynamic_left_chunk,
+            decoding_chunk_size,
+            self.static_chunk_size,
+            num_decoding_left_chunks,
+        )
         # lookahead + conformer encoder
         xs = self.pre_lookahead_layer(xs)
         xs = self.forward_layers(xs, chunk_masks, pos_emb, mask_pad)
 
         # upsample + conformer encoder
         xs = xs.transpose(1, 2).contiguous()
-        xs, xs_lens = self.up_layer(xs, xs_lens)
+        if self.do_upsample:
+            xs, xs_lens = self.up_layer(xs, xs_lens)
         xs = xs.transpose(1, 2).contiguous()
         T = xs.size(1)
         masks = ~make_pad_mask(xs_lens, T).unsqueeze(1)  # (B, 1, T)
         xs, pos_emb, masks = self.up_embed(xs, masks)
         mask_pad = masks  # (B, 1, T/subsample_rate)
-        chunk_masks = add_optional_chunk_mask(xs, masks,
-                                              self.use_dynamic_chunk,
-                                              self.use_dynamic_left_chunk,
-                                              decoding_chunk_size,
-                                              self.static_chunk_size * self.up_layer.stride,
-                                              num_decoding_left_chunks)
+        chunk_masks = add_optional_chunk_mask(
+            xs,
+            masks,
+            self.use_dynamic_chunk,
+            self.use_dynamic_left_chunk,
+            decoding_chunk_size,
+            self.static_chunk_size * self.upsample_factor,
+            num_decoding_left_chunks,
+        )
         xs = self.forward_up_layers(xs, chunk_masks, pos_emb, mask_pad)
 
         if self.normalize_before:
@@ -303,16 +318,16 @@ class UpsampleConformerEncoder(torch.nn.Module):
         # for cross attention with decoder later
         return xs, masks
 
-    def forward_layers(self, xs: torch.Tensor, chunk_masks: torch.Tensor,
-                       pos_emb: torch.Tensor,
-                       mask_pad: torch.Tensor) -> torch.Tensor:
+    def forward_layers(
+        self, xs: torch.Tensor, chunk_masks: torch.Tensor, pos_emb: torch.Tensor, mask_pad: torch.Tensor
+    ) -> torch.Tensor:
         for layer in self.encoders:
             xs, chunk_masks, _, _ = layer(xs, chunk_masks, pos_emb, mask_pad)
         return xs
 
-    def forward_up_layers(self, xs: torch.Tensor, chunk_masks: torch.Tensor,
-                          pos_emb: torch.Tensor,
-                          mask_pad: torch.Tensor) -> torch.Tensor:
+    def forward_up_layers(
+        self, xs: torch.Tensor, chunk_masks: torch.Tensor, pos_emb: torch.Tensor, mask_pad: torch.Tensor
+    ) -> torch.Tensor:
         for layer in self.up_encoders:
             xs, chunk_masks, _, _ = layer(xs, chunk_masks, pos_emb, mask_pad)
         return xs

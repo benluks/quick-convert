@@ -1,8 +1,6 @@
-from typing import Optional
-
-from torch import nn
 import torch
 import torch.nn.functional as F
+from torch import nn
 
 
 class LayerWeightedSum(nn.Module):
@@ -12,7 +10,7 @@ class LayerWeightedSum(nn.Module):
     dimension beforehand
     """
 
-    def __init__(self, num_layers: int, projection: Optional[nn.Linear] = None) -> None:
+    def __init__(self, num_layers: int, projection: nn.Linear | None = None) -> None:
         super().__init__()
         self.weights = nn.Parameter(torch.zeros(1, num_layers))
         self.projection = projection or nn.Identity()

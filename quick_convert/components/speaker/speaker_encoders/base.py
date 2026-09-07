@@ -18,23 +18,46 @@ class SpeakerEmbedding:
 
 
 class SpeakerEncoder(nn.Module, ABC):
-    FEATURE_DIM = None
+    FEATURE_DIM: int
 
-    def __init__(self, device):
+    def __init__(
+        self,
+        device: str | torch.device | None = None,
+    ):
         super().__init__()
-        self.device = device
+
+        if device is None:
+            if torch.cuda.is_available():
+                device = "cuda"
+            elif torch.backends.mps.is_available():
+                device = "mps"
+            else:
+                device = "cpu"
+
+        self.device = torch.device(device)
 
     @abstractmethod
-    def encode(self, wav: torch.Tensor, sr: int) -> SpeakerEmbedding: ...
+    def encode(
+        self,
+        wav: torch.Tensor,
+        sr: int,
+    ) -> SpeakerEmbedding: ...
 
     @abstractmethod
-    def encode_batch(self, samples: AudioBatch) -> SpeakerEmbedding: ...
+    def encode_batch(
+        self,
+        samples: AudioBatch,
+    ) -> SpeakerEmbedding: ...
 
     @property
     def feature_dim(self) -> int:
         return self.FEATURE_DIM
 
-    def to(self, device: str | torch.device):
-        self.device = str(device)
-        # Speech2Embedding itself manages device internally, but keep this for interface consistency
-        return self
+    def to(
+        self,
+        device: str | torch.device,
+        *args,
+        **kwargs,
+    ):
+        self.device = torch.device(device)
+        return super().to(device, *args, **kwargs)
