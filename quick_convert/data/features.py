@@ -3,8 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Union
 
-from .types import AudioSample
-
 
 class PatternSidecarFeatureResolver:
     def __init__(
@@ -36,7 +34,3 @@ class PatternSidecarFeatureResolver:
             return {self.key: self.loader(path)}
 
         return {self.key: path}
-
-
-def resolve_emotion_compensation_xvector_path(sample: AudioSample, root: Path, step: int) -> Path:
-    return root / f"{sample.path.stem}_{step}.xvector"

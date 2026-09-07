@@ -23,7 +23,6 @@ Many components rely on optional dependencies. These are grouped into extras so 
 | `whisper`              | Whisper ASR model                    |
 | `jiwer`                | JIWER implementation of WER metric   |
 | `lightning`      | pytorch-lightning, and associated tools for training with lightning.                    |
-| `emotion-compensation` | To run this one specific emotion-compensation pipeline (needs Python 3.9. Total nightmare)          |
 | `espnet-wavlm-joint`   | ESPnet WavLM implementation             |
 | `pyannote`             | For the pyannote WeSpeaker implementation      |
 | `dac`                  | Descript Audio Codec support         |

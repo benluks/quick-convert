@@ -20,9 +20,7 @@ jobs:
           python-version: "3.11"
           enable-cache: true
       - name: Install development environment
-        run: |
-          uv venv --python 3.11
-          uv pip install -e . pytest ruff
+        run: uv sync --group dev
       - name: Check formatting
         run: |
           uv run --no-sync ruff format --check \

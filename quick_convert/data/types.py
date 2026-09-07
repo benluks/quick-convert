@@ -28,7 +28,6 @@ class MetadataSample:
     utt_id: str
     path: Path
     split: str | None = None
-    spk_id: str | None = None
     resources: ResourceCollection = field(default_factory=ResourceCollection)
 
 
@@ -68,7 +67,6 @@ class MetadataBatch:
     paths: list[Path]
     splits: list[str | None]
     resources: dict[str, Any]
-    spk_ids: list[str | None] = field(default_factory=list)
 
     def __len__(self) -> int:
         return len(self.paths)
@@ -78,7 +76,6 @@ class MetadataBatch:
             utt_id=self.utt_ids[idx],
             path=self.paths[idx],
             split=self.splits[idx],
-            spk_id=self.spk_ids[idx] if self.spk_ids else None,
             resources={key: value[idx] for key, value in self.resources.items()},
         )
 
@@ -120,7 +117,6 @@ class AudioBatch(MetadataBatch):
             "utt_ids": [s.utt_id for s in samples],
             "paths": [s.path for s in samples],
             "splits": [s.split for s in samples],
-            "spk_ids": [s.spk_id for s in samples],
             "resources": collate_resources(samples),
         }
 
@@ -195,7 +191,6 @@ class AudioBatch(MetadataBatch):
             utt_id=self.utt_ids[idx],
             path=self.paths[idx],
             split=self.splits[idx],
-            spk_id=self.spk_ids[idx] if self.spk_ids else None,
             waveform=self.waveforms[idx] if self.waveforms is not None else None,
             sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
             # features={key: value[idx] for key, value in self.features.items()},

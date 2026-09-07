@@ -21,26 +21,6 @@ def test_dataset_can_be_constructed_from_paths(tmp_path):
     assert dataset.rows[0].path == audio_path
 
 
-def test_dataset_preserves_speaker_ids_through_batching(tmp_path):
-    audio_path = tmp_path / "speaker-1" / "sample.wav"
-    audio_path.parent.mkdir()
-    audio_path.touch()
-
-    dataset = BaseDataset(
-        paths=[audio_path],
-        file_format="wav",
-        get_utt_id_fn=lambda path: path.stem,
-        get_spkid_fn=lambda path: path.parent.name,
-        return_spkid=True,
-    )
-
-    batch = AudioBatch.from_samples([AudioSample(**vars(dataset.rows[0]))])
-
-    assert dataset.rows[0].spk_id == "speaker-1"
-    assert batch.spk_ids == ["speaker-1"]
-    assert batch[0].spk_id == "speaker-1"
-
-
 def test_audio_batch_collates_audio_and_tensor_resources():
     samples = [
         AudioSample(
