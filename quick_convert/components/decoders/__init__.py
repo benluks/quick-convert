@@ -1,5 +1,5 @@
-from .chatterbox import ChatterboxSpectrogramGenerator
-from .knnvc_hifigan import KnnVCHifiGanDecoder
+from .cosyvoice import CosyVoiceDecoderOutput, CosyVoiceSpectrogramGenerator
+from .hift_generator import CosyVoiceHiFTDecoder
 
 
-__all__ = ["ChatterboxSpectrogramGenerator", "KnnVCHifiGanDecoder"]
+__all__ = ["ChatterboxSpectrogramGenerator", "CosyVoiceDecoderOutput", "CosyVoiceHiFTDecoder", "CosyVoiceSpectrogramGenerator"]
