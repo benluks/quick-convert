@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .base_trainer import BaseTrainer
 
@@ -25,8 +26,10 @@ class TokenizerTrainer(BaseTrainer):
         for item in dataset:
             try:
                 text = item.resources[self.text_key].value
-            except (KeyError, AttributeError):
-                raise ValueError(f"Each item in the dataset must have a resource with key '{self.text_key}'.")
+            except (KeyError, AttributeError) as error:
+                raise ValueError(
+                    f"Each item in the dataset must have a resource with key '{self.text_key}'."
+                ) from error
 
             if text:
                 yield str(text)

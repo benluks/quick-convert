@@ -90,7 +90,7 @@ class ASRLoggingMixin:
         # [T, B, V] -> [B, T, V]
         batch_logits = logits.transpose(0, 1)
 
-        for i, (item, item_logits) in enumerate(zip(batch, batch_logits)):
+        for i, (item, item_logits) in enumerate(zip(batch, batch_logits, strict=True)):
             hypothesis_ids = greedy_ctc_decode(
                 logits=item_logits,
             )
@@ -168,6 +168,7 @@ class ASRLoggingMixin:
                 self._asr_utterance_ids[: self._asr_table_max_rows],
                 self._asr_references[: self._asr_table_max_rows],
                 self._asr_hypotheses[: self._asr_table_max_rows],
+                strict=True,
             )
         )
 

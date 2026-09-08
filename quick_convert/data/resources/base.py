@@ -1,6 +1,7 @@
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Literal, Optional
+from typing import Any, Literal
 
 import torch
 from torch.nn.utils.rnn import pad_sequence
@@ -42,12 +43,12 @@ ResourceKind = Literal[
 @dataclass
 class ResourceRef:
     name: str
-    kind: Optional[ResourceKind] = None
-    path: Optional[Path] = None
-    value: Optional[Any] = None
+    kind: ResourceKind | None = None
+    path: Path | None = None
+    value: Any | None = None
 
     # Only set if using cudnn benchmark
-    max_length: Optional[int] = None
+    max_length: int | None = None
 
 
 @dataclass
@@ -173,7 +174,7 @@ def _normalize_tensor_resource(x: torch.Tensor) -> torch.Tensor:
 
 
 def _collate_tensor_resources(
-    refs: list[ResourceRef], squeeze_single_frame: bool = False, max_length: Optional[int] = None
+    refs: list[ResourceRef], squeeze_single_frame: bool = False, max_length: int | None = None
 ) -> TensorResourceBatch:
     """
     max_length: An optional arbitrary max length to pad or trim batch. Useful in the case of cudnn, which needs

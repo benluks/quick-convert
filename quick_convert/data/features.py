@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Union
 
 
 class PatternSidecarFeatureResolver:
     def __init__(
         self,
         key: str,
-        root: Union[str, Path],
+        root: str | Path,
         pattern: str,
         load: bool = False,
         loader=None,

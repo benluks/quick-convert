@@ -29,7 +29,7 @@ class ObjectiveGradientLoggingMixin:
     ) -> torch.Tensor:
         value = reference.new_zeros((), dtype=torch.float32)
 
-        for first_grad, second_grad in zip(first, second):
+        for first_grad, second_grad in zip(first, second, strict=True):
             if first_grad is None or second_grad is None:
                 continue
 

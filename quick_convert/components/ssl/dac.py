@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 import torch
 import torch.nn.functional as F
@@ -37,10 +37,10 @@ class DACContentEncoder(ContentEncoder):
     def __init__(
         self,
         *,
-        pretrained: Optional[str] = "16khz",
+        pretrained: str | None = "16khz",
         encoder_dim: int = 64,
         encoder_rates: Sequence[int] = (2, 4, 5, 8),
-        latent_dim: Optional[int] = None,
+        latent_dim: int | None = None,
         sample_rate: int = 16000,
         trainable: bool = False,
         device: str | None = None,
@@ -82,7 +82,7 @@ class DACContentEncoder(ContentEncoder):
             self.dac_encoder.eval().requires_grad_(False)
 
     @classmethod
-    def from_pretrained(cls, model_type: str = "16khz", *, trainable: bool = False, **kwargs) -> "DACContentEncoder":
+    def from_pretrained(cls, model_type: str = "16khz", *, trainable: bool = False, **kwargs) -> DACContentEncoder:
         """Load an official pretrained DAC checkpoint and keep its encoder (frozen by default)."""
         return cls(pretrained=model_type, trainable=trainable, **kwargs)
 
@@ -92,11 +92,11 @@ class DACContentEncoder(ContentEncoder):
         *,
         encoder_dim: int = 64,
         encoder_rates: Sequence[int] = (2, 4, 5, 8),
-        latent_dim: Optional[int] = None,
+        latent_dim: int | None = None,
         sample_rate: int = 16000,
         trainable: bool = True,
         **kwargs,
-    ) -> "DACContentEncoder":
+    ) -> DACContentEncoder:
         """Build DAC's encoder with random weights, ready to train from scratch.
 
         Defaults reproduce the 16 kHz DAC encoder (hop 320 -> 50 Hz, latent 1024).

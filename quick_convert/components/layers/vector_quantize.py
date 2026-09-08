@@ -577,7 +577,7 @@ class Codebook(Module):
         if self.use_cosine_sim:
             batch_samples = l2norm(batch_samples)
 
-        for ind, (samples, mask) in enumerate(zip(batch_samples, batch_mask)):
+        for ind, (samples, mask) in enumerate(zip(batch_samples, batch_mask, strict=True)):
             if exists(seq_mask):
                 samples = samples[seq_mask[ind]]
 

@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -23,7 +21,7 @@ class DepthWiseConvolution(nn.Module):
 
     def __init__(self, channels: int = 256, kernel_size: int = 9, bias: bool = True, dropout: float = 0.0):
 
-        super(DepthWiseConvolution, self).__init__()
+        super().__init__()
 
         # kernel_size should be odd to maintain sequence length with padding
         assert kernel_size % 2 == 1
@@ -147,7 +145,7 @@ class Upsample1D(nn.Module):
         channels: int,
         use_conv: bool = False,
         use_conv_transpose: bool = True,
-        out_channels: Optional[int] = None,
+        out_channels: int | None = None,
         name: str = "conv",
     ):
 

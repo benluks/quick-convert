@@ -54,7 +54,7 @@ class MeanEuclideanDistanceMetric(Metric):
             raise ValueError("Number of references and hypotheses must be equal.")
 
         distances = []
-        for ref, hyp in zip(references, hypotheses):
+        for ref, hyp in zip(references, hypotheses, strict=True):
             distance = np.linalg.norm(np.array(ref) - np.array(hyp))
             distances.append(distance)
 

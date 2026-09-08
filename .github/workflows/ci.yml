@@ -24,6 +24,6 @@ jobs:
       - name: Check formatting
         run: uv run --no-sync ruff format --check .
       - name: Lint
-        run: uv run --no-sync ruff check --select E4,E7,E9,F,I .
+        run: uv run --no-sync ruff check --select B,E4,E7,E9,F,I,UP .
       - name: Run fast tests
         run: uv run --no-sync pytest

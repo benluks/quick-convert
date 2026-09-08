@@ -15,7 +15,7 @@ class GradientReversal(torch.autograd.Function):
 
 class GradientReversalLayer(torch.nn.Module):
     def __init__(self):
-        super(GradientReversalLayer, self).__init__()
+        super().__init__()
 
     @staticmethod
     def forward(input):

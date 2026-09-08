@@ -4,7 +4,7 @@ import os
 
 # anonymizer should take file as input and output [channel, T] audio
 from abc import ABC, abstractmethod
-from typing import Any, Generic, List, Union
+from typing import Any, Generic
 
 import torch
 import torch.nn as nn
@@ -17,7 +17,7 @@ class BaseAnonymizer(nn.Module, ABC, Generic[T_Target]):
     sr: int
     sample_rate: int
 
-    def __init__(self, device: torch.device | None = None, feature_providers: List[Any] = []):
+    def __init__(self, device: torch.device | None = None, feature_providers: list[Any] | None = None):
         super().__init__()
         self.device = device or torch.device(
             "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
@@ -55,5 +55,5 @@ class BaseAnonymizer(nn.Module, ABC, Generic[T_Target]):
         raise NotImplementedError
 
     @abstractmethod
-    def anonymize(self, audio_path: Union[torch.Tensor, os.PathLike], **kwargs) -> torch.Tensor:
+    def anonymize(self, audio_path: torch.Tensor | os.PathLike, **kwargs) -> torch.Tensor:
         raise NotImplementedError

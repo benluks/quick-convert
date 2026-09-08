@@ -14,6 +14,7 @@ class Metric(ABC):
         """
         ...
 
+    @abstractmethod
     def get_references(self, batch: AudioBatch) -> Iterable[Any]:
         """
         Get task-specific references

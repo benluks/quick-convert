@@ -93,7 +93,7 @@ class ProsodyEncoder(ContentEncoder):
             windows.append(audio[i : i + sr * 6])
         results = []
 
-        for i, window in enumerate(windows):
+        for window in windows:
             pitch = self.pitch_measure(window, np.array([1000]))["measure"]
             energy = self.energy_measure(window, np.array([1000]))["measure"]
             vad = self.vad_measure(window, np.array([1000]))["measure"]

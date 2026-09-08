@@ -55,7 +55,7 @@ class AudioSample(MetadataSample):
             **kwargs,
         )
 
-    def load_audio(self, *args, **kwargs) -> "AudioSample":
+    def load_audio(self, *args, **kwargs) -> AudioSample:
         """Return a copy of the sample with its waveform loaded."""
         waveform, sr = load_audio(self.path, *args, **kwargs)
         return replace(self, waveform=waveform, sample_rate=sr)
@@ -98,7 +98,7 @@ class AudioBatch(MetadataBatch):
     sample_rates: torch.Tensor | None = None
 
     @classmethod
-    def from_samples(cls, samples: list[AudioSample], max_length: int | None = None) -> "AudioBatch":
+    def from_samples(cls, samples: list[AudioSample], max_length: int | None = None) -> AudioBatch:
         """Collate samples into a batch.
 
         Audio is padded along time, and named resources are independently
@@ -148,7 +148,7 @@ class AudioBatch(MetadataBatch):
         max_length: int | None = None,
         utt_id_fn: Callable[[Path], str] | None = None,
         **kwargs,
-    ) -> "AudioBatch":
+    ) -> AudioBatch:
         """Load audio paths directly into a batch.
 
         This convenience constructor is useful for inference and ad-hoc feature

@@ -23,6 +23,6 @@ class ContentFeatureExtractor(BaseFeatureExtractor):
     @torch.inference_mode()
     def extract_batch(self, batch: AudioBatch) -> list[dict[str, torch.Tensor]]:
         features: ContentFeatures = self.encoder(batch)
-        outputs = [val[:len].cpu() for val, len in zip(features.values, features.lengths)]
+        outputs = [val[:len].cpu() for val, len in zip(features.values, features.lengths, strict=True)]
 
         return outputs

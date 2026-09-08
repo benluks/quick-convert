@@ -71,7 +71,7 @@ class CosyVoiceHiFTDecoder(nn.Module):
         *,
         # sampling_rate: int = 24000,
         device: DeviceLike = None,
-    ) -> "CosyVoiceHiFTDecoder":
+    ) -> CosyVoiceHiFTDecoder:
 
         checkpoint_path = hf_hub_download(
             repo_id=repo_id,

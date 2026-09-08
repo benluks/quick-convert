@@ -89,7 +89,7 @@ class WandbMediaLogger(MediaLogger):
         try:
             self.logger.experiment.log(data, step=step)
         except TimeoutError as exc:
-            warnings.warn(f"W&B logging timed out at step {step}: {exc}")
+            warnings.warn(f"W&B logging timed out at step {step}: {exc}", stacklevel=2)
 
     def log_audio(
         self,
@@ -138,7 +138,7 @@ class WandbMediaLogger(MediaLogger):
             item_labels = list(range(len(values)))
 
         table = self.wandb.Table(
-            data=[[label, value.item()] for label, value in zip(item_labels, values)],
+            data=[[label, value.item()] for label, value in zip(item_labels, values, strict=True)],
             columns=[item_name, value_name],
         )
 

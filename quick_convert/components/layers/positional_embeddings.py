@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import torch
 import torch.nn as nn
 
@@ -31,7 +29,7 @@ class RoPE(nn.Module):
         self,
         q: torch.Tensor,
         k: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
             q: (B, H, T, D)
@@ -47,7 +45,7 @@ class RoPE(nn.Module):
         seq_len: int,
         device: torch.device,
         dtype: torch.dtype,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Build (or retrieve from cache) the cos/sin rotation tables.
 
         Results are cached by ``(seq_len, dtype, device)``; a cache hit casts

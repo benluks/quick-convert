@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 
 import torch
 
@@ -10,7 +10,7 @@ def mask_pad(x, padding_mask):
     return x.masked_fill(~padding_mask.unsqueeze(-1), 0.0)
 
 
-def make_padding_mask(frame_lengths: torch.Tensor, max_length: Optional[int] = None) -> torch.Tensor:
+def make_padding_mask(frame_lengths: torch.Tensor, max_length: int | None = None) -> torch.Tensor:
     """Returns (B, T) bool mask — False marks padding positions."""
 
     max_length = max_length or frame_lengths.max()

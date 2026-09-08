@@ -90,6 +90,7 @@ class CosyVoiceCAMPPlusSpeakerEncoder(SpeakerEncoder):
         for waveform, length in zip(
             samples.waveforms,
             samples.lengths,
+            strict=True,
         ):
             waveform = waveform[..., : int(length)]
 

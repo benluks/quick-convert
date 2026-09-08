@@ -3,9 +3,9 @@ from __future__ import annotations
 import csv
 import random
 from collections import defaultdict
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Iterable
 
 import torchaudio
 from tqdm import tqdm

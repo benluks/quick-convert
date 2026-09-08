@@ -1,5 +1,3 @@
-from typing import List, Union
-
 import torch
 from torch import nn
 
@@ -10,7 +8,7 @@ class Swish(nn.Module):
     """
 
     def __init__(self):
-        super(Swish, self).__init__()
+        super().__init__()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x * torch.sigmoid(x)
@@ -39,7 +37,7 @@ class SnakeBeta(nn.Module):
     def __init__(
         self,
         in_features: int,
-        out_features: Union[int, List[int]],
+        out_features: int | list[int],
         alpha: float = 1.0,
         alpha_trainable: bool = True,
         alpha_logscale: bool = True,

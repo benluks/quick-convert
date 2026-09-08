@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 import torch.nn as nn
 
@@ -47,7 +45,7 @@ class TransformerBlock(nn.Module):
     def forward(
         self,
         x: torch.FloatTensor,
-        attention_mask: Optional[torch.FloatTensor] = None,
+        attention_mask: torch.FloatTensor | None = None,
         **kwargs,
     ) -> torch.FloatTensor:
 

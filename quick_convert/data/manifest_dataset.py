@@ -107,9 +107,9 @@ class ManifestDataset(BaseDataset):
                                 ),
                             )
                         )
-                except csv.Error:
+                except csv.Error as error:
                     raise ValueError(
                         f"Failed to parse manifest file {path} as CSV. Please check the file format and delimiter."
-                    )
+                    ) from error
 
         super().__init__(rows=rows, **kwargs)

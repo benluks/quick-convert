@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import List, Optional, Union
 
 import torch
 
@@ -14,14 +13,14 @@ class KNNVCAnonymizer(BaseAnonymizer[KNNVCTarget]):
         self.sample_rate = self.sr = 16000
         self.target = KNNVCTarget
 
-    def _get_matching_set(self, ref_wav_paths: List):
+    def _get_matching_set(self, ref_wav_paths: list):
         self.matching_set = self.model.get_matching_set(ref_wav_paths)
 
     def set_target(
         self,
-        target: Union[str, List],
-        target_speaker_root: Optional[Path] = None,
-        pattern: Optional[str] = None,
+        target: str | list,
+        target_speaker_root: Path | None = None,
+        pattern: str | None = None,
     ):
         if pattern is None:
             self._get_matching_set(target)
