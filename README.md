@@ -27,7 +27,6 @@ Many components rely on optional dependencies. These are grouped into extras so 
 | `espnet-wavlm-joint`   | ESPnet WavLM implementation             |
 | `pyannote`             | For the pyannote WeSpeaker implementation      |
 | `dac`                  | Descript Audio Codec support         |
-| `nac`                  | Neural audio codec anonymizer. Relies on Coqui TTS, which is deprecated. Also a total nightmare.        |
 | `web`                  | Web interface components. I think she's currently broken.             |
 
 * **Hydra-based configuration** for reproducible, composable experiments.

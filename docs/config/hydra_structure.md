@@ -159,7 +159,7 @@ Each component is defined independently:
 You can swap components without changing code:
 
 ```bash
-anonymize dataset=other_dataset anonymizer=nac
+anonymize dataset=other_dataset anonymizer=knnvc
 ```
 
 ---

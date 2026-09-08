@@ -1,7 +1,6 @@
 from typing import TypeAlias, TypeVar
 
 from .knnvc import KNNVCTarget
-from .nac import NACTarget
 
 
 ASRBNTarget: TypeAlias = str
@@ -9,4 +8,4 @@ ASRBNTarget: TypeAlias = str
 T_Target = TypeVar("T_Target")
 
 
-__all__ = ["T_Target", "ASRBNTarget", "KNNVCTarget", "NACTarget"]
+__all__ = ["T_Target", "ASRBNTarget", "KNNVCTarget"]

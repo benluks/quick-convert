@@ -65,7 +65,6 @@ Examples:
 * ASR-BN anonymization pipeline
 * Conditional RVQ model
 * kNN-VC (as a monolithic system)
-* NAC (as a monolithic system)
 
 A system defines:
 
@@ -239,7 +238,6 @@ Reusable parts:
 Hard-to-decompose models:
 
 * kNN-VC
-* NAC
 
 These are treated as **systems**, not components.
 
