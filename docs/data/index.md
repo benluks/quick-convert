@@ -262,13 +262,13 @@ This is how `ManifestDataset` operates.
 `file_format` restricts discovery to supported audio formats:
 
 ```python
-file_format="wav"
+file_format = "wav"
 ```
 
 or:
 
 ```python
-file_format=["wav", "flac"]
+file_format = ["wav", "flac"]
 ```
 
 Formats may include or omit the leading period.
@@ -276,13 +276,13 @@ Formats may include or omit the leading period.
 A glob-like `pattern` further restricts discovered files:
 
 ```python
-pattern="*.flac"
+pattern = "*.flac"
 ```
 
 and `exclude_patterns` can remove matching files:
 
 ```python
-exclude_patterns=[
+exclude_patterns = [
     "*noise*",
     "*/excluded/*",
 ]
@@ -295,7 +295,7 @@ Each discovered sample requires an utterance ID.
 The preferred lightweight mechanism is a template:
 
 ```python
-utt_id_template="{path.stem}"
+utt_id_template = "{path.stem}"
 ```
 
 For more specialized behavior, a function may be supplied:
@@ -316,7 +316,7 @@ Rows are sorted after discovery.
 The default is:
 
 ```python
-sort_key="{row.path}"
+sort_key = "{row.path}"
 ```
 
 A different template may be supplied when another ordering is useful.
@@ -334,7 +334,7 @@ Dataset construction and audio loading are deliberately separate.
 By default:
 
 ```python
-load=False
+load = False
 ```
 
 means accessing a sample does not read its waveform from disk.
@@ -351,7 +351,7 @@ dataset = BaseDataset(
 or:
 
 ```python
-load=True
+load = True
 ```
 
 to load audio together with all configured resources.
@@ -359,13 +359,13 @@ to load audio together with all configured resources.
 Audio loading supports optional resampling:
 
 ```python
-target_sr=16_000
+target_sr = 16_000
 ```
 
 and mono conversion:
 
 ```python
-convert_to_mono=True
+convert_to_mono = True
 ```
 
 For example:
@@ -640,7 +640,7 @@ The feature is then loaded only if the dataset's `load` policy requests the `wav
 By default, resolved paths must exist. This can be disabled with:
 
 ```python
-must_exist=False
+must_exist = False
 ```
 
 `max_length` may also be supplied for tensor resources when a fixed padded shape is required.
@@ -754,13 +754,13 @@ while a transcript already supplied as an in-memory value does not require addit
 The special values:
 
 ```python
-load=True
+load = True
 ```
 
 and:
 
 ```python
-load="all"
+load = "all"
 ```
 
 request audio and all configured resources.
@@ -1036,7 +1036,7 @@ for batch in loader:
 `BaseDataset` optionally accepts:
 
 ```python
-max_length=...
+max_length = ...
 ```
 
 expressed in audio samples after any configured resampling.
@@ -1279,8 +1279,7 @@ Reference-based providers should conceptually implement:
 
 ```python
 class MyProvider(BaseResourceProvider):
-    def __call__(self, sample) -> ResourceRef:
-        ...
+    def __call__(self, sample) -> ResourceRef: ...
 ```
 
 The provider should determine **which resource belongs to the sample**, while loading and batching remain the responsibility of the resource subsystem.

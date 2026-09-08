@@ -27,12 +27,7 @@ def resolve_prepared_verification_path(
     test_csv = prepared_data_path / "test.csv"
     trials_txt = prepared_data_path / "trials.txt"
 
-    return tuple(
-        [
-            str(p) if p.is_file() else None
-            for p in [train_csv, enrol_csv, test_csv, trials_txt]
-        ]
-    )
+    return tuple([str(p) if p.is_file() else None for p in [train_csv, enrol_csv, test_csv, trials_txt]])
 
 
 @hydra.main(
@@ -43,19 +38,13 @@ def resolve_prepared_verification_path(
 def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg, resolve=True))
 
-    train_csv, enrol_csv, test_csv, trials_txt = resolve_prepared_verification_path(
-        cfg.asv.prepared_data_path
-    )
+    train_csv, enrol_csv, test_csv, trials_txt = resolve_prepared_verification_path(cfg.asv.prepared_data_path)
 
     if (not train_csv) and (cfg.asv.overrides.score_norm):
-        raise ValueError(
-            "No train_csv found. Please make sure you provide one or set `score_norm` to None"
-        )
+        raise ValueError("No train_csv found. Please make sure you provide one or set `score_norm` to None")
 
     if not all([train_csv, enrol_csv, test_csv, trials_txt]) or cfg.asv.overwrite_csv:
-        enrol_csv, test_csv, trials_txt = prepare_asv_eval_data(
-            cfg.asv.mode, **cfg.prep
-        )
+        enrol_csv, test_csv, trials_txt = prepare_asv_eval_data(cfg.asv.mode, **cfg.prep)
 
     emb_ckpt = find_embedding_model_ckpt(
         cfg.asv.overrides.save_folder,
@@ -69,7 +58,7 @@ def main(cfg: DictConfig) -> None:
         "verification_file": trials_txt,
         "data_folder": "/unused/by_custom_prep",
         "skip_prep": True,
-        "pretrain_path": str(emb_ckpt.parent)
+        "pretrain_path": str(emb_ckpt.parent),
     }
 
     eval_asv(

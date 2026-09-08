@@ -156,14 +156,8 @@ def dataio_prep(params):
 
     train_dataloader = None
     if params["score_norm"]:
-        train_dataloader = sb.dataio.dataloader.make_dataloader(
-            train_data, **params["train_dataloader_opts"]
-        )
-    enrol_dataloader = sb.dataio.dataloader.make_dataloader(
-        enrol_data, **params["enrol_dataloader_opts"]
-    )
-    test_dataloader = sb.dataio.dataloader.make_dataloader(
-        test_data, **params["test_dataloader_opts"]
-    )
+        train_dataloader = sb.dataio.dataloader.make_dataloader(train_data, **params["train_dataloader_opts"])
+    enrol_dataloader = sb.dataio.dataloader.make_dataloader(enrol_data, **params["enrol_dataloader_opts"])
+    test_dataloader = sb.dataio.dataloader.make_dataloader(test_data, **params["test_dataloader_opts"])
 
     return train_dataloader, enrol_dataloader, test_dataloader

@@ -12,8 +12,9 @@ from layers import (
     Conv1DBlock,
     ResnetBlock1D,
     Downsample1D,
-    Upsample1D
+    Upsample1D,
 )
+
 
 def _apply_attn(x: torch.Tensor, mask_b1t: torch.Tensor, attn: TransformerBlock) -> torch.Tensor:
     """Apply a TransformerBlock; inputs/outputs in (B, C, T) layout."""
@@ -22,6 +23,7 @@ def _apply_attn(x: torch.Tensor, mask_b1t: torch.Tensor, attn: TransformerBlock)
     padding_mask = einops.rearrange(mask_b1t, "b 1 t -> b t") == 0
     x = attn(x, attention_mask=padding_mask)
     return einops.rearrange(x, "b t c -> b c t")
+
 
 class DownBlock1D(nn.Module):
     """ResNet + Attention + downsample (or passthrough conv when is_last=True)."""
@@ -37,11 +39,11 @@ class DownBlock1D(nn.Module):
     ):
         super().__init__()
         self.is_last = is_last
-        self.resnet    = ResnetBlock1D(dim=dim_in, dim_out=dim_out, time_emb_dim=time_emb_dim)
-        self.attn      = TransformerBlock(dim=dim_out, num_attention_heads=num_heads, dropout=dropout)
+        self.resnet = ResnetBlock1D(dim=dim_in, dim_out=dim_out, time_emb_dim=time_emb_dim)
+        self.attn = TransformerBlock(dim=dim_out, num_attention_heads=num_heads, dropout=dropout)
 
         if self.is_last:
-            self.downsample = nn.Conv1d(dim_out, dim_out, 3, padding=1) 
+            self.downsample = nn.Conv1d(dim_out, dim_out, 3, padding=1)
         else:
             self.downsample = Downsample1D(dim_out)
 
@@ -49,10 +51,10 @@ class DownBlock1D(nn.Module):
         self, x: torch.Tensor, mask: torch.Tensor, t: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Returns (next_x, skip, next_mask) at matching temporal resolution."""
-        x    = self.resnet(x, mask, t)
-        x    = _apply_attn(x, mask, self.attn)
+        x = self.resnet(x, mask, t)
+        x = _apply_attn(x, mask, self.attn)
         skip = x
-        x    = self.downsample(x * mask)
+        x = self.downsample(x * mask)
         next_mask = mask if self.is_last else mask[:, :, ::2]
         return x, skip, next_mask
 
@@ -63,7 +65,7 @@ class MidBlock1D(nn.Module):
     def __init__(self, dim: int, time_emb_dim: int, num_heads: int, dropout: float):
         super().__init__()
         self.resnet = ResnetBlock1D(dim=dim, dim_out=dim, time_emb_dim=time_emb_dim)
-        self.attn   = TransformerBlock(dim=dim, num_attention_heads=num_heads, dropout=dropout)
+        self.attn = TransformerBlock(dim=dim, num_attention_heads=num_heads, dropout=dropout)
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         x = self.resnet(x, mask, t)
@@ -83,14 +85,12 @@ class UpBlock1D(nn.Module):
         is_last: bool = False,
     ):
         super().__init__()
-        self.resnet   = ResnetBlock1D(dim=2 * dim, dim_out=dim, time_emb_dim=time_emb_dim)
-        self.attn     = TransformerBlock(dim=dim, num_attention_heads=num_heads, dropout=dropout)
+        self.resnet = ResnetBlock1D(dim=2 * dim, dim_out=dim, time_emb_dim=time_emb_dim)
+        self.attn = TransformerBlock(dim=dim, num_attention_heads=num_heads, dropout=dropout)
         self.upsample = nn.Conv1d(dim, dim, 3, padding=1) if is_last else Upsample1D(dim, use_conv_transpose=True)
 
-    def forward(
-        self, x: torch.Tensor, skip: torch.Tensor, mask: torch.Tensor, t: torch.Tensor
-    ) -> torch.Tensor:
-        x = einops.pack([x[:, :, :skip.shape[-1]], skip], "b * t")[0]
+    def forward(self, x: torch.Tensor, skip: torch.Tensor, mask: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        x = einops.pack([x[:, :, : skip.shape[-1]], skip], "b * t")[0]
         x = self.resnet(x, mask, t)
         x = _apply_attn(x, mask, self.attn)
         x = self.upsample(x * mask)
@@ -131,14 +131,14 @@ class Decoder(nn.Module):
         self.down_0 = DownBlock1D(dim_in=in_channels, dim_out=ch, **block_kwargs)
         self.down_1 = DownBlock1D(dim_in=ch, dim_out=ch, is_last=True, **block_kwargs)
 
-        self.mid_0  = MidBlock1D(dim=ch, **block_kwargs)
-        self.mid_1  = MidBlock1D(dim=ch, **block_kwargs)
+        self.mid_0 = MidBlock1D(dim=ch, **block_kwargs)
+        self.mid_1 = MidBlock1D(dim=ch, **block_kwargs)
 
-        self.up_0   = UpBlock1D(dim=ch, **block_kwargs)
-        self.up_1   = UpBlock1D(dim=ch, is_last=True, **block_kwargs)
+        self.up_0 = UpBlock1D(dim=ch, **block_kwargs)
+        self.up_1 = UpBlock1D(dim=ch, is_last=True, **block_kwargs)
 
         self.final_block = Conv1DBlock(ch, ch)
-        self.final_proj  = nn.Conv1d(ch, self.out_channels, 1)
+        self.final_proj = nn.Conv1d(ch, self.out_channels, 1)
 
         self.initialize_weights()
 
@@ -164,7 +164,7 @@ class Decoder(nn.Module):
         t: torch.Tensor,
         spks: Optional[torch.Tensor] = None,
         cond: Optional[torch.Tensor] = None,
-        *kwargs
+        *kwargs,
     ) -> torch.Tensor:
         """
         Args:
@@ -186,7 +186,7 @@ class Decoder(nn.Module):
 
         # ---- Down --------------------------------------------------------
         x, skip0, mask1 = self.down_0(x, mask, t)
-        x, skip1, _     = self.down_1(x, mask1, t)
+        x, skip1, _ = self.down_1(x, mask1, t)
 
         # ---- Mid ---------------------------------------------------------
         x = self.mid_0(x, mask1, t)

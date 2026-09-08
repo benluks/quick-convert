@@ -138,8 +138,7 @@ Example (conceptual):
 ```python
 class SpeakerEncoder(ABC):
     @abstractmethod
-    def encode(self, wav, sr) -> SpeakerEmbedding:
-        ...
+    def encode(self, wav, sr) -> SpeakerEmbedding: ...
 ```
 
 This ensures:

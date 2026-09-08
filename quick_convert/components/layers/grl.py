@@ -1,7 +1,7 @@
 import torch
 
-class GradientReversal(torch.autograd.Function):
 
+class GradientReversal(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input):
         return input
@@ -12,8 +12,8 @@ class GradientReversal(torch.autograd.Function):
         grad_input = -grad_input
         return grad_input
 
-class GradientReversalLayer(torch.nn.Module):
 
+class GradientReversalLayer(torch.nn.Module):
     def __init__(self):
         super(GradientReversalLayer, self).__init__()
 

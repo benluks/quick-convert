@@ -14,9 +14,7 @@ class MeanEuclideanDistanceMetric(Metric):
     ref_key = "ref_ser_embedding"
     pred_key = "pred_ser_embedding"
 
-    def __init__(self, 
-                 device: str = "cpu", 
-                 model_name: str = "3loi/SER-Odyssey-Baseline-WavLM-Categorical") -> None:
+    def __init__(self, device: str = "cpu", model_name: str = "3loi/SER-Odyssey-Baseline-WavLM-Categorical") -> None:
         """
         Initialize the SER metric by delegating embedding computation to OdysseySER.
 

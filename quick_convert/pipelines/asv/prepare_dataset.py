@@ -53,10 +53,7 @@ def _assert_no_speaker_overlap(
     dev_speakers = {row.spk_id for row in dev_rows}
     overlap = train_speakers & dev_speakers
     if overlap:
-        raise ValueError(
-            f"Speaker overlap detected between train and dev: "
-            f"{len(overlap)} speakers: {sorted(overlap)}"
-        )
+        raise ValueError(f"Speaker overlap detected between train and dev: {len(overlap)} speakers: {sorted(overlap)}")
 
 
 def _write_audio_sample_csv(
@@ -69,9 +66,7 @@ def _write_audio_sample_csv(
 
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(
-            ["ID", "duration", "sample_rate", "wav", "start", "stop", "spk_id"]
-        )
+        writer.writerow(["ID", "duration", "sample_rate", "wav", "start", "stop", "spk_id"])
 
         out_idx = 0
         for item in tqdm(metadata, total=len(metadata), desc=f"Writing {path}"):
@@ -179,9 +174,7 @@ def _write_trials(
 
             positive_candidates = test_by_spk.get(enrol_spk, [])
             if not positive_candidates:
-                raise ValueError(
-                    f"No test utterances found for enrol speaker {enrol_spk}"
-                )
+                raise ValueError(f"No test utterances found for enrol speaker {enrol_spk}")
 
             for test_row in positive_candidates:
                 f.write(f"1 {enrol_id} {test_row['ID']}\n")
@@ -189,9 +182,7 @@ def _write_trials(
 
             negative_candidates = impostors_by_spk.get(enrol_spk, [])
             if not negative_candidates:
-                raise ValueError(
-                    f"No impostor test utterances found for enrol speaker {enrol_spk}"
-                )
+                raise ValueError(f"No impostor test utterances found for enrol speaker {enrol_spk}")
 
             if negatives_per_enrol is None:
                 sampled_negatives = negative_candidates
@@ -261,8 +252,7 @@ def prepare_asv_csvs_from_dataset(
     missing = [row.path for row in rows if row.spk_id is None]
     if missing:
         raise ValueError(
-            "Some dataset rows are missing spk_id. "
-            "Make sure return_spkid=True and get_spkid() is implemented."
+            "Some dataset rows are missing spk_id. Make sure return_spkid=True and get_spkid() is implemented."
         )
 
     by_spk: dict[str, list[AudioSample]] = defaultdict(list)
@@ -292,13 +282,9 @@ def prepare_asv_csvs_from_dataset(
         else:
             raise RuntimeError(f"Speaker {spk} was assigned to neither train nor dev")
 
-    train_overlap = {row.spk_id for row in train_rows} & {
-        row.spk_id for row in dev_rows
-    }
+    train_overlap = {row.spk_id for row in train_rows} & {row.spk_id for row in dev_rows}
     if train_overlap:
-        raise ValueError(
-            f"Speaker overlap detected between train and dev: {sorted(train_overlap)}"
-        )
+        raise ValueError(f"Speaker overlap detected between train and dev: {sorted(train_overlap)}")
 
     _assert_no_speaker_overlap(train_rows, dev_rows)
 
@@ -341,11 +327,7 @@ def _filter_split_eval_speakers(
     for row in test_rows:
         test_counts[row["spk_id"]] += 1
 
-    valid_speakers = {
-        spk
-        for spk in enrol_counts
-        if enrol_counts[spk] >= 1 and test_counts.get(spk, 0) >= 1
-    }
+    valid_speakers = {spk for spk in enrol_counts if enrol_counts[spk] >= 1 and test_counts.get(spk, 0) >= 1}
 
     all_speakers = set(enrol_counts) | set(test_counts)
     dropped = sorted(all_speakers - valid_speakers)
@@ -369,12 +351,7 @@ def prepare_asv_eval_by_split(
 ) -> tuple[str, str, str]:
     enrol_csv, test_csv, trials_txt = _resolve_eval_paths(output_dir)
 
-    if (
-        not overwrite
-        and enrol_csv.is_file()
-        and test_csv.is_file()
-        and trials_txt.is_file()
-    ):
+    if not overwrite and enrol_csv.is_file() and test_csv.is_file() and trials_txt.is_file():
         return str(enrol_csv), str(test_csv), str(trials_txt)
 
     rows, fieldnames = _load_csv_rows(input_csv)
@@ -384,9 +361,7 @@ def prepare_asv_eval_by_split(
 
     overlap = enrol_splits & test_splits
     if overlap:
-        raise ValueError(
-            f"These splits are assigned to both enrol and test: {sorted(overlap)}"
-        )
+        raise ValueError(f"These splits are assigned to both enrol and test: {sorted(overlap)}")
 
     enrol_rows: list[dict[str, str]] = []
     test_rows: list[dict[str, str]] = []
@@ -403,10 +378,7 @@ def prepare_asv_eval_by_split(
             unassigned_splits.add(split_name)
 
     if unassigned_splits:
-        raise ValueError(
-            "Found rows whose split was not assigned to enrol or test: "
-            f"{sorted(unassigned_splits)}"
-        )
+        raise ValueError(f"Found rows whose split was not assigned to enrol or test: {sorted(unassigned_splits)}")
 
     if drop_incompatible_speakers:
         enrol_rows, test_rows, dropped = _filter_split_eval_speakers(
@@ -414,10 +386,7 @@ def prepare_asv_eval_by_split(
             test_rows,
         )
         if dropped:
-            print(
-                f"Dropped {len(dropped)} speakers not present in both enrol and test: "
-                f"{dropped}"
-            )
+            print(f"Dropped {len(dropped)} speakers not present in both enrol and test: {dropped}")
 
     return _finalize_eval_data(
         fieldnames=fieldnames,
@@ -445,12 +414,7 @@ def prepare_asv_eval_random(
 
     enrol_csv, test_csv, trials_txt = _resolve_eval_paths(output_dir)
 
-    if (
-        not overwrite
-        and enrol_csv.is_file()
-        and test_csv.is_file()
-        and trials_txt.is_file()
-    ):
+    if not overwrite and enrol_csv.is_file() and test_csv.is_file() and trials_txt.is_file():
         return str(enrol_csv), str(test_csv), str(trials_txt)
 
     rows, fieldnames = _load_csv_rows(input_csv)
@@ -465,10 +429,7 @@ def prepare_asv_eval_random(
             enrol_per_speaker=enrol_per_speaker,
         )
         if dropped:
-            print(
-                f"Dropped {len(dropped)} speakers with fewer than "
-                f"{enrol_per_speaker + 1} utterances: {dropped}"
-            )
+            print(f"Dropped {len(dropped)} speakers with fewer than {enrol_per_speaker + 1} utterances: {dropped}")
 
     enrol_rows: list[dict[str, str]] = []
     test_rows: list[dict[str, str]] = []

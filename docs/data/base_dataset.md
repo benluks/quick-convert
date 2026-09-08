@@ -147,9 +147,7 @@ But the base class does **not** guess how speaker IDs should be extracted. Inste
 
 ```python
 def get_spkid(self, file_path: Path):
-    raise NotImplementedError(
-        f"{type(self).__name__} must implement `get_spkid` when `return_spkid=True`."
-    )
+    raise NotImplementedError(f"{type(self).__name__} must implement `get_spkid` when `return_spkid=True`.")
 ```
 
 This is exactly the right level of abstraction.
@@ -213,11 +211,13 @@ Use this when directory structure is enough and you just want all audio files.
 ### Example: work with only a few selected files
 
 ```python
-dataset = BaseDataset(paths=[
-    "a.wav",
-    "b.wav",
-    "c.wav",
-])
+dataset = BaseDataset(
+    paths=[
+        "a.wav",
+        "b.wav",
+        "c.wav",
+    ]
+)
 ```
 
 Use this when selection happens upstream.

@@ -14,8 +14,7 @@ class ASRSystem(torch.nn.Module, ABC):
         self.device = device
         self.name = name
         self.sr = sr
-        self.pred_key=pred_key
-
+        self.pred_key = pred_key
 
     @abstractmethod
     def transcribe(self, sample: MetadataSample) -> str: ...

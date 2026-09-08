@@ -169,9 +169,7 @@ class DACContentEncoder(ContentEncoder):
         # Batch entry point used by ContentFeatureExtractor; same guards as the
         # other encoders so they're interchangeable.
         if getattr(batch, "waveforms", None) is None:
-            raise RuntimeError(
-                f"{type(self).__name__} needs loaded audio. Set `load: true` in the dataset config."
-            )
+            raise RuntimeError(f"{type(self).__name__} needs loaded audio. Set `load: true` in the dataset config.")
         if not (batch.sample_rates == self.sample_rate).all():
             raise RuntimeError(
                 f"Expected {self.sample_rate} Hz audio, got {batch.sample_rates}. "

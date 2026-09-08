@@ -3,6 +3,7 @@ from torch import nn
 
 from .activations import Swish, SnakeBeta
 
+
 class PositionwiseFeedForward(nn.Module):
     """
     Position-wise feedforward network (FFN) module.

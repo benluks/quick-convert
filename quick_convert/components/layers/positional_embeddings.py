@@ -1,4 +1,3 @@
-
 import math
 
 import torch
@@ -8,6 +7,7 @@ from typing import Optional, Tuple
 # ---------------------------------------------------------------------------
 # RoPE
 # ---------------------------------------------------------------------------
+
 
 class RoPE(nn.Module):
     """
@@ -74,8 +74,8 @@ class RoPE(nn.Module):
             return cos, sin
 
         t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
-        freqs = torch.outer(t, self.inv_freq)               # (T, D/2)
-        emb = torch.cat([freqs, freqs], dim=-1)             # (T, D)
+        freqs = torch.outer(t, self.inv_freq)  # (T, D/2)
+        emb = torch.cat([freqs, freqs], dim=-1)  # (T, D)
         cos = emb.cos()[None, None].to(dtype)
         sin = emb.sin()[None, None].to(dtype)
         self._cache = (seq_len, dtype, device, cos, sin)
@@ -97,14 +97,13 @@ class RoPE(nn.Module):
         return torch.cat([-x2, x1], dim=-1) * sin + x * cos
 
 
-
 # ---------------------------------------------------------------------------
 # Sinusoidal Positional Embedding for timesteps from Matcha TTS
 # ---------------------------------------------------------------------------
-# Taken from Chatterbox's MatchaTTS: 
-# https://github.com/resemble-ai/chatterbox/blob/master/src/chatterbox/models/s3gen/matcha/decoder.py 
+# Taken from Chatterbox's MatchaTTS:
+# https://github.com/resemble-ai/chatterbox/blob/master/src/chatterbox/models/s3gen/matcha/decoder.py
 # Used to embed time step in diffusion/flow matching models
-# Embeds time step t to a vector of size dim using 
+# Embeds time step t to a vector of size dim using
 # sin/cos functions of different frequencies.
 class SinusoidalPosEmb(torch.nn.Module):
     """
@@ -145,7 +144,7 @@ class SinusoidalPosEmb(torch.nn.Module):
         emb = scale * x.unsqueeze(1) * emb.unsqueeze(0)
         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
         return emb
-    
+
 
 class TimestepEmbedding(nn.Module):
     def __init__(

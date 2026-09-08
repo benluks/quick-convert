@@ -10,9 +10,7 @@ from .base_anonymizer import BaseAnonymizer
 class KNNVCAnonymizer(BaseAnonymizer[KNNVCTarget]):
     def __init__(self):
         super().__init__()
-        self.model = torch.hub.load(
-            "bshall/knn-vc", "knn_vc", prematched=True, trust_repo=True, pretrained=True
-        )
+        self.model = torch.hub.load("bshall/knn-vc", "knn_vc", prematched=True, trust_repo=True, pretrained=True)
         self.sample_rate = self.sr = 16000
         self.target = KNNVCTarget
 
@@ -28,9 +26,7 @@ class KNNVCAnonymizer(BaseAnonymizer[KNNVCTarget]):
         if pattern is None:
             self._get_matching_set(target)
         else:
-            ref_wavs = sorted(
-                map(str, (Path(target_speaker_root) / target).glob(pattern))
-            )
+            ref_wavs = sorted(map(str, (Path(target_speaker_root) / target).glob(pattern)))
             self._get_matching_set(ref_wavs)
 
     def resynthesize(self, audio_path):

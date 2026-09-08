@@ -1,5 +1,7 @@
 line-length = 120
 target-version = "py311"
+extend-exclude = ["quick_convert/external"]
+force-exclude = true
 
 [lint]
 dummy-variable-rgx = "^_.*$"

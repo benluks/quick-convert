@@ -47,7 +47,7 @@ Nothing to run. Just build it in the pipeline:
 ```python
 from quick_convert.components.ssl import DACContentEncoder
 
-content_encoder = DACContentEncoder.from_pretrained("16khz")   # frozen
+content_encoder = DACContentEncoder.from_pretrained("16khz")  # frozen
 ```
 
 This downloads Descript's fully-trained 16 kHz codec and keeps its encoder. You
@@ -92,8 +92,8 @@ content_encoder = DACContentEncoder.from_pretrained("16khz")
 # content_encoder.dac_encoder.load_state_dict(torch.load("dac_ft_encoder.pt"))
 
 conformer = ParallelConformerEncoder(
-    input_dim=content_encoder.FEATURE_DIM,   # 1024 for DAC-16k  (was 1024 for W2V-BERT)
-    num_layers=1,                            # was 24 for W2V-BERT's stacked layers
+    input_dim=content_encoder.FEATURE_DIM,  # 1024 for DAC-16k  (was 1024 for W2V-BERT)
+    num_layers=1,  # was 24 for W2V-BERT's stacked layers
     # keep embed_dim and everything after it unchanged
 )
 ```
@@ -186,7 +186,7 @@ synthetic smoke test or `--steps 50` to verify the loop before a full run.
 import torch
 from quick_convert.components.ssl import DACContentEncoder
 
-enc = DACContentEncoder.from_scratch(trainable=True)          # empty architecture
+enc = DACContentEncoder.from_scratch(trainable=True)  # empty architecture
 enc.dac_encoder.load_state_dict(torch.load("dac_ft_encoder.pt"))  # fill with trained weights
 ```
 

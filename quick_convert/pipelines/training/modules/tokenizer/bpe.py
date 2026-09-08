@@ -96,9 +96,7 @@ class SentencePieceBPETrainer:
 
         # SentencePiece can accept a Python iterator via the `sentence_iterator`
         # keyword when `input` is left empty.
-        logger.info(
-            "Training SentencePiece BPE tokenizer from iterator → %s", model_path
-        )
+        logger.info("Training SentencePiece BPE tokenizer from iterator → %s", model_path)
         self._train(
             sentence_iterator=iter(sentences),
             model_prefix=str(output_dir / model_prefix),
@@ -109,17 +107,13 @@ class SentencePieceBPETrainer:
     def encode(self, text: str) -> list[int]:
         """Encode *text* to a list of token IDs."""
         if self._model is None:
-            raise ValueError(
-                "Tokenizer model not loaded. Call train_from_iterator() or load() first."
-            )
+            raise ValueError("Tokenizer model not loaded. Call train_from_iterator() or load() first.")
         return self._model.encode(text)
 
     def decode(self, ids: list[int]) -> str:
         """Decode a list of token IDs back to a string."""
         if self._model is None:
-            raise ValueError(
-                "Tokenizer model not loaded. Call train_from_iterator() or load() first."
-            )
+            raise ValueError("Tokenizer model not loaded. Call train_from_iterator() or load() first.")
         return self._model.decode(ids)
 
     def load(self, model_path: str | Path) -> SentencePieceBPETrainer:
@@ -150,9 +144,7 @@ class SentencePieceBPETrainer:
     def vocab_size_actual(self) -> int:
         """Actual vocabulary size of the loaded model."""
         if self._model is None:
-            raise ValueError(
-                "Tokenizer model not loaded. Call train_from_iterator() or load() first."
-            )
+            raise ValueError("Tokenizer model not loaded. Call train_from_iterator() or load() first.")
         return self._model.get_piece_size()
 
     @staticmethod

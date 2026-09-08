@@ -28,7 +28,6 @@ class WhisperASR(ASRSystem):
 
         import whisper
 
-
         if self.device == "mps":
             self.device = "cpu"
 

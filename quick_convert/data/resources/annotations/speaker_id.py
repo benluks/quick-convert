@@ -4,6 +4,7 @@ from pathlib import Path
 
 from quick_convert.utils.paths import SamplePathFormatter
 
+
 class SpeakerIDProvider(BaseResourceProvider):
     def __init__(
         self,

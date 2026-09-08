@@ -1,4 +1,3 @@
-
 from typing import TypeVar, TypeAlias
 
 from .nac import NACTarget

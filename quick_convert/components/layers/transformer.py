@@ -5,6 +5,7 @@ from typing import Optional
 from .ffn import DecoderFeedForward
 from .mha import MultiHeadAttention
 
+
 class TransformerBlock(nn.Module):
     r"""
     A basic Transformer block: LayerNorm → Self-Attention → LayerNorm → FeedForward.
@@ -40,11 +41,7 @@ class TransformerBlock(nn.Module):
 
         # 2. Feed-forward
         self.ln2 = nn.RMSNorm(dim)
-        self.ffn = DecoderFeedForward(
-            dim, 
-            dropout=dropout, 
-            activation_fn=activation_fn
-        )
+        self.ffn = DecoderFeedForward(dim, dropout=dropout, activation_fn=activation_fn)
 
     def forward(
         self,
@@ -54,9 +51,8 @@ class TransformerBlock(nn.Module):
     ) -> torch.FloatTensor:
 
         # 1. Self-attention with residual connection
-        x = x + self.mha(self.ln1(x),
-                         padding_mask=attention_mask)
-        
+        x = x + self.mha(self.ln1(x), padding_mask=attention_mask)
+
         # 2. Feed-forward with residual connection
         x = x + self.ffn(self.ln2(x))
 

@@ -4,6 +4,7 @@ from typing import Any
 import torch
 import numpy as np
 
+
 class SERSystem(torch.nn.Module, ABC):
     # def __init__(self, name: str, device: str):
     #     super().__init__()

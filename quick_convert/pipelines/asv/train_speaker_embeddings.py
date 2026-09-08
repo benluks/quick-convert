@@ -47,10 +47,7 @@ class SpeakerBrain(sb.core.Brain):
             wavs, lens = self.hparams.wav_augment(wavs, lens)
 
         # Feature extraction and normalization
-        if (
-            hasattr(self.hparams, "use_tacotron2_mel_spec")
-            and self.hparams.use_tacotron2_mel_spec
-        ):
+        if hasattr(self.hparams, "use_tacotron2_mel_spec") and self.hparams.use_tacotron2_mel_spec:
             feats = self.hparams.compute_features(audio=wavs)
             feats = torch.transpose(feats, 1, 2)
         else:
@@ -75,9 +72,7 @@ class SpeakerBrain(sb.core.Brain):
 
         loss = self.hparams.compute_cost(predictions, spkid, lens)
 
-        if stage == sb.Stage.TRAIN and hasattr(
-            self.hparams.lr_annealing, "on_batch_end"
-        ):
+        if stage == sb.Stage.TRAIN and hasattr(self.hparams.lr_annealing, "on_batch_end"):
             self.hparams.lr_annealing.on_batch_end(self.optimizer)
 
         if stage != sb.Stage.TRAIN:
@@ -199,9 +194,7 @@ if __name__ == "__main__":
         hparams = load_hyperpyyaml(fin, overrides)
 
     # Download verification list (to exclude verification sentences from train)
-    veri_file_path = os.path.join(
-        hparams["save_folder"], os.path.basename(hparams["verification_file"])
-    )
+    veri_file_path = os.path.join(hparams["save_folder"], os.path.basename(hparams["verification_file"]))
     download_file(hparams["verification_file"], veri_file_path)
 
     # Dataset prep (parsing VoxCeleb and annotation into csv files)

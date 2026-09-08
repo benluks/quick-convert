@@ -3,6 +3,7 @@ from typing import List, Union
 import torch
 from torch import nn
 
+
 class Swish(nn.Module):
     """
     Swish activation function: x * sigmoid(x)
@@ -14,7 +15,7 @@ class Swish(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x * torch.sigmoid(x)
 
-    
+
 class SnakeBeta(nn.Module):
     """
     A modified Snake function which uses separate parameters for the magnitude of the periodic components
@@ -36,12 +37,13 @@ class SnakeBeta(nn.Module):
     """
 
     def __init__(
-            self,
-            in_features: int,
-            out_features: Union[int, List[int]],
-            alpha: float = 1.0,
-            alpha_trainable: bool = True,
-            alpha_logscale: bool = True):
+        self,
+        in_features: int,
+        out_features: Union[int, List[int]],
+        alpha: float = 1.0,
+        alpha_trainable: bool = True,
+        alpha_logscale: bool = True,
+    ):
         """
         Initialization.
         INPUT:

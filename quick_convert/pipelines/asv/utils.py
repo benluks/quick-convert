@@ -40,8 +40,7 @@ def find_embedding_model_ckpt(
     emb_ckpt = Path(ckpt.path) / "embedding_model.ckpt"
     if not emb_ckpt.is_file():
         raise FileNotFoundError(
-            f"Checkpoint was found at {ckpt.path}, but embedding_model.ckpt "
-            f"does not exist inside it."
+            f"Checkpoint was found at {ckpt.path}, but embedding_model.ckpt does not exist inside it."
         )
 
     return emb_ckpt
