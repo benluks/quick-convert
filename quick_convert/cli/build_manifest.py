@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import hydra
-from omegaconf import DictConfig, OmegaConf
 from hydra.utils import instantiate
+from omegaconf import DictConfig, OmegaConf
 
 
 @hydra.main(version_base=None, config_path="../../configs", config_name="run/build_libri_manifest")

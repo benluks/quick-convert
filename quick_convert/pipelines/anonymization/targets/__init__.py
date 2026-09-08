@@ -1,7 +1,8 @@
-from typing import TypeVar, TypeAlias
+from typing import TypeAlias, TypeVar
 
-from .nac import NACTarget
 from .knnvc import KNNVCTarget
+from .nac import NACTarget
+
 
 ASRBNTarget: TypeAlias = str
 

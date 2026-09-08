@@ -1,14 +1,14 @@
 from __future__ import annotations
+
 from pathlib import Path
 
 import numpy as np
-
 import torch
 import torchaudio
-
 from torch.nn.utils.rnn import pad_packed_sequence
 
 from .base import ContentEncoder, ContentFeatures
+
 
 # Source: https://github.com/MiniXC/masked_prosody_model/tree/main
 

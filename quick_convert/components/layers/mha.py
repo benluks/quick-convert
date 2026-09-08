@@ -1,11 +1,10 @@
 from typing import Optional
 
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 
 # Heavily inspired by "https://github.com/BUTSpeechFIT/DiariZen/blob/main/diarizen/models/module/conformer.py"
-
 from .positional_embeddings import RoPE
 
 

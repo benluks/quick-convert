@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Callable, Optional
 
-from .base import BaseResourceProvider, ResourceRef
 from ...utils.paths import SamplePathFormatter
+from .base import BaseResourceProvider, ResourceRef
 
 
 class TemplateResourceProvider(BaseResourceProvider):

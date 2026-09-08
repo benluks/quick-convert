@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import os
+
+# anonymizer should take file as input and output [channel, T] audio
+from abc import ABC, abstractmethod
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Generic, List, Optional, TypeVar, Union
 
 import torch
 import torch.nn as nn
-from ...utils.audio import load_audio
 
-# anonymizer should take file as input and output [channel, T] audio
-from abc import ABC, abstractmethod
+from ...utils.audio import load_audio
 from .targets import T_Target
 
 

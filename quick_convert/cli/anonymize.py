@@ -1,6 +1,6 @@
 import hydra
-from omegaconf import DictConfig, OmegaConf
 from hydra.utils import instantiate
+from omegaconf import DictConfig, OmegaConf
 
 
 @hydra.main(

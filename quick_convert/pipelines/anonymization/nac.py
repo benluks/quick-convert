@@ -16,15 +16,13 @@ class NACAnonymizer(BaseAnonymizer[NACTarget]):
     def __init__(self, checkpoint_dir: str, voice_dirs: Union[list[str], None] = None):
         super().__init__()
 
-        from TTS.tts.configs.bark_config import BarkConfig
-        from TTS.tts.models.bark import Bark
         from encodec.utils import convert_audio
-
-        from TTS.tts.layers.bark.inference_funcs import load_voice
-
+        from TTS.tts.configs.bark_config import BarkConfig
         from TTS.tts.layers.bark.hubert.hubert_manager import HubertManager
         from TTS.tts.layers.bark.hubert.kmeans_hubert import CustomHubert
         from TTS.tts.layers.bark.hubert.tokenizer import HubertTokenizer
+        from TTS.tts.layers.bark.inference_funcs import load_voice
+        from TTS.tts.models.bark import Bark
 
         if not os.path.exists(checkpoint_dir):
             print(f"Checkpoint directory {checkpoint_dir} not found, creating it")

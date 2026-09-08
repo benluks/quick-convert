@@ -3,9 +3,9 @@ from torch import nn
 
 from quick_convert.utils.masking import mask_pad
 
-from .mha import MultiHeadAttention
 from .conv import DepthWiseConvolution
 from .ffn import PositionwiseFeedForward
+from .mha import MultiHeadAttention
 
 
 class ConformerBlock(nn.Module):

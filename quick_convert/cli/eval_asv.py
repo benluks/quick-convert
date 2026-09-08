@@ -5,11 +5,11 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from ..pipelines.asv.utils import find_embedding_model_ckpt
+from ..pipelines.asv.eval import eval_asv
 from ..pipelines.asv.prepare_dataset import (
     prepare_asv_eval_data,
 )
-from ..pipelines.asv.eval import eval_asv
+from ..pipelines.asv.utils import find_embedding_model_ckpt
 
 
 def resolve_prepared_verification_path(

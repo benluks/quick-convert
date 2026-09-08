@@ -6,10 +6,10 @@ from typing import Generic, Optional
 import torchaudio
 from tqdm import tqdm
 
-from .targets import T_Target
+from quick_convert.data.base_dataset import BaseDataset
 
 from .base_anonymizer import BaseAnonymizer
-from quick_convert.data.base_dataset import BaseDataset
+from .targets import T_Target
 
 
 class AnonymizationPipeline(Generic[T_Target]):

@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 from pathlib import Path
 from typing import Literal
 
 import torch
 import torchaudio
 
-
 from quick_convert.data.types import AudioBatch
+
 from .base import ContentEncoder, ContentFeatures
 
 

@@ -1,7 +1,7 @@
-from typing import Any
-from quick_convert.data.resources.base import BaseResourceProvider
 from pathlib import Path
+from typing import Any
 
+from quick_convert.data.resources.base import BaseResourceProvider
 from quick_convert.utils.paths import SamplePathFormatter
 
 

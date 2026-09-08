@@ -3,8 +3,8 @@ from typing import List, Optional, Union
 
 import torch
 
-from .targets.knnvc import KNNVCTarget
 from .base_anonymizer import BaseAnonymizer
+from .targets.knnvc import KNNVCTarget
 
 
 class KNNVCAnonymizer(BaseAnonymizer[KNNVCTarget]):

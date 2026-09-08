@@ -1,17 +1,15 @@
-import einops
-
-import torch
-import torch.nn as nn
-
 from typing import Optional, Tuple
 
+import einops
+import torch
+import torch.nn as nn
 from layers import (
+    Conv1DBlock,
+    Downsample1D,
+    ResnetBlock1D,
     SinusoidalPosEmb,
     TimestepEmbedding,
     TransformerBlock,
-    Conv1DBlock,
-    ResnetBlock1D,
-    Downsample1D,
     Upsample1D,
 )
 

@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-import torch
 import numpy as np
+import torch
 
 
 class SERSystem(torch.nn.Module, ABC):

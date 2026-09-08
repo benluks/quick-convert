@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Mapping, Any
+from typing import Any, Mapping
 
 import speechbrain as sb
 import torch

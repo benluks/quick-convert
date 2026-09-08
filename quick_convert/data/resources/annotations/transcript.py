@@ -6,8 +6,8 @@ import csv
 from pathlib import Path
 from typing import Any
 
-from ..base import Annotation, BaseResourceProvider
 from ....utils.paths import SamplePathFormatter
+from ..base import Annotation, BaseResourceProvider
 
 
 class CSVTranscriptProvider(BaseResourceProvider):

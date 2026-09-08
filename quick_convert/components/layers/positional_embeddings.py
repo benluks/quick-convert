@@ -1,8 +1,9 @@
 import math
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
-from typing import Optional, Tuple
+
 
 # ---------------------------------------------------------------------------
 # RoPE

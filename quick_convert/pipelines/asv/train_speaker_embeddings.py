@@ -19,14 +19,14 @@ import os
 import random
 import sys
 
-import torch
-from hyperpyyaml import load_hyperpyyaml
-
 import speechbrain as sb
+import torch
+import torchaudio
+from hyperpyyaml import load_hyperpyyaml
 from speechbrain.dataio import audio_io
 from speechbrain.utils.data_utils import download_file
 from speechbrain.utils.distributed import run_on_main
-import torchaudio
+
 
 ASV_SR = 16000
 

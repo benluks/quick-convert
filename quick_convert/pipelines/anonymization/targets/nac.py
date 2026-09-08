@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Union
 
+
 try:
     from typing import TypeAlias
 except ImportError:
