@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
-
-import torch
 
 
 class BaseFeatureExtractor(ABC):
@@ -14,9 +11,10 @@ class BaseFeatureExtractor(ABC):
         return self.feature_name
 
     @property
+    @abstractmethod
     def feature_name(self) -> str:
         """Name used for saving and directory structure."""
-        raise NotImplementedError
+        ...
 
     def extract_sample(self, sample):
         raise NotImplementedError

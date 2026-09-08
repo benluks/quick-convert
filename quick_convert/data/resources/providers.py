@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Callable, Optional
 
 from ...utils.paths import SamplePathFormatter
 from .base import BaseResourceProvider, ResourceRef

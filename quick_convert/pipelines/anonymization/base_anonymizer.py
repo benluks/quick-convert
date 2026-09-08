@@ -4,9 +4,7 @@ import os
 
 # anonymizer should take file as input and output [channel, T] audio
 from abc import ABC, abstractmethod
-from dataclasses import replace
-from pathlib import Path
-from typing import Any, Generic, List, Optional, TypeVar, Union
+from typing import Any, Generic, List, Union
 
 import torch
 import torch.nn as nn
