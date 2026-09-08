@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional
-
 import torch
 
 
 def greedy_ctc_decode(
-    ids: Optional[int["[1] t"]] = None,
-    logits: Optional[int["[1] t v"]] = None,
+    ids: torch.Tensor | None = None,
+    logits: torch.Tensor | None = None,
     blank_id: int = 0,
     temperature: int = 1,
 ) -> torch.Tensor:

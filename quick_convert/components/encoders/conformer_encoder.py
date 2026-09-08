@@ -68,8 +68,8 @@ class ConformerEncoder(nn.Module):
 
     def forward(
         self,
-        x: float["b t d"],
-        padding_mask: float["b t [1]"] | None = None,
+        x: torch.Tensor,
+        padding_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         x = self.input_proj(x)
         for block in self.blocks:

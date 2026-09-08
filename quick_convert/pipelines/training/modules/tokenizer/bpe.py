@@ -3,6 +3,11 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    import sentencepiece as spm
 
 
 logger = logging.getLogger(__name__)
@@ -64,8 +69,12 @@ class SentencePieceBPETrainer:
         self.shuffle_input_sentence = shuffle_input_sentence
         self.num_threads = num_threads
 
-        import sentencepiece as spm
+        try:
+            import sentencepiece
+        except ImportError as error:
+            raise ImportError("SentencePiece tokenization requires the `asr` extra.") from error
 
+        self._sentencepiece = sentencepiece
         self._model: spm.SentencePieceProcessor | None = None
 
     # ------------------------------------------------------------------
@@ -139,7 +148,7 @@ class SentencePieceBPETrainer:
             num_threads=self.num_threads,
         )
         kwargs.update(extra_kwargs)
-        spm.SentencePieceTrainer.train(**kwargs)
+        self._sentencepiece.SentencePieceTrainer.train(**kwargs)
 
     @property
     def vocab_size_actual(self) -> int:
@@ -148,8 +157,7 @@ class SentencePieceBPETrainer:
             raise ValueError("Tokenizer model not loaded. Call train_from_iterator() or load() first.")
         return self._model.get_piece_size()
 
-    @staticmethod
-    def _load(model_path: Path) -> spm.SentencePieceProcessor:
-        processor = spm.SentencePieceProcessor()
+    def _load(self, model_path: Path) -> spm.SentencePieceProcessor:
+        processor = self._sentencepiece.SentencePieceProcessor()
         processor.load(str(model_path))
         return processor

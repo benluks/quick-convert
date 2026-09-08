@@ -4,13 +4,14 @@ from functools import lru_cache
 from os import PathLike
 
 import soundfile as sf
+import torch
 import torchaudio
 import torchaudio.transforms as T
 
 
 def load_audio(
     audio_path: PathLike, target_sr: int | None = None, mono: bool = False, device="cpu"
-) -> tuple[float["1 t"], int]:
+) -> tuple[torch.Tensor, int]:
     x, sr = torchaudio.load(str(audio_path))
     if target_sr:
         x = T.Resample(sr, target_sr)(x)
