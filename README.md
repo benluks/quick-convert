@@ -19,6 +19,7 @@ Many components rely on optional dependencies. These are grouped into extras so 
 
 | Extra                  | Description                          |
 | ---------------------- | ------------------------------------ |
+| `manifests`            | Data-frame utilities for splitting manifests |
 | `w2vbert`              | W2V-BERT feature extraction          |
 | `whisper`              | Whisper ASR model                    |
 | `asr`                  | SentencePiece tokenization and JIWER evaluation |

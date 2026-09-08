@@ -1,14 +1,12 @@
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "configs"
-
-
-from collections.abc import Mapping
-from typing import Any
 
 
 def compose_component(

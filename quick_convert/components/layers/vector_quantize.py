@@ -1,9 +1,8 @@
-from __future__ import annotations
-
-
 """
 https://github.com/lucidrains/vector-quantize-pytorch/blob/master/vector_quantize_pytorch/vector_quantize_pytorch.py
 """
+
+from __future__ import annotations
 
 from collections import namedtuple
 from collections.abc import Callable
