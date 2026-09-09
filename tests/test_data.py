@@ -3,7 +3,7 @@ from dataclasses import replace
 import torch
 
 from quick_convert.data import AudioBatch, AudioSample, BaseDataset, MetadataSample
-from quick_convert.data.resources import ResourceCollection, ResourceRef
+from quick_convert.data.resources import ResourceCollection, ResourceRef, TemplateResourceProvider
 
 
 def test_dataset_can_be_constructed_from_paths(tmp_path):
@@ -80,3 +80,21 @@ def test_audio_batch_from_paths_without_resources(monkeypatch, tmp_path):
     assert batch.utt_ids == ["sample"]
     assert batch.resources == {}
     assert batch.waveforms.shape == (1, 4)
+
+
+def test_audio_batch_from_paths_keeps_materialized_provider_values(monkeypatch, tmp_path):
+    audio_path = tmp_path / "speaker" / "sample.wav"
+    audio_path.parent.mkdir()
+    audio_path.touch()
+
+    def fake_load_audio(sample, **kwargs):
+        return replace(sample, waveform=torch.ones(1, 4), sample_rate=16_000)
+
+    monkeypatch.setattr(AudioSample, "load_audio", fake_load_audio)
+    batch = AudioBatch.from_paths(
+        audio_path,
+        resource_providers=[TemplateResourceProvider(name="speaker", template="{path.parent.name}", kind="text")],
+    )
+
+    assert batch.resources["speaker"] == ["speaker"]
+    assert batch[0].resources["speaker"].value == "speaker"

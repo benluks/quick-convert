@@ -663,9 +663,11 @@ must_exist = False
 
 `max_length` may also be supplied for tensor resources when a fixed padded shape is required.
 
-## `CSVTranscriptProvider`
+## `CSVAnnotationProvider`
 
-`CSVTranscriptProvider` handles transcripts stored in shared CSV-like files.
+`CSVAnnotationProvider` handles arbitrary text annotations stored in shared
+delimited files. The configured resource name determines whether a value is a
+transcript, emotion label, speaker label, or another form of metadata.
 
 Unlike `PathResourceProvider`, where each sample generally references its own feature file, a CSV annotation provider loads an annotation file into an internal lookup table and retrieves the appropriate entry for each utterance.
 
@@ -683,12 +685,12 @@ cached annotation files
 For example:
 
 ```python
-transcript_provider = CSVTranscriptProvider(
+transcript_provider = CSVAnnotationProvider(
     name="transcript",
     path_template="{path.parent}/transcripts.csv",
-    utterance_key="path.stem",
+    item_key="path.stem",
     key_column=0,
-    text_column=1,
+    value_column=1,
 )
 ```
 
@@ -1246,7 +1248,7 @@ Resource functionality is available from:
 ```python
 from quick_convert.data.resources import (
     BaseResourceProvider,
-    CSVTranscriptProvider,
+    CSVAnnotationProvider,
     PathResourceProvider,
     ResourceCollection,
     ResourceRef,

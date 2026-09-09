@@ -28,7 +28,7 @@ ResourceKind = Literal[
 RESOURCE_KINDS = frozenset(ResourceKind.__args__)
 
 
-@dataclass
+@dataclass(frozen=True)
 class ResourceRef:
     name: str
     kind: ResourceKind
@@ -47,27 +47,15 @@ class ResourceRef:
             raise ValueError("max_length is only supported for tensor and token resources.")
 
 
-@dataclass
-class Annotation(ResourceRef):
-    """
-    Since annotations are automatically loaded into memory when accessed,
-    we can also include the annotation value directly in the object for convenience.
-    This abstraction also lets us distinguish which resources need to be loaded at runtime
-    """
-
-    value: Any
-    path: Path
-
-
-@dataclass
+@dataclass(frozen=True)
 class ResourceCollection:
     _items: dict[str, ResourceRef] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_items", dict(self._items))
+
     def __getitem__(self, name: str) -> ResourceRef:
         return self._items[name]
-
-    def __setitem__(self, name: str, ref: ResourceRef) -> None:
-        self._items[name] = ref
 
     def __getattr__(self, name: str) -> ResourceRef:
         if name.startswith("__") or name == "_items":

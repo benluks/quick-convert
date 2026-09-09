@@ -172,13 +172,9 @@ class BaseDataset(Dataset):
             sample = self.load_sample(sample)
 
         resource_refs = list(sample.resources) + [provider(sample) for provider in self.resource_providers]
-        resources = ResourceCollection.from_refs(resource_refs)
-
-        for name, ref in resources.items():
-            if self._should_load(ref):
-                resources[name] = load_resource(ref)
-
-        # materialize resources here
+        resources = ResourceCollection.from_refs(
+            load_resource(ref) if self._should_load(ref) else ref for ref in resource_refs
+        )
 
         return replace(sample, resources=resources)
 

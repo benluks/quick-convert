@@ -122,13 +122,14 @@ LibriSpeech defines its transcript provider as:
 
 ```yaml
 transcript_provider:
-  _target_: quick_convert.data.resources.CSVTranscriptProvider
+  _target_: quick_convert.data.resources.CSVAnnotationProvider
+  name: transcript
   path_template: "{path.parent}/{path.parent.parent.name}-{path.parent.name}.trans.txt"
-  utterance_key: path.stem
+  item_key: path.stem
   key_column: 0
-  text_column: 1
+  value_column: 1
   delimiter: " "
-  join_text_columns: true
+  join_value_columns: true
 ```
 
 and its speaker-ID provider as:

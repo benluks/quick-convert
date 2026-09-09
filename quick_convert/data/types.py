@@ -184,8 +184,9 @@ class AudioBatch(MetadataBatch):
                     sample,
                     resources=resources,
                 )
-            for name, ref in resources.items():
-                resources[name] = load_resource(ref)
+            resources = ResourceCollection.from_refs(
+                load_resource(ref) if ref.value is None else ref for ref in resources
+            )
             sample = sample.load_audio(target_sr=target_sr, mono=mono)
 
             samples.append(sample)

@@ -1,7 +1,6 @@
-# annotations are resources that are metadata of the dataset, and not computed features
-from .transcript import CSVTranscriptProvider
+"""Providers for metadata stored in shared annotation files."""
+
+from .csv import CSVAnnotationProvider
 
 
-# from .speaker_id import CSVSpeakerIDProvider
-
-__all__ = ["CSVTranscriptProvider"]
+__all__ = ["CSVAnnotationProvider"]
