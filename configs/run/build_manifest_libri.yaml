@@ -27,5 +27,5 @@ dataset:
   splits:
     - ${split}
   resource_providers:
-    - ${transcript}
-    - ${spkid}
+    - ${transcript_provider}
+    - ${spkid_provider}

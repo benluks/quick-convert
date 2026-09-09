@@ -1,4 +1,4 @@
-_target_: quick_convert.data.resources.CSVAnnotationProvider
+_target_: quick_convert.data.resources.CSVTranscriptProvider
 path_template: "{path.parent}/{path.parent.parent.name}-{path.parent.name}.trans.txt"
 utterance_key: path.stem
 key_column: 0

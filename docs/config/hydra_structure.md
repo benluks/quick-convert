@@ -83,13 +83,16 @@ Important:
 
 ```yaml
 _target_: quick_convert.data.clac.ClacDataset
-root: ...
+root: ${oc.env:QUICK_CONVERT_CLAC_ROOT}
 splits: ...
 file_format: wav
-return_spkid: true
 ```
 
 Defines how to **instantiate the dataset**.
+
+Machine-specific dataset locations are supplied through environment variables
+rather than committed paths. For this example, set `QUICK_CONVERT_CLAC_ROOT`
+to the local CLAC dataset directory before composing or running the config.
 
 ---
 

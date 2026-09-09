@@ -67,17 +67,25 @@ class MetadataBatch:
     paths: list[Path]
     splits: list[str | None]
     resources: dict[str, Any]
+    resource_refs: list[ResourceCollection] | None = None
 
     def __len__(self) -> int:
         return len(self.paths)
 
-    def __getitem__(self, idx: int) -> AudioSample:
-        return AudioSample(
+    def __getitem__(self, idx: int) -> MetadataSample:
+        return MetadataSample(
             utt_id=self.utt_ids[idx],
             path=self.paths[idx],
             split=self.splits[idx],
-            resources={key: value[idx] for key, value in self.resources.items()},
+            resources=self._sample_resources(idx),
         )
+
+    def _sample_resources(self, idx: int) -> ResourceCollection:
+        if self.resource_refs is not None:
+            return ResourceCollection.from_refs(self.resource_refs[idx])
+        if self.resources:
+            raise RuntimeError("Cannot reconstruct sample resources because this batch has no resource references.")
+        return ResourceCollection()
 
     def __iter__(self):
         for i in range(len(self)):
@@ -118,6 +126,7 @@ class AudioBatch(MetadataBatch):
             "paths": [s.path for s in samples],
             "splits": [s.split for s in samples],
             "resources": collate_resources(samples),
+            "resource_refs": [s.resources for s in samples],
         }
 
         if not has_audio:
@@ -142,7 +151,7 @@ class AudioBatch(MetadataBatch):
     def from_paths(
         cls,
         paths: str | Path | list[str | Path],
-        resource_providers: Iterable[TemplateResourceProvider] | None = [],
+        resource_providers: Iterable[TemplateResourceProvider] | None = None,
         target_sr: int | None = None,
         mono: bool = True,
         max_length: int | None = None,
@@ -194,7 +203,7 @@ class AudioBatch(MetadataBatch):
             waveform=self.waveforms[idx] if self.waveforms is not None else None,
             sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
             # features={key: value[idx] for key, value in self.features.items()},
-            resources={key: value[idx] for key, value in self.resources.items()},
+            resources=self._sample_resources(idx),
         )
 
     def __iter__(self):

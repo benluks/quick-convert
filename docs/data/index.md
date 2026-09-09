@@ -645,9 +645,9 @@ must_exist = False
 
 `max_length` may also be supplied for tensor resources when a fixed padded shape is required.
 
-## `CSVAnnotationProvider`
+## `CSVTranscriptProvider`
 
-`CSVAnnotationProvider` handles annotations stored in shared CSV-like files.
+`CSVTranscriptProvider` handles transcripts stored in shared CSV-like files.
 
 Unlike `PathResourceProvider`, where each sample generally references its own feature file, a CSV annotation provider loads an annotation file into an internal lookup table and retrieves the appropriate entry for each utterance.
 
@@ -665,7 +665,7 @@ cached annotation files
 For example:
 
 ```python
-transcript_provider = CSVAnnotationProvider(
+transcript_provider = CSVTranscriptProvider(
     name="transcript",
     path_template="{path.parent}/transcripts.csv",
     utterance_key="path.stem",
@@ -677,39 +677,6 @@ transcript_provider = CSVAnnotationProvider(
 Files are cached after their first access, so repeated samples referring to the same transcript file do not repeatedly parse it.
 
 This provider is useful for resources where one external file contains annotations for many utterances.
-
-## `OnlineResourceProvider`
-
-`OnlineResourceProvider` represents resources computed dynamically by a feature extractor rather than loaded from a precomputed file.
-
-For example:
-
-```python
-provider = OnlineResourceProvider(
-    extractor=wavlm,
-    name="wavlm",
-)
-```
-
-It supports both sample-wise and batch-wise extraction:
-
-```python
-features = provider.provide_sample(sample)
-```
-
-or:
-
-```python
-features = provider.provide_batch(batch)
-```
-
-If `name` is omitted, the extractor's `feature_name` is used.
-
-Online providers intentionally differ from reference-based providers: instead of producing a `ResourceRef` pointing to serialized data, they produce the actual feature value through the configured extractor.
-
-This is useful when precomputation is undesirable or impossible.
-
----
 
 # Selective resource loading
 
@@ -1245,6 +1212,7 @@ from quick_convert.data import (
     AudioSample,
     BaseDataset,
     ManifestDataset,
+    MetadataSample,
 )
 ```
 
@@ -1253,13 +1221,11 @@ Resource functionality is available from:
 ```python
 from quick_convert.data.resources import (
     BaseResourceProvider,
-    CSVAnnotationProvider,
-    OnlineResourceProvider,
+    CSVTranscriptProvider,
     PathResourceProvider,
     ResourceCollection,
     ResourceRef,
     TemplateResourceProvider,
-    TensorResourceBatch,
     collate_resources,
     load_resource,
 )

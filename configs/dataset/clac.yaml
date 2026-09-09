@@ -1,5 +1,6 @@
 _target_: quick_convert.data.clac.ClacDataset
-root: /cfs/collections/clac/CLAC-Dataset
+# Set this to the local CLAC dataset directory before composing this config.
+root: ${oc.env:QUICK_CONVERT_CLAC_ROOT}
 splits:
   - cookie_theft
   - counting_1_to_20
@@ -14,4 +15,3 @@ splits:
   - repeat_5_times_impossibility
   - smr
 file_format: wav
-return_spkid: true

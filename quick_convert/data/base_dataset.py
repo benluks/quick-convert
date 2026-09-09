@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from dataclasses import replace
 from fnmatch import fnmatch
-from os import PathLike
 from pathlib import Path
 from typing import Any, Literal
 
@@ -27,17 +26,14 @@ class BaseDataset(Dataset):
         paths: Iterable[str | Path] | None = None,
         rows: Iterable[MetadataSample] | None = None,
         load: bool | list[str] | Literal["all"] | None = False,
-        return_spkid: bool = False,
         target_sr: int | None = None,
         convert_to_mono: bool = True,
-        # pass a spkid function to avoid subclassing just to implement get_spkid logic
         utt_id_template: str | None = None,
-        get_utt_id_fn: Callable[[PathLike], str] | None = None,
-        get_spkid_fn: Callable[[PathLike], str] | None = None,
+        get_utt_id_fn: Callable[[Path], str] | None = None,
         # feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
         pattern: str | None = None,
         exclude_patterns: Iterable[str] | None = None,
-        resource_providers: Iterable[BaseResourceProvider] = [],
+        resource_providers: Iterable[BaseResourceProvider] | None = None,
         sort_key: str | None = "{row.path}",
         # length to extend collated audio files to beyond the maximum sample length. This is used in
         # cudnn benchmark where all batches must have the same shape. Expressed in number of samples after resampling
@@ -66,14 +62,9 @@ class BaseDataset(Dataset):
         self.target_sr = target_sr
         self.root = Path(root) if root is not None else None
 
-        self.return_spkid = return_spkid
-        if get_spkid_fn is not None:
-            self.get_spkid = get_spkid_fn
-        # self.feature_resolvers = feature_resolvers or []
-
         self.pattern = pattern or "*"
         self.exclude_patterns = exclude_patterns or []
-        self.resource_providers = resource_providers
+        self.resource_providers = list(resource_providers or [])
 
         self.load = self._normalize_load(load)
         self.max_length = max_length
@@ -125,7 +116,6 @@ class BaseDataset(Dataset):
                             utt_id=self.get_utt_id(p),
                             path=p,
                             split=split,
-                            # spk_id=self.get_spkid(p) if return_spkid else None,
                         )
                     )
 

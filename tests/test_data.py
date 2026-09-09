@@ -2,7 +2,7 @@ from dataclasses import replace
 
 import torch
 
-from quick_convert.data import AudioBatch, AudioSample, BaseDataset
+from quick_convert.data import AudioBatch, AudioSample, BaseDataset, MetadataSample
 from quick_convert.data.resources import ResourceCollection, ResourceRef
 
 
@@ -49,6 +49,21 @@ def test_audio_batch_collates_audio_and_tensor_resources():
     assert batch.lengths.tolist() == [3, 2]
     assert batch.resources["content"].values.shape == (2, 2, 3)
     assert batch.resources["content"].lengths.tolist() == [2, 1]
+
+    recovered = batch[0]
+    assert isinstance(recovered.resources, ResourceCollection)
+    assert recovered.resources["content"].kind == "torch_tensor"
+    assert torch.equal(recovered.resources["content"].value, samples[0].resources["content"].value)
+
+
+def test_dataset_provider_defaults_are_not_shared():
+    sample = MetadataSample(utt_id="sample", path=None)
+    first = BaseDataset(rows=[sample])
+    second = BaseDataset(rows=[sample])
+
+    first.resource_providers.append(object())
+
+    assert second.resource_providers == []
 
 
 def test_audio_batch_from_paths_without_resources(monkeypatch, tmp_path):

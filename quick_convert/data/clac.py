@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from .base_dataset import BaseDataset
 
 
@@ -11,7 +9,6 @@ class ClacDataset(BaseDataset):
         file_format=None,
         paths=None,
         load=False,
-        return_spkid=True,
         sample_rate=48000,
     ):
         super().__init__(
@@ -20,9 +17,4 @@ class ClacDataset(BaseDataset):
             file_format=file_format,
             paths=paths,
             load=load,
-            return_spkid=return_spkid,
         )
-
-    def get_spkid(self, wav_path: Path):
-        # default spk_id logic: immediate parent dir
-        return wav_path.stem
