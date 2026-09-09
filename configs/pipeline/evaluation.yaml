@@ -6,3 +6,4 @@ metrics: ${metrics}
 out_dir: ${out_root}/eval_${system.name}_${hydra:runtime.choices.dataset}/
 batch_size: 8
 num_workers: 0
+record_resources: []

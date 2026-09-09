@@ -42,6 +42,10 @@ def register_resolvers():
             "run/precompute_content_w2vbert_librispeech",
             "quick_convert.pipelines.precompute_features.PrecomputeFeaturesPipeline",
         ),
+        (
+            "run/eval_asr_librispeech",
+            "quick_convert.pipelines.evaluation.pipeline.EvalPipeline",
+        ),
     ],
 )
 def test_reference_config_composes(config_name, pipeline_target):

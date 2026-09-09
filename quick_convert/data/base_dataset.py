@@ -30,7 +30,6 @@ class BaseDataset(Dataset):
         convert_to_mono: bool = True,
         utt_id_template: str | None = None,
         get_utt_id_fn: Callable[[Path], str] | None = None,
-        # feature_resolvers: Optional[list[PatternSidecarFeatureResolver]] = None,
         pattern: str | None = None,
         exclude_patterns: Iterable[str] | None = None,
         resource_providers: Iterable[BaseResourceProvider] | None = None,
