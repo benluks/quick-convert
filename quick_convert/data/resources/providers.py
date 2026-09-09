@@ -1,11 +1,11 @@
 from pathlib import Path
 
 from ...utils.paths import SamplePathFormatter
-from .base import BaseResourceProvider, ResourceRef
+from .base import BaseResourceProvider, ResourceKind, ResourceRef
 
 
 class TemplateResourceProvider(BaseResourceProvider):
-    def __init__(self, name: str, template: str, kind: str = "text"):
+    def __init__(self, name: str, template: str, kind: ResourceKind = "text"):
         super().__init__(name)
         self.template = template
         self.kind = kind
@@ -22,7 +22,7 @@ class PathResourceProvider(TemplateResourceProvider):
         self,
         name,
         path_template,
-        kind,
+        kind: ResourceKind,
         # only set `max_length` for tensor resources
         max_length=None,
         must_exist=True,

@@ -3,7 +3,7 @@ from collections.abc import Iterable
 from os import PathLike
 from pathlib import Path
 
-from quick_convert.data.resources.base import ResourceCollection, ResourceRef
+from quick_convert.data.resources.base import ResourceCollection, ResourceKind, ResourceRef
 
 from .base_dataset import BaseDataset
 from .types import MetadataSample
@@ -72,7 +72,7 @@ class ManifestDataset(BaseDataset):
         path_column: str = "path",
         utt_id_column: str = "utt_id",
         split_column: str = "split",
-        resources: dict[str, dict[str, str]] | None = None,
+        resources: dict[str, dict[str, str | ResourceKind]] | None = None,
         **kwargs,
     ):
 
@@ -96,14 +96,7 @@ class ManifestDataset(BaseDataset):
                                 split=row.get(split_column),
                                 # spk_id=row.get(spk_id_column),
                                 resources=ResourceCollection.from_refs(
-                                    [
-                                        ResourceRef(
-                                            name=name,
-                                            kind=spec["kind"],
-                                            value=row[spec["column"]],
-                                        )
-                                        for name, spec in resources.items()
-                                    ]
+                                    [self._resource_from_cell(name, spec, row) for name, spec in resources.items()]
                                 ),
                             )
                         )
@@ -113,3 +106,11 @@ class ManifestDataset(BaseDataset):
                     ) from error
 
         super().__init__(rows=rows, **kwargs)
+
+    @staticmethod
+    def _resource_from_cell(name: str, spec: dict[str, str | ResourceKind], row: dict[str, str]) -> ResourceRef:
+        kind = spec["kind"]
+        cell = row[spec["column"]]
+        if kind in {"torch_tensor", "token_ids"}:
+            return ResourceRef(name=name, kind=kind, path=Path(cell))
+        return ResourceRef(name=name, kind=kind, value=cell)

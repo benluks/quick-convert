@@ -65,6 +65,7 @@ class BaseDataset(Dataset):
         self.exclude_patterns = exclude_patterns or []
         self.resource_providers = list(resource_providers or [])
 
+        self.load_all_resources = load is True or load == "all"
         self.load = self._normalize_load(load)
         self.max_length = max_length
 
@@ -156,6 +157,8 @@ class BaseDataset(Dataset):
     def _should_load(self, ref: ResourceRef | Literal["audio"]) -> bool:
         if getattr(ref, "value", None) is not None:
             return False
+        if self.load_all_resources:
+            return True
         name = "audio" if ref == "audio" else ref.name
         return name in self.load
 

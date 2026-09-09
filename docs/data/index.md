@@ -455,6 +455,24 @@ max_length
     Optional fixed padding length for tensor resources.
 ```
 
+The supported kinds are intentionally small:
+
+```text
+text
+    An in-memory string value. Batches become lists of strings.
+
+torch_tensor
+    A tensor value or a path to a torch-serialized tensor. Variable-length
+    values are padded and returned with their original lengths.
+
+token_ids
+    An integer sequence or a path to a torch-serialized sequence. Batches are
+    padded with zero and returned with their original lengths.
+```
+
+Resource names carry semantic meaning. For example, `speaker`, `content`, and
+`prosody` may all name resources, but they are not resource kinds.
+
 A resource can therefore exist in either an unresolved state:
 
 ```python
@@ -770,7 +788,10 @@ ResourceRef(
 )
 ```
 
-The loader registry makes serialization behavior extensible: support for additional resource kinds can be added by registering the corresponding loading function.
+Only file-backed `torch_tensor` and `token_ids` resources are currently loaded
+from disk. Loading uses PyTorch's weights-only mode. Other serialization
+formats should not be declared until their loading and collation behavior is
+implemented together.
 
 ---
 
@@ -1010,7 +1031,11 @@ expressed in audio samples after any configured resampling.
 
 This forces collated waveform batches to reach a consistent maximum time dimension.
 
-Likewise, tensor resource references can carry their own `max_length`.
+Likewise, tensor and token resource references can carry their own
+`max_length`. Every sample for a named resource must declare the same value;
+collation rejects inconsistent batch policies rather than silently choosing
+one sample's setting. A configured maximum may extend padding but may not be
+shorter than an observed sequence.
 
 This is primarily useful for workloads that benefit from stable tensor shapes, such as certain cuDNN benchmarking or compilation configurations.
 

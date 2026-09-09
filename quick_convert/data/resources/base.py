@@ -21,34 +21,30 @@ class BaseResourceProvider:
 
 
 ResourceKind = Literal[
-    # serialized tensors/features
     "torch_tensor",
-    "numpy_array",
-    # raw media
-    "audio",
-    "image",
-    "video",
-    # structured/textual data
     "text",
-    "json",
-    "csv",
-    # model-specific semantic categories
-    "ssl_features",
-    "speaker_embedding",
-    "prosody",
     "token_ids",
 ]
+RESOURCE_KINDS = frozenset(ResourceKind.__args__)
 
 
 @dataclass
 class ResourceRef:
     name: str
-    kind: ResourceKind | None = None
+    kind: ResourceKind
     path: Path | None = None
     value: Any | None = None
 
     # Only set if using cudnn benchmark
     max_length: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind not in RESOURCE_KINDS:
+            raise ValueError(f"Unsupported resource kind {self.kind!r}. Supported kinds: {sorted(RESOURCE_KINDS)}")
+        if self.path is None and self.value is None:
+            raise ValueError(f"Resource {self.name!r} must have a path or a value.")
+        if self.max_length is not None and self.kind not in {"torch_tensor", "token_ids"}:
+            raise ValueError("max_length is only supported for tensor and token resources.")
 
 
 @dataclass
@@ -204,11 +200,11 @@ def _collate_tensor_resources(
     lengths = torch.tensor([x.shape[0] for x in tensors], dtype=torch.long)
     if max_length is not None:
         if lengths.max() > max_length:
-            raise NotImplementedError("This function is only implemented to increase the maximum length. ")
-        T, *d_rest = tensors[0].shape
-        padded_tensor = torch.zeros((max_length, *d_rest), dtype=tensors[0].dtype)
-        padded_tensor[:T] = tensors[0]
-        tensors[0] = padded_tensor
+            raise ValueError(f"Resource max_length={max_length} is shorter than a sequence in the batch.")
+        tensors[0] = torch.nn.functional.pad(
+            tensors[0],
+            (0, 0) * (tensors[0].dim() - 1) + (0, max_length - int(lengths[0])),
+        )
 
     padded = pad_sequence(tensors, batch_first=True)
 
@@ -224,6 +220,12 @@ def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors
         raise ValueError(f"Cannot collate mixed resource kinds: {sorted(kinds)}")
 
     kind = refs[0].kind
+    max_lengths = {ref.max_length for ref in refs}
+    if len(max_lengths) != 1:
+        raise ValueError(
+            f"Resource {refs[0].name!r} has inconsistent max_length values: {sorted(max_lengths, key=str)}"
+        )
+    max_length = refs[0].max_length
 
     if kind == "text":
         return [ref.value for ref in refs]
@@ -232,11 +234,10 @@ def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors
         return _collate_tensor_resources(
             refs,
             squeeze_single_frame=squeeze_single_frame_tensors,
-            # very much not a fan of doing it this way. Hopefully we'll update it down the line
-            max_length=refs[0].max_length,
+            max_length=max_length,
         )
     if kind == "token_ids":
-        return collate_token_sequences([ref.value for ref in refs], padding_value=0)
+        return collate_token_sequences([ref.value for ref in refs], padding_value=0, max_length=max_length)
 
     raise NotImplementedError(f"Collation for resource kind {kind!r} is not implemented.")
 
@@ -261,13 +262,26 @@ def collate_resources(
     return collated
 
 
-def collate_token_sequences(sequences: list[list[int]], padding_value: int = 0) -> TensorResourceBatch:
-    tensors = [torch.tensor(seq, dtype=torch.long) for seq in sequences]
+def collate_token_sequences(
+    sequences: list[list[int] | torch.Tensor],
+    padding_value: int = 0,
+    max_length: int | None = None,
+) -> TensorResourceBatch:
+    tensors = [torch.as_tensor(seq, dtype=torch.long) for seq in sequences]
 
     lengths = torch.tensor(
         [len(x) for x in tensors],
         dtype=torch.long,
     )
+
+    if max_length is not None:
+        if lengths.max() > max_length:
+            raise ValueError(f"Resource max_length={max_length} is shorter than a token sequence in the batch.")
+        tensors[0] = torch.nn.functional.pad(
+            tensors[0],
+            (0, max_length - int(lengths[0])),
+            value=padding_value,
+        )
 
     padded = pad_sequence(
         tensors,

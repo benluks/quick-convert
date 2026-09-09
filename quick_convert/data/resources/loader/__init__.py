@@ -2,11 +2,13 @@ from dataclasses import replace
 
 import torch
 
-from .. import ResourceRef
+from ..base import ResourceRef
 
 
 def load_torch(ref, device="cpu"):
-    return torch.load(ref.path, map_location=device)
+    if ref.path is None:
+        raise ValueError(f"Resource {ref.name!r} has no path to load.")
+    return torch.load(ref.path, map_location=device, weights_only=True)
 
 
 LOADER_REGISTRY = {"torch_tensor": load_torch, "token_ids": load_torch}

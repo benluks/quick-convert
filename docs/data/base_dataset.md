@@ -83,6 +83,11 @@ dataset = BaseDataset(
 This keeps corpus discovery independent from the annotations and features used
 by a particular experiment.
 
+For manifest-backed datasets, `text` columns become immediate resource values,
+while `torch_tensor` and `token_ids` columns are interpreted as serialized
+resource paths. Selecting those resource names through `load`, or selecting
+`"all"`, materializes the referenced files.
+
 ## Batching
 
 `make_dataloader()` uses the dataset's collation function to produce an
