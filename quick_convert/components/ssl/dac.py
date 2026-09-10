@@ -141,8 +141,12 @@ class DACContentEncoder(ContentEncoder):
         # -> (B, T, D), then insert L=1 so ParallelConformer reads it unchanged.
         z = z.transpose(1, 2).unsqueeze(2)  # (B, T_frames, 1, D)
 
-        # Valid frames per item = ceil(samples / hop); clamp guards rounding overshoot.
-        frame_lengths = torch.ceil(lengths.float() / self.hop_length).long().clamp_max(z.shape[1])
+        frame_lengths = self.output_lengths(lengths)
+        if torch.any(frame_lengths > z.shape[1]):
+            raise RuntimeError(
+                "DAC's deterministic output-length calculation exceeds the encoded time dimension: "
+                f"expected at most {z.shape[1]}, got {int(frame_lengths.max())}."
+            )
 
         return ContentFeatures(
             values=z,
@@ -155,6 +159,10 @@ class DACContentEncoder(ContentEncoder):
             layer=None,
             frame_hz=self.sample_rate / self.hop_length,  # 16000/320 = 50 Hz
         )
+
+    def output_lengths(self, input_lengths: torch.Tensor) -> torch.Tensor:
+        """Calculate exact DAC frame counts from waveform lengths in samples."""
+        return torch.div(input_lengths + self.hop_length - 1, self.hop_length, rounding_mode="floor")
 
     def encode_file(self, path) -> ContentFeatures:
         # Single-file convenience path: load, downmix, resample, then encode.

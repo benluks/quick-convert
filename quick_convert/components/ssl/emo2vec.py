@@ -5,6 +5,7 @@ from typing import Literal
 
 import torch
 import torchaudio
+from torch.nn.utils.rnn import pad_sequence
 
 from quick_convert.data.types import AudioBatch
 
@@ -121,10 +122,12 @@ class EmotionEncoder(ContentEncoder):
 
         outputs = self.model.generate(input=waveforms_list, input_len=lengths, granularity=self.granularity)
         features = [torch.from_numpy(item["feats"]) for item in outputs]
-        feature_lens = [len(feat) for feat in features]
+        features = [feature.unsqueeze(0) if feature.ndim == 1 else feature for feature in features]
+        feature_lens = torch.tensor([len(feature) for feature in features], dtype=torch.long)
+        padded_features = pad_sequence(features, batch_first=True)
 
         return ContentFeatures(
-            values=features,
+            values=padded_features,
             lengths=feature_lens,
             feature_dim=self.feature_dim,
             representation_type="continuous",
