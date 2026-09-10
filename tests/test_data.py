@@ -55,6 +55,9 @@ def test_audio_batch_collates_audio_and_tensor_resources():
     assert recovered.resources["content"].kind == "torch_tensor"
     assert torch.equal(recovered.resources["content"].value, samples[0].resources["content"].value)
 
+    recovered_short = batch[1]
+    assert torch.equal(recovered_short.waveform, torch.tensor([4.0, 5.0]))
+
 
 def test_dataset_provider_defaults_are_not_shared():
     sample = MetadataSample(utt_id="sample", path=None)

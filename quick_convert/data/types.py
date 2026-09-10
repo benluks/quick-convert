@@ -197,13 +197,18 @@ class AudioBatch(MetadataBatch):
         return len(self.paths)
 
     def __getitem__(self, idx: int) -> AudioSample:
+        waveform = None
+        if self.waveforms is not None:
+            if self.lengths is None:
+                raise RuntimeError("AudioBatch has waveforms but no valid lengths.")
+            waveform = self.waveforms[idx, : int(self.lengths[idx])]
+
         return AudioSample(
             utt_id=self.utt_ids[idx],
             path=self.paths[idx],
             split=self.splits[idx],
-            waveform=self.waveforms[idx] if self.waveforms is not None else None,
+            waveform=waveform,
             sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
-            # features={key: value[idx] for key, value in self.features.items()},
             resources=self._sample_resources(idx),
         )
 
