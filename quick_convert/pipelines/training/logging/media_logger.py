@@ -14,8 +14,10 @@ class ReconstructedAudio:
     original_mel: torch.Tensor | None = None
     reconstructed_mel: torch.Tensor | None = None
 
-    audio_lengths: torch.Tensor | None = None
-    mel_lengths: torch.Tensor | None = None
+    original_audio_lengths: torch.Tensor | None = None
+    reconstructed_audio_lengths: torch.Tensor | None = None
+    original_mel_lengths: torch.Tensor | None = None
+    reconstructed_mel_lengths: torch.Tensor | None = None
 
     original_sample_rate: int | None = None
     reconstructed_sample_rate: int | None = None
@@ -255,14 +257,24 @@ class WandbMediaLogger(MediaLogger):
             original_audio = None
             if media.original_audio is not None:
                 original_audio = self.wandb.Audio(
-                    media.original_audio[i].detach().cpu().float().reshape(-1).numpy()[: media.audio_lengths[i]],
+                    media.original_audio[i]
+                    .detach()
+                    .cpu()
+                    .float()
+                    .reshape(-1)
+                    .numpy()[: media.original_audio_lengths[i]],
                     sample_rate=media.original_sample_rate,
                 )
 
             reconstructed_audio = None
             if media.reconstructed_audio is not None:
                 reconstructed_audio = self.wandb.Audio(
-                    media.reconstructed_audio[i].detach().cpu().float().reshape(-1).numpy()[: media.audio_lengths[i]],
+                    media.reconstructed_audio[i]
+                    .detach()
+                    .cpu()
+                    .float()
+                    .reshape(-1)
+                    .numpy()[: media.reconstructed_audio_lengths[i]],
                     sample_rate=media.reconstructed_sample_rate,
                 )
 
@@ -271,12 +283,16 @@ class WandbMediaLogger(MediaLogger):
 
             if media.original_mel is not None:
                 original_mel = self.wandb.Image(
-                    prepared_original_mels[i].detach().cpu().float().numpy()[..., : media.mel_lengths[i]]
+                    prepared_original_mels[i].detach().cpu().float().numpy()[..., : media.original_mel_lengths[i]]
                 )
 
             if media.reconstructed_mel is not None:
                 reconstructed_mel = self.wandb.Image(
-                    prepared_reconstructed_mels[i].detach().cpu().float().numpy()[..., : media.mel_lengths[i]]
+                    prepared_reconstructed_mels[i]
+                    .detach()
+                    .cpu()
+                    .float()
+                    .numpy()[..., : media.reconstructed_mel_lengths[i]]
                 )
 
             table.add_data(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass, field
 
 import torch
@@ -111,3 +112,11 @@ class CosyVoiceHiFTDecoder(nn.Module):
             finalize=True,
         )
         return waveform
+
+    @property
+    def samples_per_frame(self) -> int:
+        return math.prod(self.config.upsample_rates) * self.config.istft_params["hop_len"]
+
+    @property
+    def sample_rate(self) -> int:
+        return self.config.sampling_rate

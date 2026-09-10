@@ -17,6 +17,36 @@ from .resources import ResourceCollection, TemplateResourceProvider, collate_res
 
 
 @dataclass(frozen=True)
+class GeneratedAudio:
+    """Padded generated waveforms with their valid lengths and sample rate."""
+
+    waveforms: torch.Tensor
+    lengths: torch.LongTensor
+    sample_rate: int
+
+    def __post_init__(self) -> None:
+        if self.waveforms.ndim != 2:
+            raise ValueError(f"Expected waveforms with shape (batch, time), got {tuple(self.waveforms.shape)}.")
+        if self.lengths.shape != (self.waveforms.shape[0],):
+            raise ValueError(
+                f"Expected lengths with shape ({self.waveforms.shape[0]},), got {tuple(self.lengths.shape)}."
+            )
+        if torch.any(self.lengths < 0):
+            raise ValueError("Waveform lengths must be non-negative.")
+        if torch.any(self.lengths > self.waveforms.shape[1]):
+            raise ValueError("A waveform length exceeds the padded waveform size.")
+        if self.sample_rate <= 0:
+            raise ValueError("sample_rate must be positive.")
+
+    def __len__(self) -> int:
+        return self.waveforms.shape[0]
+
+    def waveform(self, index: int) -> torch.Tensor:
+        """Return one generated waveform without batch padding."""
+        return self.waveforms[index, : int(self.lengths[index])]
+
+
+@dataclass(frozen=True)
 class MetadataSample:
     """Metadata and resources describing one dataset item.
 

@@ -358,6 +358,9 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
         assert feat.shape[2] == mel_len2
         return feat.float(), None
 
+    def output_lengths(self, token_lengths: torch.Tensor) -> torch.Tensor:
+        return self.encoder.output_lengths(token_lengths)
+
 
 class CausalMaskedDiffWithDiT(torch.nn.Module):
     def __init__(
@@ -418,6 +421,9 @@ class CausalMaskedDiffWithDiT(torch.nn.Module):
             self.speech_token_extractor = SpeechTokenExtractor(
                 model_path=os.path.join(onnx_path, "speech_tokenizer_v3.batch.onnx")
             )
+
+    def output_lengths(self, token_lengths: torch.Tensor) -> torch.Tensor:
+        return token_lengths * self.token_mel_ratio
 
     def forward(
         self,

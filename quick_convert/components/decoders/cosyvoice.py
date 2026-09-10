@@ -1,24 +1,35 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import torch
 import torch.nn.functional as F
 from torch import nn
 
+from quick_convert.data import GeneratedAudio
 from quick_convert.utils.device import DeviceLike, configure_device
 from quick_convert.utils.masking import make_padding_mask, trim_to_min
 
-from ...external.cosyvoice.flow.flow import CausalMaskedDiffWithDiT, CausalMaskedDiffWithXvec
-from ...external.matcha.utils.audio import mel_spectrogram
-from .hift_generator import CosyVoiceHiFTDecoder
+
+if TYPE_CHECKING:
+    from ...external.cosyvoice.flow.flow import CausalMaskedDiffWithDiT, CausalMaskedDiffWithXvec
+    from .hift_generator import CosyVoiceHiFTDecoder
 
 
 @dataclass
 class CosyVoiceDecoderOutput:
     flow_state: torch.Tensor | None = None
     loss: torch.Tensor | None = None
+
+
+@dataclass(frozen=True)
+class CosyVoiceGenerationOutput:
+    """Generated mel features and optional waveform output with valid lengths."""
+
+    mel: torch.Tensor
+    mel_lengths: torch.LongTensor
+    audio: GeneratedAudio | None = None
 
 
 class CosyVoiceSpectrogramGenerator(nn.Module):
@@ -38,6 +49,9 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         mel_dim: int = 80,
     ):
         super().__init__()
+
+        from ...external.matcha.utils.audio import mel_spectrogram
+        from .hift_generator import CosyVoiceHiFTDecoder
 
         self.device = configure_device(device)
         self.flow = flow
@@ -143,7 +157,9 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         max_len: int | None = 0,
         cond: torch.Tensor | None = None,
         run_vocoder: bool = False,
-    ):
+    ) -> CosyVoiceGenerationOutput:
+
+        length = length.clone()
 
         # because of different feature extractions, sometimes lengths can be
         # 1 frame shorter than the features' actual shape, so we trim to the
@@ -173,19 +189,21 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
             # n_timesteps=n_timesteps,
         )
 
+        mel_lengths = self.flow.output_lengths(length)
+        if torch.any(mel_lengths > mel.shape[-1]):
+            raise RuntimeError("A generated mel length exceeds the padded mel tensor.")
+
         if run_vocoder:
             wav = self.mel2wav(mel)  # mel must be `B, 80, T`
+            if wav.ndim == 3 and wav.shape[1] == 1:
+                wav = wav.squeeze(1)
+            waveform_lengths = mel_lengths * self.vocoder.samples_per_frame
+            audio = GeneratedAudio(
+                waveforms=wav,
+                lengths=waveform_lengths,
+                sample_rate=self.vocoder.sample_rate,
+            )
         else:
-            wav = None
+            audio = None
 
-        return mel, wav
-
-    @torch.inference_mode()
-    def inference(self, features, lengths, spk_output):
-
-        mel, _ = self.flow.inference(
-            token=features,
-            token_len=lengths,
-            embedding=spk_output,
-            finalize=True,
-        )
+        return CosyVoiceGenerationOutput(mel=mel, mel_lengths=mel_lengths, audio=audio)

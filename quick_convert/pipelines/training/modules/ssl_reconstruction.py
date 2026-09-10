@@ -100,12 +100,14 @@ class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         if batch_idx != 0:
             return
 
-        reconstructed_mel, reconstructed_wav = self.decoder(
+        generation = self.decoder(
             feature=output.features,
             length=output.lengths,
             speaker_embedding=output.speaker_embedding,
             run_vocoder=True,
         )
+        if generation.audio is None:
+            raise RuntimeError("Decoder did not return audio when run_vocoder=True.")
         original_mel, original_mel_lengths = self.decoder._compute_mels(
             batch.waveforms, batch.lengths, sampling_rate=batch.sample_rates[0]
         )
@@ -113,22 +115,22 @@ class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
             key="val/reconstruction",
             media=ReconstructedAudio(
                 original_audio=batch.waveforms,
-                reconstructed_audio=reconstructed_wav,
+                reconstructed_audio=generation.audio.waveforms,
                 original_mel=original_mel,
-                reconstructed_mel=reconstructed_mel,
-                audio_lengths=batch.lengths,
-                mel_lengths=original_mel_lengths,
+                reconstructed_mel=generation.mel,
+                original_audio_lengths=batch.lengths,
+                reconstructed_audio_lengths=generation.audio.lengths,
+                original_mel_lengths=original_mel_lengths,
+                reconstructed_mel_lengths=generation.mel_lengths,
                 original_sample_rate=batch.sample_rates[0],
-                reconstructed_sample_rate=self.decoder.VOCODER_SR,
+                reconstructed_sample_rate=generation.audio.sample_rate,
                 ids=batch.utt_ids,
             ),
             step=self.global_step,
         )
 
     @torch.inference_mode()
-    def inference(
-        self, batch: AudioBatch, run_vocoder: bool = True, to_file: PathLike | None = None
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+    def inference(self, batch: AudioBatch, run_vocoder: bool = True, to_file: PathLike | None = None):
         self.eval()
 
         content = self.get_resource(batch, "content")
@@ -137,20 +139,28 @@ class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         features = self.feature_transform(content.values)
         lengths = content.lengths
 
-        mel, wav = self.decoder(
+        generation = self.decoder(
             feature=features,
             length=lengths,
             speaker_embedding=speaker_embedding.values,
             run_vocoder=run_vocoder,
         )
 
-        if run_vocoder and to_file is not None:
-            torchaudio.save(Path(to_file), wav.to("cpu"), self.decoder.VOCODER_SR)
+        if to_file is not None:
+            if generation.audio is None:
+                raise ValueError("to_file requires run_vocoder=True.")
+            if len(generation.audio) != 1:
+                raise ValueError("to_file only supports a single generated waveform.")
+            torchaudio.save(
+                Path(to_file),
+                generation.audio.waveform(0).unsqueeze(0).to("cpu"),
+                generation.audio.sample_rate,
+            )
 
-        return mel, wav
+        return generation
 
     @torch.inference_mode()
-    def infer_file(self, path: PathLike, *args, **kwargs) -> torch.Tensor:
+    def infer_file(self, path: PathLike, *args, **kwargs):
         waveform, sample_rate = load_audio(path)
 
         waveform = waveform.to(self.device)

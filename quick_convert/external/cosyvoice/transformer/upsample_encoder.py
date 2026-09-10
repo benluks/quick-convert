@@ -231,6 +231,7 @@ class UpsampleConformerEncoder(torch.nn.Module):
             dropout_rate,
             COSYVOICE_EMB_CLASSES[pos_enc_layer_type](output_size, positional_dropout_rate),
         )
+
         self.up_encoders = torch.nn.ModuleList(
             [
                 ConformerEncoderLayer(
@@ -245,6 +246,14 @@ class UpsampleConformerEncoder(torch.nn.Module):
                 for _ in range(4)
             ]
         )
+
+    def output_lengths(self, input_lengths: torch.Tensor) -> torch.Tensor:
+        """Return encoder output lengths for padded batched inference."""
+        if self.embed.subsampling_rate != 1:
+            raise NotImplementedError("Output lengths are only defined for a non-subsampling input layer.")
+        if self.do_upsample:
+            return input_lengths * self.upsample_stride
+        return input_lengths
 
     def output_size(self) -> int:
         return self._output_size
