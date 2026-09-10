@@ -16,6 +16,16 @@ class LayerWeightedSum(nn.Module):
         self.projection = projection or nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.ndim != 4:
+            raise ValueError(f"Expected x with shape [B, T, L, D], got {tuple(x.shape)}.")
+        if x.shape[2] != self.weights.shape[1]:
+            raise ValueError(f"Expected {self.weights.shape[1]} representation layers, got {x.shape[2]}.")
+
         weights = F.softmax(self.weights, dim=-1)
         x = torch.einsum("btlc,kl->btc", x, weights)
         return self.projection(x)
+
+    @staticmethod
+    def output_lengths(input_lengths: torch.Tensor) -> torch.Tensor:
+        """Layer fusion and its feature projection preserve the time axis."""
+        return input_lengths

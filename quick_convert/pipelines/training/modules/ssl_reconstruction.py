@@ -9,10 +9,12 @@ import torchaudio
 from torch import nn
 
 from quick_convert.components.decoders import CosyVoiceDecoderOutput, CosyVoiceSpectrogramGenerator
+from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.mixins.resource import OnlineResourceMixin
 from quick_convert.components.ssl.base import ContentEncoder
 from quick_convert.data.types import AudioBatch
 from quick_convert.utils.audio import load_audio
+from quick_convert.utils.masking import make_padding_mask
 
 from ..logging.media_logger import ReconstructedAudio
 from ..modules.base import BaseTrainingModule
@@ -26,6 +28,7 @@ class SSLReconstructionOutput:
     speaker_embedding: torch.Tensor
     loss: torch.Tensor
     decoder_output: CosyVoiceDecoderOutput
+    encoder_output: RVQOutput | None = None
 
 
 class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
@@ -36,9 +39,11 @@ class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         optimization: Optimization,
         *,
         online_encoders: dict[str, ContentEncoder] | None = None,
+        encoder: BaseResidualVectorQuantizer | None = None,
     ):
         super().__init__(optimization=optimization)
 
+        self.encoder = encoder
         self.decoder = decoder
         self.feature_transform = feature_transform or nn.Identity()
         self.online_encoders = nn.ModuleDict(online_encoders or {})
@@ -51,7 +56,48 @@ class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
 
     @property
     def grad_norm_modules(self) -> dict[str, nn.Module]:
-        return {f"flow/{name}": module for name, module in self.decoder.flow.named_children()}
+        modules = {f"flow/{name}": module for name, module in self.decoder.flow.named_children()}
+        if self.encoder is not None:
+            modules["encoder"] = self.encoder
+        return modules
+
+    def _encode_content(self, content) -> tuple[torch.Tensor, torch.Tensor, RVQOutput | None]:
+        if content.lengths is None:
+            raise ValueError("Content features require valid lengths for SSL reconstruction.")
+
+        features = self.feature_transform(content.values)
+        lengths = content.lengths
+
+        if hasattr(self.feature_transform, "output_lengths"):
+            lengths = self.feature_transform.output_lengths(lengths)
+        elif not isinstance(self.feature_transform, nn.Identity):
+            raise TypeError("SSL reconstruction feature_transform modules must expose output_lengths(input_lengths).")
+
+        if lengths.shape != (features.shape[0],):
+            raise ValueError(
+                f"Expected one content length per batch item, got {tuple(lengths.shape)} "
+                f"for batch size {features.shape[0]}."
+            )
+        if torch.any(lengths > features.shape[1]):
+            raise ValueError(
+                "A transformed content length exceeds the padded feature time dimension: "
+                f"maximum is {features.shape[1]}, got {int(lengths.max())}."
+            )
+
+        if self.encoder is None:
+            return features, lengths, None
+
+        padding_mask = make_padding_mask(lengths, max_length=features.shape[1])
+        encoder_output = self.encoder(features.transpose(1, 2), padding_mask)
+        encoded_lengths = self.encoder.output_lengths(lengths)
+
+        if torch.any(encoded_lengths > encoder_output.z_q.shape[2]):
+            raise RuntimeError(
+                "An encoder output length exceeds the quantized time dimension: "
+                f"maximum is {encoder_output.z_q.shape[2]}, got {int(encoded_lengths.max())}."
+            )
+
+        return encoder_output.z_q.transpose(1, 2), encoded_lengths, encoder_output
 
     def _shared_step(
         self,
@@ -61,8 +107,7 @@ class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         content = self.get_resource(batch, "content")
         speaker_embedding = self.get_resource(batch, "speaker").values
 
-        features = self.feature_transform(content.values)
-        lengths = content.lengths
+        features, lengths, encoder_output = self._encode_content(content)
 
         decoder_output = self.decoder.compute_loss(
             features=features,
@@ -73,12 +118,19 @@ class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
             speaker_embedding=speaker_embedding,
         )
 
-        loss = decoder_output.loss
+        encoder_loss = features.new_zeros(()) if encoder_output is None else encoder_output.loss.loss
+        loss = decoder_output.loss + encoder_loss
 
         log_dict = {
             f"{stage}/loss": loss,
             f"{stage}/decoder/loss": decoder_output.loss,
         }
+        if encoder_output is not None:
+            log_dict[f"{stage}/rvq/loss"] = encoder_loss
+            for name, value in encoder_output.loss.raw.items():
+                log_dict[f"{stage}/rvq/{name}_loss"] = value
+            for name, value in encoder_output.loss.weighted.items():
+                log_dict[f"{stage}/rvq/{name}_loss_weighted"] = value
         self.log_dict(
             log_dict,
             on_step=(stage == "train"),
@@ -94,6 +146,7 @@ class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
             speaker_embedding=speaker_embedding,
             loss=loss,
             decoder_output=decoder_output,
+            encoder_output=encoder_output,
         )
 
     def log_validation_output(self, batch, output, batch_idx):
@@ -136,8 +189,7 @@ class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         content = self.get_resource(batch, "content")
         speaker_embedding = self.get_resource(batch, "speaker")
 
-        features = self.feature_transform(content.values)
-        lengths = content.lengths
+        features, lengths, _ = self._encode_content(content)
 
         generation = self.decoder(
             feature=features,

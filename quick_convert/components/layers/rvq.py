@@ -48,6 +48,11 @@ class BaseResidualVectorQuantizer(nn.Module, ABC):
     codebook_dim: int
     quantizers: nn.ModuleList
 
+    @staticmethod
+    def output_lengths(input_lengths: torch.Tensor) -> torch.Tensor:
+        """Residual quantization and its projections preserve the time axis."""
+        return input_lengths
+
     @abstractmethod
     def forward(
         self,

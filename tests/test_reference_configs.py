@@ -35,6 +35,10 @@ def register_resolvers():
             "quick_convert.pipelines.training.pipeline.TrainingPipeline",
         ),
         (
+            "run/train_sslr_w2vbert_cmdiff_rvq",
+            "quick_convert.pipelines.training.pipeline.TrainingPipeline",
+        ),
+        (
             "run/build_manifest_libri",
             "quick_convert.pipelines.build_manifest.BuildManifestPipeline",
         ),
@@ -81,5 +85,18 @@ def test_ssl_reconstruction_uses_ssl_features_directly():
         )
 
     assert "encoder" not in config.architecture
-    assert "encoder" not in config.trainer.module
+    assert config.trainer.module.encoder is None
+    assert config.architecture.decoder.feature_dim == config.architecture.feature_dim
+
+
+def test_rvq_ssl_reconstruction_uses_plain_quantizer_encoder():
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
+        config = compose(
+            config_name="run/train_sslr_w2vbert_cmdiff_rvq",
+            return_hydra_config=True,
+        )
+
+    encoder = config.trainer.module.encoder
+    assert encoder._target_ == "quick_convert.components.layers.rvq_ema.ResidualVectorQuantizerEMA"
+    assert encoder.input_dim == config.architecture.feature_dim
     assert config.architecture.decoder.feature_dim == config.architecture.feature_dim

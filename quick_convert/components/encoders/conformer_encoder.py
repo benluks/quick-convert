@@ -66,6 +66,11 @@ class ConformerEncoder(nn.Module):
     def output_size(self):
         return self.embed_dim
 
+    @staticmethod
+    def output_lengths(input_lengths: torch.Tensor) -> torch.Tensor:
+        """Conformer blocks and feature projections preserve the time axis."""
+        return input_lengths
+
     def forward(
         self,
         x: torch.Tensor,
@@ -143,6 +148,11 @@ class ConformerEncoderSSL(nn.Module):
 
     def output_size(self):
         return self.embed_dim
+
+    @staticmethod
+    def output_lengths(input_lengths: torch.Tensor) -> torch.Tensor:
+        """SSL layer fusion, conformer blocks, and projections preserve time."""
+        return input_lengths
 
     def forward(
         self,

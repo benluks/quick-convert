@@ -184,6 +184,22 @@ Why this matters:
 * makes debugging easier
 * enables validation of component compatibility
 
+## Temporal length contracts
+
+Padded tensors must travel with the valid length of each batch item. A tensor's
+padded time dimension is not a substitute for those lengths.
+
+Any component that can change the time axis should expose
+`output_lengths(input_lengths)` using the exact transformation implemented by
+its forward pass. Components that preserve time should expose the same method
+and return the input lengths unchanged. When an external backend determines
+lengths during preprocessing, its returned mask or lengths are authoritative;
+callers should not replace them with a frame-rate estimate.
+
+Output contracts must validate that every reported length fits within the
+corresponding padded tensor. This makes length errors fail at the component
+boundary instead of surfacing later as alignment, masking, or loss errors.
+
 ---
 
 # 🔄 Composition via Configuration

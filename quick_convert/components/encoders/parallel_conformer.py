@@ -71,8 +71,15 @@ class ParallelConformerEncoder(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        padding_mask: torch.Tensor | None = None,
+        padding_mask: torch.Tensor,
     ) -> torch.Tensor:
+
+        if x.ndim != 4:
+            raise ValueError(f"Expected x with shape [B, T, L, D], got {tuple(x.shape)}.")
+        if padding_mask.shape != x.shape[:2]:
+            raise ValueError(f"Expected padding_mask with shape {tuple(x.shape[:2])}, got {tuple(padding_mask.shape)}.")
+        if x.shape[2] != self.layer_weights.shape[1]:
+            raise ValueError(f"Expected {self.layer_weights.shape[1]} representation layers, got {x.shape[2]}.")
 
         # Apply layer weights with softmax over layers
         # x: (B, T, L, D_in), layer_weights: (H, L)
@@ -90,3 +97,8 @@ class ParallelConformerEncoder(nn.Module):
         x = self.down_proj_out(x)  # (B, T, D)
 
         return x * padding_mask.unsqueeze(-1)
+
+    @staticmethod
+    def output_lengths(input_lengths: torch.Tensor) -> torch.Tensor:
+        """Layer fusion, conformer blocks, and projections preserve time."""
+        return input_lengths

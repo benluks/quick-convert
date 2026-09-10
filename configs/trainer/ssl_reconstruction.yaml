@@ -19,4 +19,5 @@ module:
   _target_: quick_convert.pipelines.training.modules.ssl_reconstruction.SSLReconstructionTrainingModule
   decoder: ${architecture.decoder}
   feature_transform: ${architecture.feature_transform}
+  encoder: ${oc.select:architecture.encoder,null}
   online_encoders: ${architecture.online_encoders}

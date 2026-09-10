@@ -2,7 +2,6 @@ import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-import matplotlib.pyplot as plt
 import torch
 from lightning.pytorch.loggers import Logger, TensorBoardLogger, WandbLogger
 
@@ -75,8 +74,6 @@ class MediaLogger(ABC):
 
 
 class WandbMediaLogger(MediaLogger):
-    import wandb
-
     def __init__(self, logger: WandbLogger):
 
         try:
@@ -165,6 +162,10 @@ class WandbMediaLogger(MediaLogger):
         vmin=None,
         vmax=None,
     ):
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError as error:
+            raise ImportError("Heatmap logging requires matplotlib.") from error
 
         values = values.detach().cpu().float()
 
