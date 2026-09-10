@@ -33,7 +33,9 @@ class AnonymizationPipeline(Generic[T_Target]):
         self.is_batched = batch_size > 1
 
         if self.is_batched:
-            self.dataloader = self.dataset.make_dataloader(batch_size, **dataloader_kwargs)
+            raise NotImplementedError(
+                "Batched anonymization requires an explicit variable-length output contract; use batch_size=1 for now."
+            )
 
     def process_dir():
         pass

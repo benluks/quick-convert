@@ -88,27 +88,21 @@ class EvalPipeline:
 
         records = []
         for pred_batch in tqdm(pred_loader, desc="Evaluating"):
+            ref_batch = next(ref_iter) if ref_iter is not None else pred_batch
+            if len(ref_batch) != len(pred_batch):
+                raise ValueError("Mismatch between reference and prediction batches.")
+
             refs = {}
-            preds = {}
+            predictions = self.system.get_labels(pred_batch) if self.metrics else []
 
             for metric in self.metrics:
-                if ref_iter is not None:
-                    ref_batch = next(ref_iter)
-                    if len(ref_batch) != len(pred_batch):
-                        raise ValueError("Mismatch between reference and prediction batches.")
-                    refs[metric.key] = metric.get_references(ref_batch)
-                else:
-                    # If no reference dataset is provided, use predictions as references
-                    refs[metric.key] = metric.get_references(pred_batch)
-
-                preds[metric.key] = self.system.get_labels(pred_batch)
+                refs[metric.key] = metric.get_references(ref_batch)
 
             # Validate batch sizes
-            for key, values in preds.items():
-                if len(values) != len(pred_batch):
-                    raise ValueError(
-                        f"Anonymized dataset returned {len(values)} predictions for key {key!r}, but batch has size {len(pred_batch)}"
-                    )
+            if self.metrics and len(predictions) != len(pred_batch):
+                raise ValueError(
+                    f"System returned {len(predictions)} predictions for a batch of size {len(pred_batch)}"
+                )
             for key, values in refs.items():
                 if len(values) != len(pred_batch):
                     raise ValueError(
@@ -140,8 +134,8 @@ class EvalPipeline:
                 for key, values in refs.items():
                     record[f"ref_{key}"] = values[i]
 
-                for key, values in preds.items():
-                    record[f"pred_{key}"] = values[i]
+                for metric in self.metrics:
+                    record[metric.pred_key] = predictions[i]
 
                 records.append(record)
 

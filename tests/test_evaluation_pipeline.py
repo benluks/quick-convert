@@ -21,8 +21,22 @@ class EmptyReferenceMetric:
 
 
 class OnePredictionSystem:
+    def __init__(self):
+        self.calls = 0
+
     def get_labels(self, batch):
+        self.calls += 1
         return ["prediction"]
+
+
+class FixedMetric:
+    def __init__(self, key):
+        self.key = key
+        self.ref_key = f"ref_{key}"
+        self.pred_key = f"pred_{key}"
+
+    def get_references(self, batch):
+        return [batch.utt_ids[0]]
 
 
 def test_evaluation_records_requested_resources(tmp_path):
@@ -76,3 +90,30 @@ def test_evaluation_validates_reference_count_without_separate_reference_dataset
 
     with pytest.raises(ValueError, match="Reference data returned 0 values"):
         pipeline.generate_records()
+
+
+def test_evaluation_runs_inference_and_consumes_reference_batch_once(tmp_path):
+    pred = AudioSample(utt_id="prediction", path=tmp_path / "pred.wav")
+    ref = AudioSample(utt_id="reference", path=tmp_path / "ref.wav")
+    system = OnePredictionSystem()
+    pipeline = EvalPipeline(
+        dataset=BatchDataset(AudioBatch.from_samples([pred])),
+        ref_dataset=BatchDataset(AudioBatch.from_samples([ref])),
+        system=system,
+        metrics=[FixedMetric("first"), FixedMetric("second")],
+        out_dir=tmp_path,
+        batch_size=1,
+    )
+
+    assert pipeline.generate_records() == [
+        {
+            "utt_id": "prediction",
+            "path": str(pred.path),
+            "split": None,
+            "ref_first": "reference",
+            "ref_second": "reference",
+            "pred_first": "prediction",
+            "pred_second": "prediction",
+        }
+    ]
+    assert system.calls == 1

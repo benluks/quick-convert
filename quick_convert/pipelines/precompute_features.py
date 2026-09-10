@@ -42,7 +42,8 @@ class PrecomputeFeaturesPipeline:
                 if len(outputs) != len(batch):
                     raise ValueError(f"Extractor returned {len(outputs)} outputs for batch of size {len(batch)}")
 
-                # write samples
+                # Record every sample, including features retained from an
+                # earlier run, so a resumed manifest remains complete.
                 for sample, output in zip(batch, outputs, strict=True):
                     split = sample.split or ""
                     utt_id = sample.utt_id
@@ -51,9 +52,8 @@ class PrecomputeFeaturesPipeline:
                     out_dir.mkdir(parents=True, exist_ok=True)
 
                     out_path = out_dir / f"{utt_id}.pt"
-                    if self.skip_existing and out_path.exists():
-                        continue
-                    torch.save(output, out_path)
+                    if not (self.skip_existing and out_path.exists()):
+                        torch.save(output, out_path)
 
                     row = {
                         "utt_id": utt_id,

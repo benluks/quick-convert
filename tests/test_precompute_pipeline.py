@@ -64,3 +64,23 @@ def test_precompute_rejects_output_count_mismatch(tmp_path):
 
     with pytest.raises(ValueError, match="returned 1 outputs for batch of size 2"):
         pipeline.run()
+
+
+def test_precompute_resume_keeps_existing_features_in_manifest(tmp_path):
+    batch = make_batch(tmp_path)
+    output_dir = tmp_path / "features"
+    existing_path = output_dir / "train" / "first.pt"
+    existing_path.parent.mkdir(parents=True)
+    torch.save(torch.tensor([10.0]), existing_path)
+
+    PrecomputeFeaturesPipeline(
+        dataset=BatchDataset(batch),
+        extractor=FixedExtractor([torch.tensor([1.0]), torch.tensor([2.0])]),
+        out_dir=output_dir,
+        skip_existing=True,
+    ).run()
+
+    rows = [json.loads(line) for line in (output_dir / "manifest.jsonl").read_text().splitlines()]
+
+    assert [row["utt_id"] for row in rows] == ["first", "second"]
+    assert torch.equal(torch.load(existing_path, weights_only=True), torch.tensor([10.0]))
