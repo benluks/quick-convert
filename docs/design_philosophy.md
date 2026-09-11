@@ -93,6 +93,9 @@ Examples:
 
 👉 Think: *What are we doing with the model?*
 
+See [Pipelines and inference](pipelines/index.md) for the contracts currently
+implemented by precomputation, evaluation, and anonymization workflows.
+
 ---
 
 # 🧱 Functional Roles (Not Backends)
