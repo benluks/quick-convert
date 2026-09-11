@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import hydra
-from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
+
+from .run import execute_pipeline
 
 
-@hydra.main(version_base=None, config_path="../../configs", config_name="run/build_libri_manifest")
+@hydra.main(version_base=None, config_path="../../configs", config_name="run/build_manifest_libri")
 def main(cfg: DictConfig) -> None:
-    print(OmegaConf.to_yaml(cfg, resolve=True))
-    pipeline = instantiate(cfg.pipeline)
-    pipeline.run()
+    execute_pipeline(cfg)
 
 
 if __name__ == "__main__":

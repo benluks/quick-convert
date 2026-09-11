@@ -1,119 +1,52 @@
 ## Installation
 
-This project uses [uv](https://github.com/astral-sh/uv) for Python environment management. Make sure you have it installed before proceeding.
+Quick Convert uses [uv](https://docs.astral.sh/uv/) for Python environment
+management:
 
 ```bash
-https://github.com/benluks/quick-convert
+git clone https://github.com/benluks/quick-convert.git
 cd quick-convert
 uv sync
 ```
 
+## Running pipelines
 
-## CLI Usage
-
-This project provides simplified CLI entrypoints for running different pipelines (e.g., anonymization, ASV training, evaluation) using Hydra configs under `configs/run/`.
-
-### Basic Pattern
-
-All commands follow the same structure:
+Pipeline-style files in `configs/run/` can be launched through the universal
+entrypoint using the complete filename stem:
 
 ```bash
-uv run <command> <config-alias> [hydra overrides...]
-<command> → the pipeline you want to run (e.g., anonymize, train_asv, eval_asv)
-<config-alias> → the suffix of a config file in configs/run/
-[hydra overrides...] → optional Hydra overrides (key=value)
+uv run quick-convert train_vq_asr_librispeech pipeline.batch_size=16
 ```
 
----
+Common operations also have shorter, verb-oriented aliases:
 
-### Examples
-
-#### Anonymization
 ```bash
+uv run train vq_asr_librispeech pipeline.batch_size=16
+uv run evaluate asr_librispeech
 uv run anonymize knnvc_clac target_id=6081
+uv run precompute content_w2vbert_librispeech
+uv run build_manifest libri
 ```
 
-Uses config:
+An alias prepends its config prefix. For example, `evaluate asr_librispeech`
+selects `configs/run/eval_asr_librispeech.yaml`; `train vq_asr_librispeech`
+selects `configs/run/train_vq_asr_librispeech.yaml`. The older
+`eval_asr librispeech` command remains available for compatibility, but new
+usage should prefer `evaluate`.
 
-`configs/run/anonymization_knnvc_clac.yaml`
+Arguments after the config name are passed to Hydra as overrides. Run a command
+without a config name to list the configurations it can resolve:
 
----
-
-#### Train ASV Model
 ```bash
-uv run train_asv clac asv.overrides.batch_size=32
+uv run evaluate
+uv run quick-convert
 ```
 
-Uses config:
+The shared runner composes the selected config, instantiates `cfg.pipeline`,
+passes the resolved config to `write_config()` when the pipeline provides that
+method, and calls `pipeline.run(**cfg.run)`. This keeps the CLI orchestration
+generic while allowing pipelines to expose their own run arguments.
 
-`configs/run/train_asv_clac.yaml`
-
----
-
-#### Evaluate ASV
-```bash
-uv run eval_asv clac
-```
-
-Uses config:
-
-`configs/run/eval_asv_clac.yaml`
-
----
-
-### How Config Resolution Works
-
-Each command maps to:
-
-```bash
-configs/run/<prefix>_<config-alias>.yaml
-```
-
-Where:
-
-* prefix is usually the same as the command
-* exception:
-    * `anonymize` → `anonymization_*`
-
-So:
-
-```bash
-uv run anonymize knnvc_clac
-```
-
-→
-
-`configs/run/anonymization_knnvc_clac.yaml`
-
----
-
-### Hydra Overrides
-
-You can pass any Hydra override directly:
-
-```bash
-uv run anonymize knnvc_clac \
-  target_id=6081 \
-  pipeline.out_dir=foo \
-  hydra.job.chdir=false
-```
----
-
-### Getting Help
-
-Running a command without arguments will show available config aliases:
-
-```bash
-uv run anonymize
-```
-
----
-
-### Notes
-* Commands are thin wrappers around modules in `quick_convert/cli/`
-* All heavy lifting is still handled by Hydra + your existing pipeline code
-* This interface is just a cleaner alternative to:
-```bash
-uv run python -m quick_convert.cli.<module> \
-  --config-name run/<full_config_name> ...
-  ```
+Special-purpose utilities whose interfaces do not follow this pipeline
+contract, including ASV evaluation and manifest splitting, remain available as
+Python modules under `quick_convert.cli`.

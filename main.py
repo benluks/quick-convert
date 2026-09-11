@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import importlib
-import importlib.util
 import os
 import sys
 from pathlib import Path
 
 
-def _available_aliases(config_prefix: str, run_dir: Path = Path("configs/run")) -> list[str]:
+COMMAND_PREFIXES = {
+    "evaluate": "eval",
+}
+
+
+def _available_aliases(
+    config_prefix: str,
+    run_dir: Path = Path("configs/run"),
+) -> list[str]:
     stem_prefix = f"{config_prefix}_"
     return sorted(
         path.stem[len(stem_prefix) :]
@@ -16,39 +23,51 @@ def _available_aliases(config_prefix: str, run_dir: Path = Path("configs/run")) 
     )
 
 
-def main() -> None:
-    command = Path(sys.argv[0]).stem
-    config_prefix = command
-    module_name = f"quick_convert.cli.{config_prefix}"
-    run_dir = Path(__file__).resolve().parent / "configs" / "run"
+def _available_run_configs(run_dir: Path) -> list[str]:
+    return sorted(path.stem for path in run_dir.glob("*.yaml"))
 
-    if importlib.util.find_spec(module_name) is None:
-        raise SystemExit(f"No CLI module found for command {command!r}: {module_name}")
 
-    argv = sys.argv[1:]
+def _resolve_config(
+    command: str,
+    argv: list[str],
+    run_dir: Path,
+) -> tuple[str, list[str]]:
+    universal = command in {"quick-convert", "quick_convert"}
+    config_prefix = COMMAND_PREFIXES.get(command, command)
 
     if not argv or argv[0] in {"-h", "--help"}:
-        aliases = ", ".join(_available_aliases(config_prefix, run_dir)) or "(none found)"
-        raise SystemExit(
-            f"Usage: {command} <config-alias> [hydra overrides...]\n"
-            f"Resolved module: {module_name}\n"
-            f"Config prefix: {config_prefix}\n"
-            f"Available config aliases: {aliases}"
-        )
+        if universal:
+            choices = ", ".join(_available_run_configs(run_dir)) or "(none found)"
+            usage = f"Usage: {command} <run-config> [hydra overrides...]"
+        else:
+            choices = ", ".join(_available_aliases(config_prefix, run_dir)) or "(none found)"
+            usage = f"Usage: {command} <config-alias> [hydra overrides...]"
+        raise SystemExit(f"{usage}\nAvailable configurations: {choices}")
 
-    config_alias, *overrides = argv
-    config_name = f"run/{config_prefix}_{config_alias}"
+    name, *overrides = argv
+    name = Path(name).stem
+    config_stem = name if universal else f"{config_prefix}_{name}"
+    config_file = run_dir / f"{config_stem}.yaml"
 
-    config_file = run_dir / f"{config_prefix}_{config_alias}.yaml"
     if not config_file.is_file():
-        aliases = ", ".join(_available_aliases(config_prefix, run_dir)) or "(none found)"
+        choices = (
+            _available_run_configs(run_dir)
+            if universal
+            else _available_aliases(config_prefix, run_dir)
+        )
         raise SystemExit(
-            f"No config found for alias {config_alias!r}.\n"
-            f"Expected file: {config_file.name}\n"
-            f"Available config aliases: {aliases}"
+            f"No run configuration found at {config_file}.\n"
+            f"Available configurations: {', '.join(choices) or '(none found)'}"
         )
 
-    module = importlib.import_module(module_name)
+    return f"run/{config_stem}", overrides
+
+
+def main() -> None:
+    command = Path(sys.argv[0]).stem
+    run_dir = Path(__file__).resolve().parent / "configs" / "run"
+    config_name, overrides = _resolve_config(command, sys.argv[1:], run_dir)
+    module = importlib.import_module("quick_convert.cli.run")
 
     os.environ["HYDRA_FULL_ERROR"] = "1"
 

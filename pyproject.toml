@@ -80,7 +80,12 @@ cosyvoice = [
 ]
 
 [project.scripts]
+quick-convert = "main:main"
 anonymize = "main:main"
+build_manifest = "main:main"
+evaluate = "main:main"
 eval_asr = "main:main"
+precompute = "main:main"
+train = "main:main"
 test = "quick_convert.cli.test:main"
 # eval_asv = "main:main"

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
+
+from .run import execute_pipeline
 
 
 @hydra.main(
@@ -10,10 +12,7 @@ from omegaconf import DictConfig, OmegaConf
     config_name="run/eval_asr_librispeech",
 )
 def main(cfg: DictConfig) -> None:
-    print(OmegaConf.to_yaml(cfg, resolve=True))
-
-    pipeline = hydra.utils.instantiate(cfg.pipeline)
-    pipeline.run()
+    execute_pipeline(cfg)
 
 
 if __name__ == "__main__":
