@@ -13,6 +13,12 @@ yet share enough lifecycle behavior to justify a common base class.
 | Evaluation | `system.get_labels(AudioBatch)` | one prediction per input sample | per-utterance CSV and aggregate JSON |
 | Anonymization | `anonymizer.anonymize(...)` | one waveform for one input sample | waveform files |
 
+Anonymizers expose a lightweight library API: `anonymize()` accepts either a
+file path or a waveform tensor and returns a waveform tensor. A tensor may
+provide its `sample_rate`; when omitted, it is assumed to already use the
+anonymizer's declared input rate. Files carry their own sample-rate metadata.
+Users do not need to construct dataset samples or batches for single-item use.
+
 ## Batch contracts
 
 `BaseDataset.make_dataloader()` collates samples into `AudioBatch`. When audio
@@ -59,4 +65,3 @@ A general `BasePipeline` is intentionally deferred. Training, evaluation,
 precomputation, manifest construction, and anonymization have different
 lifecycles; inheriting from one base class would currently provide naming
 uniformity without a stable behavioral contract.
-

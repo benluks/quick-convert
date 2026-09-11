@@ -67,6 +67,6 @@ class AnonymizationPipeline(Generic[T_Target]):
             if out_path.exists() and not self.overwrite:
                 continue
 
-            wav_conv = anonymize_fn(sample)
+            wav_conv = anonymize_fn(sample.path)
 
             torchaudio.save(str(out_path), wav_conv, self.anonymizer.sr)

@@ -28,12 +28,14 @@ class KNNVCAnonymizer(BaseAnonymizer[KNNVCTarget]):
             ref_wavs = sorted(map(str, (Path(target_speaker_root) / target).glob(pattern)))
             self._get_matching_set(ref_wavs)
 
-    def resynthesize(self, audio_path):
-        query_seq = self.model.get_features(audio_path)
+    def resynthesize(self, audio, *, sample_rate=None):
+        waveform = self.load(audio, sample_rate=sample_rate)
+        query_seq = self.model.get_features(waveform)
         return self.model.vocode(query_seq.to(self.device)).cpu().squeeze()
 
-    def anonymize(self, audio_path):
-        query_seq = self.model.get_features(str(audio_path))
+    def anonymize(self, audio, *, sample_rate=None):
+        waveform = self.load(audio, sample_rate=sample_rate)
+        query_seq = self.model.get_features(waveform)
         if query_seq.ndim == 3 and query_seq.shape[0] == 2:
             # query is stereo, reduce to mono
             query_seq = query_seq.mean(0)
