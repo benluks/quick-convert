@@ -99,7 +99,7 @@ to the local CLAC dataset directory before composing or running the config.
 ### 4. Anonymizer Config
 
 ```yaml
-_target_: quick_convert.pipelines.anonymization.KNNVCAnonymizer
+_target_: quick_convert.systems.anonymization.KNNVCAnonymizer
 ```
 
 Defines the **model/algorithm**.

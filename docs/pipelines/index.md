@@ -18,6 +18,8 @@ file path or a waveform tensor and returns a waveform tensor. A tensor may
 provide its `sample_rate`; when omitted, it is assumed to already use the
 anonymizer's declared input rate. Files carry their own sample-rate metadata.
 Users do not need to construct dataset samples or batches for single-item use.
+The implementations live under `quick_convert.systems.anonymization`; the
+pipeline only coordinates datasets, targets, and persisted outputs.
 
 ## Batch contracts
 

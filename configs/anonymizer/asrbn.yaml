@@ -1,1 +1,1 @@
-_target_: quick_convert.pipelines.anonymization.ASRBNAnonymizer
+_target_: quick_convert.systems.anonymization.ASRBNAnonymizer

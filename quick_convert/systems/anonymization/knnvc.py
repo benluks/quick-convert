@@ -1,0 +1,41 @@
+from pathlib import Path
+
+import torch
+
+from .base import BaseAnonymizer
+from .targets import KNNVCTarget
+
+
+class KNNVCAnonymizer(BaseAnonymizer[KNNVCTarget]):
+    def __init__(self):
+        super().__init__()
+        self.model = torch.hub.load("bshall/knn-vc", "knn_vc", prematched=True, trust_repo=True, pretrained=True)
+        self.sample_rate = self.sr = 16000
+        self.target = KNNVCTarget
+
+    def _get_matching_set(self, ref_wav_paths: list):
+        self.matching_set = self.model.get_matching_set(ref_wav_paths)
+
+    def set_target(
+        self,
+        target: str | list,
+        target_speaker_root: Path | None = None,
+        pattern: str | None = None,
+    ):
+        if pattern is None:
+            self._get_matching_set(target)
+        else:
+            ref_wavs = sorted(map(str, (Path(target_speaker_root) / target).glob(pattern)))
+            self._get_matching_set(ref_wavs)
+
+    def resynthesize(self, audio, *, sample_rate=None):
+        waveform = self.load(audio, sample_rate=sample_rate)
+        query_seq = self.model.get_features(waveform)
+        return self.model.vocode(query_seq.to(self.device)).cpu().squeeze()
+
+    def anonymize(self, audio, *, sample_rate=None):
+        waveform = self.load(audio, sample_rate=sample_rate)
+        query_seq = self.model.get_features(waveform)
+        if query_seq.ndim == 3 and query_seq.shape[0] == 2:
+            query_seq = query_seq.mean(0)
+        return self.model.match(query_seq, self.matching_set, topk=4).unsqueeze(0)

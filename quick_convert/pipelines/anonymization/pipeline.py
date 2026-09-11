@@ -6,9 +6,8 @@ import torchaudio
 from tqdm import tqdm
 
 from quick_convert.data.base_dataset import BaseDataset
-
-from .base_anonymizer import BaseAnonymizer
-from .targets import T_Target
+from quick_convert.systems.anonymization import BaseAnonymizer
+from quick_convert.systems.anonymization.targets import T_Target
 
 
 class AnonymizationPipeline(Generic[T_Target]):

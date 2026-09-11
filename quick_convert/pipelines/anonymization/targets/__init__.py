@@ -1,11 +1,6 @@
-from typing import TypeAlias, TypeVar
+"""Compatibility imports for the former pipeline-owned target types."""
 
-from .knnvc import KNNVCTarget
-
-
-ASRBNTarget: TypeAlias = str
-
-T_Target = TypeVar("T_Target")
+from quick_convert.systems.anonymization.targets import ASRBNTarget, KNNVCTarget, T_Target
 
 
-__all__ = ["T_Target", "ASRBNTarget", "KNNVCTarget"]
+__all__ = ["ASRBNTarget", "KNNVCTarget", "T_Target"]
