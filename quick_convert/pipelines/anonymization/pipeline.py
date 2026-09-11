@@ -29,15 +29,8 @@ class AnonymizationPipeline(Generic[T_Target]):
         self.out_dir = out_dir
         self.suffix = suffix
         self.overwrite = overwrite
-        self.is_batched = batch_size > 1
-
-        if self.is_batched:
-            raise NotImplementedError(
-                "Batched anonymization requires an explicit variable-length output contract; use batch_size=1 for now."
-            )
-
-    def process_dir():
-        pass
+        self.batch_size = batch_size
+        self.dataloader_kwargs = dataloader_kwargs
 
     def run(self, out_dir=None, target_speaker=None, suffix="", resynthesize=False, **kwargs):
 
@@ -45,27 +38,34 @@ class AnonymizationPipeline(Generic[T_Target]):
             out_dir = self.out_dir
 
         if resynthesize:
-            anonymize_fn = self.anonymizer.resynthesize
+            anonymize_batch = self.anonymizer.resynthesize_batch
         else:
             if not target_speaker:
                 target_speaker = self.target_speaker
             if target_speaker is not None:
                 self.anonymizer.set_target(target_speaker, **kwargs)
-            anonymize_fn = self.anonymizer.anonymize
+            anonymize_batch = self.anonymizer.anonymize_batch
 
         out_dir = Path(out_dir)
         for split in self.dataset.splits or [""]:
             (out_dir / split).mkdir(parents=True, exist_ok=True)
 
-        for sample in tqdm(
-            self.dataset,
+        loader = self.dataset.make_dataloader(batch_size=self.batch_size, **self.dataloader_kwargs)
+        for batch in tqdm(
+            loader,
             desc=f"Anonymizing data from {self.dataset.root} into {str(out_dir)}",
         ):
-            split = sample.split or ""
-            out_path = Path(out_dir) / split / f"{Path(sample.path).stem}{self.suffix}.wav"
-            if out_path.exists() and not self.overwrite:
-                continue
+            generated = anonymize_batch(batch)
+            if len(generated) != len(batch):
+                raise ValueError(
+                    f"Anonymizer returned {len(generated)} outputs for a batch of size {len(batch)}."
+                )
 
-            wav_conv = anonymize_fn(sample.path)
+            for index, sample in enumerate(batch):
+                waveform = generated.waveform(index)
+                split = sample.split or ""
+                out_path = Path(out_dir) / split / f"{Path(sample.path).stem}{self.suffix}.wav"
+                if out_path.exists() and not self.overwrite:
+                    continue
 
-            torchaudio.save(str(out_path), wav_conv, self.anonymizer.sr)
+                torchaudio.save(str(out_path), waveform.unsqueeze(0).cpu(), generated.sample_rate)

@@ -36,25 +36,18 @@ Generated waveform batches use `GeneratedAudio`, which contains padded
 waveforms, their valid lengths, and their common sample rate. This is the output
 contract required for correct batched waveform persistence.
 
-## Why anonymization remains unbatched
+## Anonymization batching
 
-The current anonymizers expose single-item, backend-specific methods and do not
-return `GeneratedAudio`. `AnonymizationPipeline` therefore rejects
-`batch_size > 1` explicitly. Silently batching these implementations would make
-padding indistinguishable from valid generated audio.
+Anonymization systems expose `anonymize_batch(AudioBatch) -> GeneratedAudio`.
+The base implementation is an exact sequential adapter over the lightweight
+single-item API: it records each generated waveform's length before padding.
+Backends that support native batching may override this method without changing
+the pipeline contract.
 
-The path to batching is:
-
-1. give anonymization systems a batch-oriented entry point accepting
-   `AudioBatch`;
-2. require that entry point to return `GeneratedAudio`;
-3. write each waveform only up to its reported valid length;
-4. then make `AnonymizationPipeline` iterate over a dataloader.
-
-This should be implemented for a current supported anonymization system before
-extracting a generic inference protocol. The protocol should follow proven
-call sites rather than forcing feature extraction, label prediction, and audio
-generation into an artificial common return type.
+`AnonymizationPipeline` always iterates over a dataloader and writes each
+waveform only up to its reported valid length. A `batch_size` greater than one
+therefore enables batched data orchestration today, but does not imply that a
+specific model performs vectorized inference.
 
 ## Appropriate shared infrastructure
 

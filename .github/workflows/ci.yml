@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - "integration/**"
+      - "llm/**"
 
 permissions:
   contents: read
