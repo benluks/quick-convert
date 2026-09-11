@@ -69,9 +69,23 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         speaker_embedding = F.normalize(speaker_embedding, dim=-1)
         return self.speaker_proj(speaker_embedding)
 
-    def _mel_lengths(self, lengths, n_fft=1280, hop_size=320):
+    @staticmethod
+    def mel_output_lengths(sample_lengths: torch.Tensor, sampling_rate: int) -> torch.Tensor:
+        """Calculate exact Matcha mel-frame lengths from waveform lengths.
+
+        Matcha uses a hop rate of 50 Hz and reflect-pads each side by
+        ``(n_fft - hop_size) // 2`` before an STFT with ``center=False``.
+        At the supported 16 kHz rate this reduces to
+        ``floor(samples / hop_size)``; the unsimplified formula below remains
+        exact when the padding difference is odd at another sample rate.
+        """
+        if sampling_rate <= 0:
+            raise ValueError(f"sampling_rate must be positive, got {sampling_rate}.")
+
+        n_fft = int(sampling_rate / 12.5)
+        hop_size = int(sampling_rate / 50)
         pad = (n_fft - hop_size) // 2
-        return ((lengths + 2 * pad - n_fft) // hop_size) + 1
+        return torch.div(sample_lengths + 2 * pad - n_fft, hop_size, rounding_mode="floor") + 1
 
     def _compute_mels(self, wav: torch.Tensor, lengths: torch.Tensor, sampling_rate: int, max_len=None):
         n_fft = int(sampling_rate / 12.5)
@@ -88,7 +102,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
             fmax=8000,
             center=False,
         )
-        mel_lengths = self._mel_lengths(lengths, n_fft=n_fft, hop_size=hop_size)
+        mel_lengths = self.mel_output_lengths(lengths, sampling_rate)
         if max_len is not None and max_len > mel.shape[-1]:
             mel = F.pad(mel, (0, max_len - mel.shape[-1]))
         return mel, mel_lengths
@@ -118,7 +132,16 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
             target_wav, wav_lens, sampling_rate.item(), max_len=features.shape[1]
         )
 
-        features, target_mel, lengths = trim_to_min(features.transpose(1, 2), target_mel, lengths, target_mel_lengths)
+        # W2V-BERT and Matcha both produce 50 Hz features, but their exact
+        # boundary conventions differ: W2V-BERT does not pad waveform edges,
+        # while Matcha reflect-pads them. A one-frame difference is therefore
+        # legitimate and is reconciled explicitly at this training boundary.
+        features, target_mel, lengths = trim_to_min(
+            features.transpose(1, 2),
+            target_mel,
+            lengths,
+            target_mel_lengths,
+        )
 
         if self.input_projection is not None:
             mask = make_padding_mask(lengths, max_length=features.shape[-1])

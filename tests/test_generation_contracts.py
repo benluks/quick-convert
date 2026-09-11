@@ -54,6 +54,24 @@ def test_generated_audio_rejects_lengths_beyond_padded_tensor():
         )
 
 
+def test_cosyvoice_reports_exact_matcha_mel_lengths():
+    sample_lengths = torch.tensor([320, 639, 640, 16_000])
+
+    mel_lengths = CosyVoiceSpectrogramGenerator.mel_output_lengths(sample_lengths, sampling_rate=16_000)
+
+    assert mel_lengths.tolist() == [1, 1, 2, 50]
+
+    odd_padding_lengths = CosyVoiceSpectrogramGenerator.mel_output_lengths(
+        torch.tensor([441, 442]), sampling_rate=22_050
+    )
+    assert odd_padding_lengths.tolist() == [0, 1]
+
+
+def test_cosyvoice_mel_lengths_reject_invalid_sample_rate():
+    with pytest.raises(ValueError, match="sampling_rate must be positive"):
+        CosyVoiceSpectrogramGenerator.mel_output_lengths(torch.tensor([320]), sampling_rate=0)
+
+
 def test_cosyvoice_generation_preserves_input_lengths_and_reports_outputs():
     decoder = make_decoder()
     input_lengths = torch.tensor([5, 3])
