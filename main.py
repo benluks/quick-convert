@@ -50,11 +50,7 @@ def _resolve_config(
     config_file = run_dir / f"{config_stem}.yaml"
 
     if not config_file.is_file():
-        choices = (
-            _available_run_configs(run_dir)
-            if universal
-            else _available_aliases(config_prefix, run_dir)
-        )
+        choices = _available_run_configs(run_dir) if universal else _available_aliases(config_prefix, run_dir)
         raise SystemExit(
             f"No run configuration found at {config_file}.\n"
             f"Available configurations: {', '.join(choices) or '(none found)'}"

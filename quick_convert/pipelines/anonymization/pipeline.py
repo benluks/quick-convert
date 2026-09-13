@@ -57,9 +57,7 @@ class AnonymizationPipeline(Generic[T_Target]):
         ):
             generated = anonymize_batch(batch)
             if len(generated) != len(batch):
-                raise ValueError(
-                    f"Anonymizer returned {len(generated)} outputs for a batch of size {len(batch)}."
-                )
+                raise ValueError(f"Anonymizer returned {len(generated)} outputs for a batch of size {len(batch)}.")
 
             for index, sample in enumerate(batch):
                 waveform = generated.waveform(index)
