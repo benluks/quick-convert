@@ -65,7 +65,18 @@ def test_build_manifest_resource_providers_resolve_and_instantiate():
 
     providers = [instantiate(provider) for provider in config.dataset.resource_providers]
 
+    assert config.dataset._target_ == "quick_convert.data.BaseDataset"
     assert [provider.name for provider in providers] == ["transcript", "spkid"]
+
+
+def test_librispeech_can_be_composed_into_a_named_dataset_slot():
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
+        config = compose(
+            config_name="run/train_vq_asr_librispeech",
+            return_hydra_config=True,
+        )
+
+    assert config.source_dataset._target_ == "quick_convert.data.BaseDataset"
 
 
 def test_clac_root_comes_from_environment(monkeypatch, tmp_path):

@@ -1,4 +1,3 @@
-# @package _global_
 # configs/dataset/librispeech.yaml
 
 _target_: quick_convert.data.BaseDataset
