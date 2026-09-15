@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from os import PathLike
 from pathlib import Path
 
 import torch
+import torchaudio
 from torch import nn
 
 from quick_convert.components.decoders import CosyVoiceGenerationOutput, CosyVoiceSpectrogramGenerator
@@ -100,10 +102,10 @@ class SSLReconstructionSystem(OnlineResourceMixin, nn.Module):
     ) -> SSLReconstructionResult:
         """Generate from plain content and speaker tensors."""
         features, output_lengths, encoder_output = self.encode_features(values, lengths)
-        generation = self.decoder(
-            feature=features,
-            length=output_lengths,
-            speaker_embedding=speaker_embedding,
+        generation = self.decode_features(
+            features,
+            output_lengths,
+            speaker_embedding,
             run_vocoder=run_vocoder,
         )
         return SSLReconstructionResult(
@@ -112,6 +114,35 @@ class SSLReconstructionSystem(OnlineResourceMixin, nn.Module):
             lengths=output_lengths,
             speaker_embedding=speaker_embedding,
             encoder_output=encoder_output,
+        )
+
+    def decode_features(
+        self,
+        features: torch.Tensor,
+        lengths: torch.Tensor,
+        speaker_embedding: torch.Tensor,
+        *,
+        run_vocoder: bool = True,
+    ) -> CosyVoiceGenerationOutput:
+        """Generate from already transformed or encoded content features."""
+        return self.decoder(
+            feature=features,
+            length=lengths,
+            speaker_embedding=speaker_embedding,
+            run_vocoder=run_vocoder,
+        )
+
+    @staticmethod
+    def save_generation(generation: CosyVoiceGenerationOutput, path: PathLike) -> None:
+        """Save a single generated waveform."""
+        if generation.audio is None:
+            raise ValueError("Saving generated audio requires run_vocoder=True.")
+        if len(generation.audio) != 1:
+            raise ValueError("Saving generated audio only supports a single waveform.")
+        torchaudio.save(
+            Path(path),
+            generation.audio.waveform(0).unsqueeze(0).to("cpu"),
+            generation.audio.sample_rate,
         )
 
     def forward(self, batch: AudioBatch, *, run_vocoder: bool = True) -> SSLReconstructionResult:
@@ -133,6 +164,7 @@ class SSLReconstructionSystem(OnlineResourceMixin, nn.Module):
         *,
         sample_rate: int | None = None,
         run_vocoder: bool = True,
+        to_file: PathLike | None = None,
     ) -> SSLReconstructionResult:
         """Reconstruct a single audio file or in-memory waveform tensor."""
         if "content" not in self.online_encoders or "speaker" not in self.online_encoders:
@@ -163,4 +195,7 @@ class SSLReconstructionSystem(OnlineResourceMixin, nn.Module):
             sample_rates=torch.tensor([content_sample_rate], device=device),
         )
         self.eval()
-        return self(batch, run_vocoder=run_vocoder)
+        result = self(batch, run_vocoder=run_vocoder)
+        if to_file is not None:
+            self.save_generation(result.generation, to_file)
+        return result

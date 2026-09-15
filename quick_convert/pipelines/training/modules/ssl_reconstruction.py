@@ -2,19 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from os import PathLike
-from pathlib import Path
 
 import torch
-import torchaudio
 from torch import nn
 
 from quick_convert.components.decoders import CosyVoiceDecoderOutput, CosyVoiceSpectrogramGenerator
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
-from quick_convert.components.mixins.resource import OnlineResourceMixin
-from quick_convert.components.ssl.base import ContentEncoder
+from quick_convert.components.mixins.resource import ResolvedResource
 from quick_convert.data.types import AudioBatch
-from quick_convert.utils.audio import load_audio
-from quick_convert.utils.masking import make_padding_mask
+from quick_convert.systems.reconstruction import SSLReconstructionSystem
 
 from ..logging.media_logger import ReconstructedAudio
 from ..modules.base import BaseTrainingModule
@@ -31,28 +27,74 @@ class SSLReconstructionOutput:
     encoder_output: RVQOutput | None = None
 
 
-class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
+class SSLReconstructionTrainingModule(BaseTrainingModule):
     def __init__(
         self,
-        decoder: CosyVoiceSpectrogramGenerator,
-        feature_transform: nn.Module | None,
         optimization: Optimization,
+        system: SSLReconstructionSystem | None = None,
+        decoder: CosyVoiceSpectrogramGenerator | None = None,
+        feature_transform: nn.Module | None = None,
         *,
-        online_encoders: dict[str, ContentEncoder] | None = None,
+        online_encoders: dict[str, nn.Module] | None = None,
         encoder: BaseResidualVectorQuantizer | None = None,
     ):
         super().__init__(optimization=optimization)
 
-        self.encoder = encoder
-        self.decoder = decoder
-        self.feature_transform = feature_transform or nn.Identity()
-        self.online_encoders = nn.ModuleDict(online_encoders or {})
+        legacy_components = (decoder, feature_transform, online_encoders, encoder)
+        if system is not None and any(component is not None for component in legacy_components):
+            raise ValueError("Pass either `system` or the legacy SSL reconstruction components, not both.")
+        if system is None:
+            if decoder is None:
+                raise ValueError("SSLReconstructionTrainingModule requires `system` or `decoder`.")
+            system = SSLReconstructionSystem(
+                decoder=decoder,
+                feature_transform=feature_transform,
+                online_encoders=online_encoders,
+                encoder=encoder,
+            )
+        self.system = system
 
-        self.online_encoders.requires_grad_(False)
-        self.online_encoders.eval()
-        # for encoder in self.online_encoders.values():
-        #     encoder.requires_grad_(False)
-        #     encoder.eval()
+        self.save_hyperparameters(
+            ignore=[
+                "system",
+                "decoder",
+                "feature_transform",
+                "online_encoders",
+                "encoder",
+            ]
+        )
+
+    @property
+    def encoder(self) -> BaseResidualVectorQuantizer | None:
+        return self.system.encoder
+
+    @property
+    def decoder(self) -> CosyVoiceSpectrogramGenerator:
+        return self.system.decoder
+
+    @property
+    def feature_transform(self) -> nn.Module:
+        return self.system.feature_transform
+
+    @property
+    def online_encoders(self) -> nn.ModuleDict:
+        return self.system.online_encoders
+
+    def _prepare_checkpoint_state_dict(
+        self,
+        state_dict: dict[str, torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
+        state_dict = super()._prepare_checkpoint_state_dict(state_dict)
+        legacy_prefixes = (
+            "decoder.",
+            "feature_transform.",
+            "online_encoders.",
+            "encoder.",
+        )
+        for key in list(state_dict):
+            if key.startswith(legacy_prefixes):
+                state_dict.setdefault(f"system.{key}", state_dict.pop(key))
+        return state_dict
 
     @property
     def grad_norm_modules(self) -> dict[str, nn.Module]:
@@ -61,51 +103,18 @@ class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
             modules["encoder"] = self.encoder
         return modules
 
-    def _encode_content(self, content) -> tuple[torch.Tensor, torch.Tensor, RVQOutput | None]:
+    def _encode_content(self, content: ResolvedResource) -> tuple[torch.Tensor, torch.Tensor, RVQOutput | None]:
         if content.lengths is None:
             raise ValueError("Content features require valid lengths for SSL reconstruction.")
-
-        features = self.feature_transform(content.values)
-        lengths = content.lengths
-
-        if hasattr(self.feature_transform, "output_lengths"):
-            lengths = self.feature_transform.output_lengths(lengths)
-        elif not isinstance(self.feature_transform, nn.Identity):
-            raise TypeError("SSL reconstruction feature_transform modules must expose output_lengths(input_lengths).")
-
-        if lengths.shape != (features.shape[0],):
-            raise ValueError(
-                f"Expected one content length per batch item, got {tuple(lengths.shape)} "
-                f"for batch size {features.shape[0]}."
-            )
-        if torch.any(lengths > features.shape[1]):
-            raise ValueError(
-                "A transformed content length exceeds the padded feature time dimension: "
-                f"maximum is {features.shape[1]}, got {int(lengths.max())}."
-            )
-
-        if self.encoder is None:
-            return features, lengths, None
-
-        padding_mask = make_padding_mask(lengths, max_length=features.shape[1])
-        encoder_output = self.encoder(features.transpose(1, 2), padding_mask)
-        encoded_lengths = self.encoder.output_lengths(lengths)
-
-        if torch.any(encoded_lengths > encoder_output.z_q.shape[2]):
-            raise RuntimeError(
-                "An encoder output length exceeds the quantized time dimension: "
-                f"maximum is {encoder_output.z_q.shape[2]}, got {int(encoded_lengths.max())}."
-            )
-
-        return encoder_output.z_q.transpose(1, 2), encoded_lengths, encoder_output
+        return self.system.encode_features(content.values, content.lengths)
 
     def _shared_step(
         self,
         batch: AudioBatch,
         stage: str,
     ) -> SSLReconstructionOutput:
-        content = self.get_resource(batch, "content")
-        speaker_embedding = self.get_resource(batch, "speaker").values
+        content = self.system.get_resource(batch, "content")
+        speaker_embedding = self.system.get_resource(batch, "speaker").values
 
         features, lengths, encoder_output = self._encode_content(content)
 
@@ -153,10 +162,10 @@ class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
         if batch_idx != 0:
             return
 
-        generation = self.decoder(
-            feature=output.features,
-            length=output.lengths,
-            speaker_embedding=output.speaker_embedding,
+        generation = self.system.decode_features(
+            output.features,
+            output.lengths,
+            output.speaker_embedding,
             run_vocoder=True,
         )
         if generation.audio is None:
@@ -185,49 +194,20 @@ class SSLReconstructionTrainingModule(OnlineResourceMixin, BaseTrainingModule):
     @torch.inference_mode()
     def inference(self, batch: AudioBatch, run_vocoder: bool = True, to_file: PathLike | None = None):
         self.eval()
-
-        content = self.get_resource(batch, "content")
-        speaker_embedding = self.get_resource(batch, "speaker")
-
-        features, lengths, _ = self._encode_content(content)
-
-        generation = self.decoder(
-            feature=features,
-            length=lengths,
-            speaker_embedding=speaker_embedding.values,
-            run_vocoder=run_vocoder,
-        )
-
+        result = self.system(batch, run_vocoder=run_vocoder)
         if to_file is not None:
-            if generation.audio is None:
-                raise ValueError("to_file requires run_vocoder=True.")
-            if len(generation.audio) != 1:
-                raise ValueError("to_file only supports a single generated waveform.")
-            torchaudio.save(
-                Path(to_file),
-                generation.audio.waveform(0).unsqueeze(0).to("cpu"),
-                generation.audio.sample_rate,
-            )
-
-        return generation
+            self.system.save_generation(result.generation, to_file)
+        return result.generation
 
     @torch.inference_mode()
-    def infer_file(self, path: PathLike, *args, **kwargs):
-        waveform, sample_rate = load_audio(path)
-
-        waveform = waveform.to(self.device)
-
-        batch = AudioBatch(
-            utt_ids=[Path(path).stem],
-            paths=[Path(path)],
-            splits=[""],
-            waveforms=waveform.reshape(1, -1),
-            lengths=torch.tensor(
-                [waveform.shape[-1]],
-                device=self.device,
-            ),
-            sample_rates=torch.tensor([sample_rate], device=self.device),
-            resources={},
-        )
-
-        return self.inference(batch, *args, **kwargs)
+    def infer_file(
+        self,
+        path: PathLike,
+        run_vocoder: bool = True,
+        to_file: PathLike | None = None,
+    ):
+        return self.system.reconstruct(
+            path,
+            run_vocoder=run_vocoder,
+            to_file=to_file,
+        ).generation
