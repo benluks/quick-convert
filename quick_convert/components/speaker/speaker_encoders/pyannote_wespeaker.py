@@ -43,9 +43,7 @@ class PyannoteWeSpeakerEncoder(SpeakerEncoder):
             raise ValueError("Speaker encoding requires loaded audio.")
         values = [
             self.encode(waveform[: int(length)], int(sample_rate)).values
-            for waveform, length, sample_rate in zip(
-                batch.waveforms, batch.lengths, batch.sample_rates, strict=True
-            )
+            for waveform, length, sample_rate in zip(batch.waveforms, batch.lengths, batch.sample_rates, strict=True)
         ]
         stacked = self._batch_embeddings(torch.stack(values), len(batch))
         return SpeakerEmbedding(stacked, int(stacked.shape[-1]), "pyannote.audio", self.model_name)

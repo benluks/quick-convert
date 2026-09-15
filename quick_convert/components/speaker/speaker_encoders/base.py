@@ -22,14 +22,9 @@ class SpeakerEmbedding:
         if not isinstance(self.values, torch.Tensor):
             raise TypeError("Speaker embedding values must be a torch.Tensor.")
         if self.values.ndim not in {1, 2}:
-            raise ValueError(
-                "Speaker embeddings must have shape [D] or [B, D], "
-                f"got {tuple(self.values.shape)}."
-            )
+            raise ValueError(f"Speaker embeddings must have shape [D] or [B, D], got {tuple(self.values.shape)}.")
         if self.values.shape[-1] != self.embedding_dim:
-            raise ValueError(
-                f"Expected embedding dimension {self.embedding_dim}, got {self.values.shape[-1]}."
-            )
+            raise ValueError(f"Expected embedding dimension {self.embedding_dim}, got {self.values.shape[-1]}.")
 
 
 class SpeakerEncoder(nn.Module, ABC):
@@ -74,9 +69,7 @@ class SpeakerEncoder(nn.Module, ABC):
         if values.ndim == 3 and values.shape[1] == 1:
             values = values.squeeze(1)
         if values.ndim != 2 or values.shape[0] != batch_size:
-            raise ValueError(
-                f"Expected speaker embeddings with shape [{batch_size}, D], got {tuple(values.shape)}."
-            )
+            raise ValueError(f"Expected speaker embeddings with shape [{batch_size}, D], got {tuple(values.shape)}.")
         return values
 
     @abstractmethod
