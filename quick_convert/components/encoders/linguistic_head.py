@@ -42,9 +42,9 @@ class LinguisticCTCHead(SupervisedHead):
         lengths: torch.Tensor,
         padding_mask: torch.Tensor,
     ) -> HeadOutput:
-        del lengths, padding_mask
+        del padding_mask
 
-        logits = self.forward(features)
+        logits = self.forward(features, lengths=lengths)
 
         return HeadOutput(
             predictions=logits,
