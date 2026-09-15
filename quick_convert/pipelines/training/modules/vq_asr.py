@@ -43,9 +43,10 @@ class VQASRTrainingModule(
 
     def __init__(
         self,
-        quantizer: BaseResidualVectorQuantizer,
-        ctc_head: LinguisticCTCHead,
         optimization: Optimization,
+        system: VQASRSystem | None = None,
+        quantizer: BaseResidualVectorQuantizer | None = None,
+        ctc_head: LinguisticCTCHead | None = None,
         tokenizer_model_path: PathLike | None = None,
         layer_fusion: LayerWeightedSum | None = None,
         post_quantization_network: nn.Module | None = None,
@@ -61,14 +62,27 @@ class VQASRTrainingModule(
         )
 
         self.ctc_loss_weight = ctc_loss_weight
-        self.system = VQASRSystem(
-            quantizer=quantizer,
-            ctc_head=ctc_head,
-            layer_fusion=layer_fusion,
-            post_quantization_network=post_quantization_network,
-            online_encoders=online_encoders,
-            use_latents=use_latents,
+        legacy_components = (
+            quantizer,
+            ctc_head,
+            layer_fusion,
+            post_quantization_network,
+            online_encoders,
         )
+        if system is not None and any(component is not None for component in legacy_components):
+            raise ValueError("Pass either `system` or the legacy VQ-ASR components, not both.")
+        if system is None:
+            if quantizer is None or ctc_head is None:
+                raise ValueError("VQASRTrainingModule requires `system`, or both `quantizer` and `ctc_head`.")
+            system = VQASRSystem(
+                quantizer=quantizer,
+                ctc_head=ctc_head,
+                layer_fusion=layer_fusion,
+                post_quantization_network=post_quantization_network,
+                online_encoders=online_encoders,
+                use_latents=use_latents,
+            )
+        self.system = system
 
         self.save_hyperparameters(
             ignore=[
@@ -76,6 +90,7 @@ class VQASRTrainingModule(
                 "ctc_head",
                 "layer_fusion",
                 "post_quantization_network",
+                "system",
             ]
         )
 

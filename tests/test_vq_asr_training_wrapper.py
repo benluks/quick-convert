@@ -8,6 +8,7 @@ from quick_convert.components.layers.heads import HeadOutput
 from quick_convert.components.layers.rvq import RVQLosses, RVQOutput
 from quick_convert.components.mixins.resource import ResolvedResource
 from quick_convert.data import AudioBatch
+from quick_convert.systems.asr import VQASRSystem
 
 
 pytest.importorskip("lightning")
@@ -93,6 +94,28 @@ def make_module(**kwargs):
         optimization=Optimization(lr_scheduler=None),
         **kwargs,
     )
+
+
+def test_training_module_accepts_an_explicit_system():
+    system = VQASRSystem(quantizer=FakeQuantizer(), ctc_head=FakeCTCHead())
+
+    module = VQASRTrainingModule(
+        system=system,
+        optimization=Optimization(lr_scheduler=None),
+    )
+
+    assert module.system is system
+
+
+def test_training_module_rejects_mixed_system_and_component_construction():
+    system = VQASRSystem(quantizer=FakeQuantizer(), ctc_head=FakeCTCHead())
+
+    with pytest.raises(ValueError, match="either `system` or"):
+        VQASRTrainingModule(
+            system=system,
+            quantizer=FakeQuantizer(),
+            optimization=Optimization(lr_scheduler=None),
+        )
 
 
 def test_training_step_reuses_the_system_forward_pass(monkeypatch):

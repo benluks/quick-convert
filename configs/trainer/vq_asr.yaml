@@ -10,9 +10,6 @@ defaults:
 
 module:
   _target_: quick_convert.pipelines.training.modules.vq_asr.VQASRTrainingModule
-  online_encoders: ${architecture.online_encoders}
-  quantizer: ${architecture.quantizer}
-  ctc_head: ${architecture.ctc_head}
-  layer_fusion: ${architecture.layer_fusion}
+  system: ${architecture.system}
   tokenizer_model_path: ${architecture.tokenizer_model_path}
   ctc_loss_weight: 1.

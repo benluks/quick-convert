@@ -81,6 +81,20 @@ def test_librispeech_can_be_composed_into_a_named_dataset_slot():
     assert config.source_dataset._target_ == "quick_convert.data.BaseDataset"
 
 
+def test_vq_asr_architecture_exposes_an_inference_ready_system():
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
+        config = compose(
+            config_name="run/train_vq_asr_librispeech",
+            return_hydra_config=True,
+        )
+
+    system = config.architecture.system
+    assert system._target_ == "quick_convert.systems.asr.VQASRSystem"
+    assert config.trainer.module.system == system
+    assert "quantizer" not in config.trainer.module
+    assert "ctc_head" not in config.trainer.module
+
+
 def test_w2vbert_precompute_pipeline_instantiates_without_downloading_model(
     monkeypatch,
     tmp_path,
