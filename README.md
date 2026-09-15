@@ -20,7 +20,8 @@ Many components rely on optional dependencies. These are grouped into extras so 
 | Extra                  | Description                          |
 | ---------------------- | ------------------------------------ |
 | `manifests`            | Data-frame utilities for splitting manifests |
-| `w2vbert`              | W2V-BERT feature extraction          |
+| `transformers`         | Hugging Face-backed models, including W2V-BERT and WavLM |
+| `w2vbert`              | Compatibility alias for `transformers` |
 | `whisper`              | Whisper ASR model                    |
 | `asr`                  | SentencePiece tokenization and JIWER evaluation |
 | `lightning`            | Lightning training and associated logging tools |
@@ -42,7 +43,7 @@ Normally, when you import a module, you'll get a `ModuleNotFoundError` if the re
 For example:
 
 ```bash
-uv sync --extra w2vbert --extra asr --extra lightning
+uv sync --extra transformers --extra asr --extra lightning
 ```
 
 The current reference workflows require these extras:
@@ -50,9 +51,9 @@ The current reference workflows require these extras:
 | Workflow | Extras |
 | -------- | ------ |
 | Build a LibriSpeech manifest | none |
-| Precompute W2V-BERT content | `w2vbert` |
-| Train VQ-ASR with W2V-BERT | `w2vbert`, `asr`, `lightning` |
-| Train SSL reconstruction with CosyVoice | `w2vbert`, `cosyvoice`, `lightning` |
+| Precompute W2V-BERT content | `transformers` |
+| Train VQ-ASR with W2V-BERT | `transformers`, `asr`, `lightning` |
+| Train SSL reconstruction with CosyVoice | `transformers`, `cosyvoice`, `lightning` |
 
 > **Note**
 >
