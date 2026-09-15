@@ -31,3 +31,14 @@ def test_lightning_compatibility_extra_matches_training_profile():
     extras = pyproject["project"]["optional-dependencies"]
 
     assert set(extras["lightning"]) == set(extras["training"])
+
+
+def test_cosyvoice_extra_tracks_supported_runtime_surface():
+    with PYPROJECT_PATH.open("rb") as file:
+        pyproject = tomllib.load(file)
+
+    requirements = pyproject["project"]["optional-dependencies"]["cosyvoice"]
+    package_names = {requirement.split(">=")[0] for requirement in requirements}
+
+    assert {"huggingface-hub", "scipy"} <= package_names
+    assert {"gdown", "wget", "transformers", "lightning"}.isdisjoint(package_names)

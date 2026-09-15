@@ -20,7 +20,7 @@ import torch
 from cosyvoice.transformer.convolution import ConvolutionModule
 from cosyvoice.transformer.encoder_layer import ConformerEncoderLayer
 from cosyvoice.transformer.positionwise_feed_forward import PositionwiseFeedForward
-from cosyvoice.utils.class_utils import (
+from cosyvoice.utils.transformer_classes import (
     COSYVOICE_ACTIVATION_CLASSES,
     COSYVOICE_ATTENTION_CLASSES,
     COSYVOICE_EMB_CLASSES,

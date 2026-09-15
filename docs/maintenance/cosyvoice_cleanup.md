@@ -2,7 +2,7 @@
 
 ## Status
 
-Deferred maintenance item. The current CosyVoice-based SSL reconstruction path is the supported replacement for the removed Chatterbox backend. This document records known integration and library-API issues so they can be addressed deliberately later.
+Active maintenance item. The current CosyVoice-based SSL reconstruction path is the supported replacement for the removed Chatterbox backend. This document records known integration and library-API issues so they can be addressed deliberately.
 
 Reference architecture:
 
@@ -129,11 +129,15 @@ Current behavior:
 
 The supported upsample encoder imports these low-level registries and therefore inherits the unrelated high-level import graph.
 
-- [ ] Identify the minimal registries required by the supported flow and upsample encoder.
-- [ ] Split low-level registries from high-level model discovery, or make the first-party integration import the required low-level classes directly.
+- [x] Identify the minimal registries required by the supported flow and upsample encoder.
+- [x] Split low-level registries from high-level model discovery, or make the first-party integration import the required low-level classes directly.
 - [ ] Ensure importing the supported flow does not import CosyVoice CLI, dataset, tokenizer, LLM, or vLLM modules.
-- [ ] Check whether `transformers` remains a real dependency of the supported path after isolation.
+- [x] Check whether `transformers` remains a real dependency of the supported path after isolation.
 - [ ] Add an import test in an environment containing only the declared CosyVoice dependencies.
+
+The low-level transformer registries now live in
+`cosyvoice.utils.transformer_classes`. The supported import surface was checked
+in an isolated `cosyvoice` environment without Transformers or Lightning.
 
 Acceptance criteria:
 
@@ -193,12 +197,18 @@ Acceptance criteria:
 
 ### 9. Verify dependency extras and import surfaces
 
-- [ ] Audit the `cosyvoice` optional dependency group against actual imports.
-- [ ] Avoid relying on packages installed accidentally through another extra.
+- [x] Audit the `cosyvoice` optional dependency group against actual imports.
+- [x] Avoid relying on packages installed accidentally through another extra.
 - [ ] Test importing base interfaces without the CosyVoice extra.
 - [ ] Test importing CosyVoice adapters with the CosyVoice extra.
 - [ ] Avoid eager imports that make unrelated optional backends mandatory.
 - [ ] Document checkpoint downloads and cache behavior.
+
+The supported surface directly imports `huggingface-hub` and SciPy, so both are
+declared explicitly. `gdown` and `wget` were removed from the extra because they
+only serve an unused vendored Matcha checkpoint-downloader path. Matcha utility
+re-exports are lazy so importing the supported mel helper does not require the
+training or CLI dependency stack.
 
 Acceptance criteria:
 
