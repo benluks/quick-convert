@@ -1,38 +1,54 @@
-# quick_convert/components/speaker_encoders/pyannote_wespeaker.py
 from __future__ import annotations
-
-from pathlib import Path
 
 import torch
 
+from ....data import AudioBatch
 from .base import SpeakerEmbedding, SpeakerEncoder
 
 
 class PyannoteWeSpeakerEncoder(SpeakerEncoder):
+    FEATURE_DIM = 256
+
     def __init__(
         self,
         model_name: str = "pyannote/wespeaker-voxceleb-resnet34-LM",
         window: str = "whole",
+        device: str | torch.device | None = None,
     ) -> None:
+        if window != "whole":
+            raise ValueError("SpeakerEncoder produces utterance embeddings; pyannote window must be 'whole'.")
+        super().__init__(device=device)
 
         from pyannote.audio import Inference, Model
 
         self.model_name = model_name
         self.model = Model.from_pretrained(model_name)
-        self.inference = Inference(self.model, window=window)
+        self.sample_rate = int(self.model.audio.sample_rate)
+        self.FEATURE_DIM = int(getattr(self.model, "dimension", self.FEATURE_DIM))
+        self.inference = Inference(self.model, window=window, device=self.device)
 
-    def encode_file(self, path: str | Path) -> SpeakerEmbedding:
-        embedding = self.inference(str(path))  # numpy array, typically shape (1, D)
+    @torch.inference_mode()
+    def encode(self, wav: torch.Tensor, sr: int) -> SpeakerEmbedding:
+        if wav.ndim == 1:
+            wav = wav.unsqueeze(0)
+        if wav.ndim != 2 or wav.shape[0] != 1:
+            raise ValueError(f"Expected waveform shape [T] or [1, T], got {tuple(wav.shape)}")
+        values = self.inference({"waveform": wav.cpu(), "sample_rate": sr})
+        values = self._single_embedding(torch.as_tensor(values))
+        return SpeakerEmbedding(values, int(values.shape[-1]), "pyannote.audio", self.model_name)
 
-        if embedding.ndim == 2 and embedding.shape[0] == 1:
-            embedding = embedding[0]
+    @torch.inference_mode()
+    def encode_batch(self, batch: AudioBatch) -> SpeakerEmbedding:
+        if batch.waveforms is None or batch.lengths is None or batch.sample_rates is None:
+            raise ValueError("Speaker encoding requires loaded audio.")
+        values = [
+            self.encode(waveform[: int(length)], int(sample_rate)).values
+            for waveform, length, sample_rate in zip(
+                batch.waveforms, batch.lengths, batch.sample_rates, strict=True
+            )
+        ]
+        stacked = self._batch_embeddings(torch.stack(values), len(batch))
+        return SpeakerEmbedding(stacked, int(stacked.shape[-1]), "pyannote.audio", self.model_name)
 
-        return SpeakerEmbedding(
-            values=torch.from_numpy(embedding),
-            backend="pyannote.audio",
-            model_name=self.model_name,
-            dim=int(embedding.shape[-1]),
-        )
-
-    def encode(self):
-        raise NotImplementedError
+    def forward(self, batch: AudioBatch) -> SpeakerEmbedding:
+        return self.encode_batch(batch)

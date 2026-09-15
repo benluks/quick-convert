@@ -12,6 +12,7 @@ from .base import SpeakerEmbedding, SpeakerEncoder
 
 class CosyVoiceCAMPPlusSpeakerEncoder(SpeakerEncoder):
     FEATURE_DIM = 192
+    sample_rate = 16_000
 
     def __init__(
         self,
@@ -65,10 +66,10 @@ class CosyVoiceCAMPPlusSpeakerEncoder(SpeakerEncoder):
         wav: torch.Tensor,
         sr: int,
     ) -> SpeakerEmbedding:
-        if sr != 16_000:
+        if sr != self.sample_rate:
             raise ValueError(f"CosyVoice CAMPPlus expects 16 kHz audio, got {sr} Hz")
 
-        values = self._encode_waveform(wav)
+        values = self._single_embedding(self._encode_waveform(wav))
 
         return SpeakerEmbedding(
             values=values,
@@ -82,7 +83,9 @@ class CosyVoiceCAMPPlusSpeakerEncoder(SpeakerEncoder):
         self,
         samples: AudioBatch,
     ) -> SpeakerEmbedding:
-        if any(sr != 16_000 for sr in samples.sample_rates):
+        if samples.waveforms is None or samples.lengths is None or samples.sample_rates is None:
+            raise ValueError("Speaker encoding requires loaded audio.")
+        if any(sr != self.sample_rate for sr in samples.sample_rates):
             raise ValueError("CosyVoice CAMPPlus expects 16 kHz audio")
 
         embeddings = []
@@ -97,9 +100,12 @@ class CosyVoiceCAMPPlusSpeakerEncoder(SpeakerEncoder):
             embedding = self._encode_waveform(waveform)
             embeddings.append(embedding)
 
-        values = torch.stack(
-            embeddings,
-            dim=0,
+        values = self._batch_embeddings(
+            torch.stack(
+                embeddings,
+                dim=0,
+            ),
+            len(samples),
         )
 
         return SpeakerEmbedding(
