@@ -1,4 +1,6 @@
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from hydra import compose, initialize_config_dir
@@ -77,6 +79,61 @@ def test_librispeech_can_be_composed_into_a_named_dataset_slot():
         )
 
     assert config.source_dataset._target_ == "quick_convert.data.BaseDataset"
+
+
+def test_w2vbert_precompute_pipeline_instantiates_without_downloading_model(
+    monkeypatch,
+    tmp_path,
+):
+    class FakeProcessor:
+        @classmethod
+        def from_pretrained(cls, *args, **kwargs):
+            return cls()
+
+    class FakeModel:
+        @classmethod
+        def from_pretrained(cls, *args, **kwargs):
+            return cls()
+
+        def to(self, device):
+            return self
+
+        def eval(self):
+            return self
+
+    fake_transformers = SimpleNamespace(
+        AutoFeatureExtractor=FakeProcessor,
+        AutoModel=FakeModel,
+    )
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+
+    libri_root = tmp_path / "librispeech" / "Librispeech"
+    for split in (
+        "train-clean-100",
+        "train-clean-360",
+        "train-other-500",
+        "dev-clean",
+        "dev-other",
+        "test-clean",
+        "test-other",
+    ):
+        (libri_root / split).mkdir(parents=True)
+
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
+        config = compose(
+            config_name="run/precompute_content_w2vbert_librispeech",
+            overrides=[
+                f"data_root={tmp_path}",
+                f"out_root={tmp_path / 'out'}",
+                f"pipeline.out_dir={tmp_path / 'features'}",
+                "device=cpu",
+            ],
+        )
+
+    pipeline = instantiate(config.pipeline)
+
+    assert pipeline.extractor.encoder.model_name == "facebook/w2v-bert-2.0"
+    assert pipeline.dataset.target_sr == 16_000
 
 
 def test_clac_root_comes_from_environment(monkeypatch, tmp_path):
