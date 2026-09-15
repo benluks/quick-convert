@@ -6,6 +6,9 @@ perform broad refactors without reviewing the current behavior first.
 
 ## Training systems and inference-ready models
 
+The current implementation and proposed boundary are mapped in
+[`training_architecture.md`](training_architecture.md).
+
 The training path currently makes it difficult to load a trained model for
 inference without also reconstructing Lightning-specific training state. A
 future training-focused pass should:
