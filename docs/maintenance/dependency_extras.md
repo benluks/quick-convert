@@ -18,8 +18,8 @@ still need architectural review.
 | `whisper` | integration | OpenAI Whisper ASR; retained but not part of the current reference training workflows. |
 | `emotion2vec` | integration | FunASR-backed emotion2vec features. The package boundary is verified, but model download and inference remain optional integration tests. |
 | `dac` | experimental | DAC content encoding. This is distinct from the deprecated DAC-style RVQ implementation. |
-| `espnet-wavlm-joint` | experimental | ESPnet WavLM speaker embeddings. |
-| `pyannote` | experimental | Pyannote WeSpeaker embeddings; its first-party contract remains incomplete. |
+| `espnet-wavlm-joint` | integration | ESPnet WavLM speaker embeddings; file, tensor, batch, and configuration contracts are verified, while checkpoint-backed inference remains optional. |
+| `pyannote` | integration | Pyannote WeSpeaker embeddings; file, tensor, batch, and configuration contracts are verified, while checkpoint-backed inference remains optional. |
 | `mpm` | integration | Masked Prosody Model prosody features; adapter and local model execution are verified, while pretrained checkpoint loading remains an optional integration test. |
 | `web` | legacy | Flask interface; currently unverified. |
 
@@ -46,7 +46,7 @@ DAC and MPM can resolve together and therefore do not have a declared conflict.
 - [ ] Decide whether the DAC content encoder is still worth retaining; do not
   conflate this decision with retirement of the DAC-style RVQ layer.
 - [x] Repair the Masked Prosody Model adapter and add a composable precompute configuration.
-- [ ] Bring the Pyannote and ESPnet speaker encoders under the current
+- [x] Bring the Pyannote and ESPnet speaker encoders under the current
   file/tensor/batch input and output contracts before calling them supported.
 - [ ] Verify the Whisper and emotion2vec model-backed inference paths in optional
   integration jobs.
