@@ -51,3 +51,16 @@ DAC and MPM can resolve together and therefore do not have a declared conflict.
 - [ ] Verify the Whisper and emotion2vec model-backed inference paths in optional
   integration jobs.
 - [ ] Review or retire the legacy web interface.
+
+### MPM pretrained checkpoint verification
+
+The public `cdminix/masked_prosody_model` repository contains the two artifacts
+expected by MPM 0.3.0: `model_config.yml` and `pytorch_model.bin`. The isolated
+profile reaches that repository through `MaskedProsodyModel.from_pretrained()`.
+
+The pretrained forward pass could not be completed in the cleanup workspace
+because direct Hugging Face access is unavailable there. This is an environment
+limitation, not evidence of a package or adapter failure. The same adapter was
+executed end to end with the installed MPM preprocessing code and a locally
+constructed MPM model; checkpoint-backed inference should still be verified in
+a normally networked environment before promoting the integration to supported.
