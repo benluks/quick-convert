@@ -68,6 +68,19 @@ class LinguisticCTCHead(SupervisedHead):
             raise ValueError("Linguistic CTC targets require target lengths.")
 
         logits = self.forward(features, lengths=lengths)
+        return self.compute_loss_from_logits(logits, targets=targets, lengths=lengths)
+
+    def compute_loss_from_logits(
+        self,
+        logits: torch.Tensor,
+        *,
+        targets: HeadTarget,
+        lengths: torch.Tensor,
+    ) -> HeadOutput:
+        """Compute the CTC objective for logits produced by :meth:`predict`."""
+        if targets.lengths is None:
+            raise ValueError("Linguistic CTC targets require target lengths.")
+
         logits = logits.transpose(0, 1)  # (T, B, output_dim) for CTC loss
         output = self.loss(logits, targets.values, lengths, targets.lengths)
         return HeadOutput(

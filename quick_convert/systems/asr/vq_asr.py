@@ -30,9 +30,19 @@ class VQASRResult:
     logits: torch.Tensor
     lengths: torch.Tensor
     contextual: torch.Tensor
-    z_q: torch.Tensor
-    latents: torch.Tensor
-    codes: torch.Tensor
+    quantizer: RVQOutput
+
+    @property
+    def z_q(self) -> torch.Tensor:
+        return self.quantizer.z_q
+
+    @property
+    def latents(self) -> torch.Tensor:
+        return self.quantizer.latents
+
+    @property
+    def codes(self) -> torch.Tensor:
+        return self.quantizer.codes
 
 
 class VQASRSystem(OnlineResourceMixin, nn.Module):
@@ -120,9 +130,7 @@ class VQASRSystem(OnlineResourceMixin, nn.Module):
             logits=logits,
             lengths=output_lengths,
             contextual=contextual,
-            z_q=quantizer_output.z_q,
-            latents=quantizer_output.latents,
-            codes=quantizer_output.codes,
+            quantizer=quantizer_output,
         )
 
     def forward(self, batch: AudioBatch) -> VQASRResult:

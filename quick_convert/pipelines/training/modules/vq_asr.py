@@ -16,7 +16,7 @@ from quick_convert.components.mixins.gradient_logging import ObjectiveGradientLo
 from quick_convert.components.mixins.resource import OnlineResourceMixin
 from quick_convert.components.ssl import ContentEncoder
 from quick_convert.data.types import AudioBatch
-from quick_convert.utils.masking import make_padding_mask
+from quick_convert.systems.asr import VQASRSystem
 
 from ..optim.base import Optimization
 from .base import BaseTrainingModule
@@ -57,24 +57,18 @@ class VQASRTrainingModule(
     ) -> None:
         super().__init__(
             optimization=optimization,
-            checkpoint_exclude_prefixes=(() if save_online_encoders else ("online_encoders",)),
+            checkpoint_exclude_prefixes=(() if save_online_encoders else ("system.online_encoders",)),
         )
 
-        self.quantizer = quantizer
-        self.ctc_head = ctc_head
-        self.layer_fusion = layer_fusion or nn.Identity()
-        self.post_quantization_network = post_quantization_network
-        self.online_encoders = nn.ModuleDict(online_encoders or {})
         self.ctc_loss_weight = ctc_loss_weight
-
-        n_codebooks = getattr(quantizer, "n_codebooks", None)
-        self.use_latents = use_latents
-
-        if n_codebooks is not None and n_codebooks != 1:
-            raise ValueError(
-                "VQASRTrainingModule requires a single active codebook; "
-                f"configured quantizer has n_codebooks={n_codebooks}."
-            )
+        self.system = VQASRSystem(
+            quantizer=quantizer,
+            ctc_head=ctc_head,
+            layer_fusion=layer_fusion,
+            post_quantization_network=post_quantization_network,
+            online_encoders=online_encoders,
+            use_latents=use_latents,
+        )
 
         self.save_hyperparameters(
             ignore=[
@@ -85,11 +79,51 @@ class VQASRTrainingModule(
             ]
         )
 
-        self.online_encoders.requires_grad_(False)
-        self.online_encoders.eval()
-
         if tokenizer_model_path is not None:
             self.setup_asr_logging(tokenizer_model_path=tokenizer_model_path)
+
+    @property
+    def quantizer(self) -> BaseResidualVectorQuantizer:
+        return self.system.quantizer
+
+    @property
+    def ctc_head(self) -> LinguisticCTCHead:
+        return self.system.ctc_head
+
+    @property
+    def layer_fusion(self) -> nn.Module:
+        return self.system.layer_fusion
+
+    @property
+    def post_quantization_network(self) -> nn.Module | None:
+        return self.system.post_quantization_network
+
+    @property
+    def online_encoders(self) -> nn.ModuleDict:
+        return self.system.online_encoders
+
+    @property
+    def use_latents(self) -> bool:
+        return self.system.use_latents
+
+    def _prepare_checkpoint_state_dict(
+        self,
+        state_dict: dict[str, torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
+        state_dict = super()._prepare_checkpoint_state_dict(state_dict)
+        legacy_prefixes = (
+            "quantizer.",
+            "ctc_head.",
+            "layer_fusion.",
+            "post_quantization_network.",
+            "online_encoders.",
+        )
+
+        for key in list(state_dict):
+            if key.startswith(legacy_prefixes):
+                state_dict.setdefault(f"system.{key}", state_dict.pop(key))
+
+        return state_dict
 
     @property
     def grad_norm_modules(self) -> dict[str, nn.Module]:
@@ -106,60 +140,27 @@ class VQASRTrainingModule(
 
         return modules
 
-    def _contextualize(
-        self,
-        quantized: torch.Tensor,
-        padding_mask: torch.Tensor,
-    ) -> torch.Tensor:
-        if self.post_quantization_network is None:
-            return quantized
-
-        return self.post_quantization_network(quantized, padding_mask)
-
     def forward(self, batch: AudioBatch) -> torch.Tensor:
-        content = self.get_resource(batch, "content")
-        features = self.layer_fusion(content.values)
-        padding_mask = make_padding_mask(content.lengths, max_length=features.shape[1])
-        quantizer_output = self.quantizer(features.transpose(1, 2), padding_mask)
-        quantized = quantizer_output.z_q.transpose(1, 2)
-
-        return self._contextualize(quantized, padding_mask)
+        return self.system(batch).contextual
 
     def _shared_step(
         self,
         batch: AudioBatch,
         stage: str,
     ) -> VQASROutput:
-        content = self.get_resource(batch, "content")
         token_ids = self.get_resource(batch, "token_ids")
+        system_output = self.system(batch)
 
-        features = self.layer_fusion(content.values)
-        feature_lengths = content.lengths
-
-        max_feature_length = int(feature_lengths.max().item())
-        features = features[:, :max_feature_length]
-
-        padding_mask = make_padding_mask(
-            feature_lengths,
-            max_length=max_feature_length,
-        )
-
-        quantizer_output = self.quantizer(features.transpose(1, 2), padding_mask)
-        quantized = quantizer_output.latents if self.use_latents else quantizer_output.z_q
-
-        quantized = quantized.transpose(1, 2)
-        contextual_output = self._contextualize(quantized, padding_mask)
-
-        ctc_output = self.ctc_head.compute_loss(
-            contextual_output,
+        ctc_output = self.ctc_head.compute_loss_from_logits(
+            system_output.logits,
             targets=HeadTarget(
                 values=token_ids.values,
                 lengths=token_ids.lengths,
             ),
-            padding_mask=padding_mask,
-            lengths=feature_lengths,
+            lengths=system_output.lengths,
         )
 
+        quantizer_output = system_output.quantizer
         rvq_loss = quantizer_output.loss.loss
         weighted_ctc_loss = self.ctc_loss_weight * ctc_output.loss
         loss = weighted_ctc_loss + rvq_loss

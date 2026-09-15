@@ -26,12 +26,6 @@ class TrainingStepOutput(Protocol):
     loss: torch.Tensor
 
 
-StepOutputT = TypeVar(
-    "StepOutputT",
-    bound=TrainingStepOutput,
-)
-
-
 StepOutputT = TypeVar("StepOutputT", bound=TrainingStepOutput)
 
 
