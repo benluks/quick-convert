@@ -33,6 +33,22 @@ def test_lightning_compatibility_extra_matches_training_profile():
     assert set(extras["lightning"]) == set(extras["training"])
 
 
+def test_conditional_rvq_compatibility_extra_matches_emotion2vec():
+    with PYPROJECT_PATH.open("rb") as file:
+        pyproject = tomllib.load(file)
+
+    extras = pyproject["project"]["optional-dependencies"]
+
+    assert set(extras["conditional-rvq"]) == set(extras["emotion2vec"])
+
+
+def test_dac_extra_only_declares_its_direct_backend():
+    with PYPROJECT_PATH.open("rb") as file:
+        pyproject = tomllib.load(file)
+
+    assert pyproject["project"]["optional-dependencies"]["dac"] == ["descript-audio-codec"]
+
+
 def test_cosyvoice_extra_tracks_supported_runtime_surface():
     with PYPROJECT_PATH.open("rb") as file:
         pyproject = tomllib.load(file)

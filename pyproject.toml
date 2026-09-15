@@ -53,7 +53,7 @@ web = ["flask>=3.1.3", "pandas>=1.5.3"]
 pyannote = ["pyannote-audio>=3.4.0"]
 transformers = ["transformers"]
 w2vbert = ["transformers"] # Compatibility alias for existing environments.
-dac = ["descript-audio-codec", "transformers"]
+dac = ["descript-audio-codec"]
 espnet-wavlm-joint = [
     "espnet==202511",
     "espnet-model-zoo>=0.1.7",
@@ -71,7 +71,8 @@ lightning = [
     "tensorboard>=2.20.0",
     "wandb>=0.25.0",
 ] # Compatibility alias for existing environments.
-conditional-rvq = ["funasr>=1.3.6", "transformers>=5.7.0"]
+emotion2vec = ["funasr>=1.3.6"]
+conditional-rvq = ["funasr>=1.3.6"] # Compatibility alias for the former experimental name.
 mpm = ["masked-prosody-model>=0.3.0"]
 whisper = ["openai-whisper>=20231117"]
 sentencepiece = ["sentencepiece>=0.2.0"]

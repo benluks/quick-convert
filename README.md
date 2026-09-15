@@ -29,17 +29,13 @@ Many components rely on optional dependencies. These are grouped into extras so 
 | `training`             | Lightning training with Matplotlib, W&B, and TensorBoard logging |
 | `lightning`            | Compatibility alias for `training` |
 | `cosyvoice`            | CosyVoice reconstruction decoder dependencies |
-| `espnet-wavlm-joint`   | ESPnet WavLM implementation             |
-| `pyannote`             | For the pyannote WeSpeaker implementation      |
-| `dac`                  | Descript Audio Codec support         |
-| `web`                  | Web interface components. I think she's currently broken.             |
-
-* **Hydra-based configuration** for reproducible, composable experiments.
-* **Flexible datasets** with pluggable resource providers.
-* **Preprocessing pipelines** for manifest generation, feature precomputation, and tokenizer training.
-* **Training pipelines** for speech models and auxiliary components.
-* **Evaluation pipelines** for benchmarking and analysis.
-* **Reusable components**, including encoders, decoders, feature extractors, SSL models, quantizers, and losses.
+| `emotion2vec`          | FunASR-backed emotion2vec feature extraction |
+| `conditional-rvq`     | Compatibility alias for `emotion2vec` |
+| `mpm`                  | Experimental Masked Prosody Model integration |
+| `espnet-wavlm-joint`   | ESPnet WavLM speaker encoder |
+| `pyannote`             | Experimental pyannote WeSpeaker integration |
+| `dac`                  | Experimental DAC content encoder; unrelated to the DAC-style RVQ layer |
+| `web`                  | Legacy Flask interface; currently unverified |
 
 Normally, when you import a module, you'll get a `ModuleNotFoundError` if the requisite dependencies are missing. Check out `pyproject.toml` to see which extras are needed to run whatever it is you're trying to run.
 
@@ -62,7 +58,11 @@ The current reference workflows require these extras:
 
 > **Note**
 >
-> Some extras depend on conflicting versions of third-party libraries and therefore cannot be installed together. See `pyproject.toml` for the defined compatibility groups. I can't promise it's up-to-date. I didn't fully understand how conflicts worked back when I started writing it. Currently in the process of fixing it, and writing tests.
+> The declared conflicts are verified against the current dependency metadata.
+> `dac` conflicts with `espnet-wavlm-joint` over incompatible Protobuf ranges;
+> `mpm` conflicts with `espnet-wavlm-joint` over NumPy 1.x versus 2.x.
+> See the [dependency profile maintenance notes](docs/maintenance/dependency_extras.md)
+> for support status and open decisions.
 
 ## Quickstart
 
