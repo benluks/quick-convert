@@ -23,6 +23,17 @@ class ReconstructedAudio:
     ids: list[str] | None = None
 
 
+def _media_batch_size(media: ReconstructedAudio) -> int:
+    values = (
+        media.original_audio,
+        media.reconstructed_audio,
+        media.original_mel,
+        media.reconstructed_mel,
+        media.ids,
+    )
+    return next((len(value) for value in values if value is not None), 0)
+
+
 class MediaLogger(ABC):
     @abstractmethod
     def log_audio(
@@ -245,10 +256,7 @@ class WandbMediaLogger(MediaLogger):
             ]
         )
 
-        n = min(
-            max_samples,
-            len(media.original_audio),
-        )
+        n = min(max_samples, _media_batch_size(media))
 
         prepared_original_mels = self._prepare_mel(media.original_mel)
         prepared_reconstructed_mels = self._prepare_mel(media.reconstructed_mel)
@@ -364,24 +372,25 @@ class TensorBoardMediaLogger(MediaLogger):
         self,
         key,
         values,
+        item_name: str,
+        value_name: str,
         *,
-        labels=None,
+        item_labels=None,
         step,
     ):
         import matplotlib.pyplot as plt
 
         values = values.detach().cpu().float().reshape(-1)
 
-        if labels is None:
-            labels = [str(i) for i in range(len(values))]
+        if item_labels is None:
+            item_labels = [str(i) for i in range(len(values))]
 
         fig, ax = plt.subplots()
 
-        ax.bar(labels, values.numpy())
-        ax.set_xlabel("Layer")
-        ax.set_ylabel("Weight")
+        ax.bar(item_labels, values.numpy())
+        ax.set_xlabel(item_name)
+        ax.set_ylabel(value_name)
         ax.set_title(key)
-        ax.set_ylim(0, 1)
 
         self.logger.experiment.add_figure(
             key,
@@ -390,6 +399,58 @@ class TensorBoardMediaLogger(MediaLogger):
         )
 
         plt.close(fig)
+
+    def log_reconstructed_audio(
+        self,
+        key: str,
+        media: ReconstructedAudio,
+        *,
+        step: int,
+        max_samples: int = 8,
+    ) -> None:
+        n = min(max_samples, _media_batch_size(media))
+
+        for index in range(n):
+            utt_id = media.ids[index] if media.ids is not None else str(index)
+            sample_key = f"{key}/{utt_id}"
+
+            if media.original_audio is not None:
+                original = media.original_audio[index, : media.original_audio_lengths[index]]
+                self.log_audio(
+                    f"{sample_key}/original_audio",
+                    original,
+                    sample_rate=media.original_sample_rate,
+                    step=step,
+                )
+
+            if media.reconstructed_audio is not None:
+                reconstructed = media.reconstructed_audio[index, : media.reconstructed_audio_lengths[index]]
+                self.log_audio(
+                    f"{sample_key}/reconstructed_audio",
+                    reconstructed,
+                    sample_rate=media.reconstructed_sample_rate,
+                    step=step,
+                )
+
+            images = {}
+            if media.original_mel is not None:
+                images[f"{sample_key}/original_mel"] = media.original_mel[
+                    index, ..., : media.original_mel_lengths[index]
+                ]
+            if media.reconstructed_mel is not None:
+                images[f"{sample_key}/reconstructed_mel"] = media.reconstructed_mel[
+                    index, ..., : media.reconstructed_mel_lengths[index]
+                ]
+            self.log_images(images, step=step)
+
+    def log_text(
+        self,
+        texts: dict[str, str],
+        *,
+        step: int,
+    ) -> None:
+        for key, value in texts.items():
+            self.logger.experiment.add_text(key, value, global_step=step)
 
 
 class NullMediaLogger(MediaLogger):
@@ -406,6 +467,36 @@ class NullMediaLogger(MediaLogger):
     def log_images(
         self,
         images: dict[str, torch.Tensor],
+        *,
+        step: int,
+    ) -> None:
+        pass
+
+    def log_bar(
+        self,
+        key,
+        values,
+        item_name: str,
+        value_name: str,
+        *,
+        item_labels=None,
+        step,
+    ) -> None:
+        pass
+
+    def log_reconstructed_audio(
+        self,
+        key: str,
+        media: ReconstructedAudio,
+        *,
+        step: int,
+        max_samples: int = 8,
+    ) -> None:
+        pass
+
+    def log_text(
+        self,
+        texts: dict[str, str],
         *,
         step: int,
     ) -> None:

@@ -22,3 +22,12 @@ def test_asr_compatibility_extra_contains_atomic_asr_features():
     extras = pyproject["project"]["optional-dependencies"]
 
     assert set(extras["asr"]) == set(extras["sentencepiece"]) | set(extras["wer"])
+
+
+def test_lightning_compatibility_extra_matches_training_profile():
+    with PYPROJECT_PATH.open("rb") as file:
+        pyproject = tomllib.load(file)
+
+    extras = pyproject["project"]["optional-dependencies"]
+
+    assert set(extras["lightning"]) == set(extras["training"])

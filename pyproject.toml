@@ -59,13 +59,18 @@ espnet-wavlm-joint = [
     "espnet-model-zoo>=0.1.7",
     "s3prl>=0.4.18",
 ]
-lightning = [
+training = [
     "lightning>=2.6.1",
     "matplotlib>=3.10.9",
-    "setuptools<82",
     "tensorboard>=2.20.0",
     "wandb>=0.25.0",
 ]
+lightning = [
+    "lightning>=2.6.1",
+    "matplotlib>=3.10.9",
+    "tensorboard>=2.20.0",
+    "wandb>=0.25.0",
+] # Compatibility alias for existing environments.
 conditional-rvq = ["funasr>=1.3.6", "transformers>=5.7.0"]
 mpm = ["masked-prosody-model>=0.3.0"]
 whisper = ["openai-whisper>=20231117"]

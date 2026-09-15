@@ -26,7 +26,8 @@ Many components rely on optional dependencies. These are grouped into extras so 
 | `sentencepiece`        | SentencePiece tokenization           |
 | `wer`                  | JIWER word-error-rate evaluation     |
 | `asr`                  | Compatibility bundle containing `sentencepiece` and `wer` |
-| `lightning`            | Lightning training and associated logging tools |
+| `training`             | Lightning training with Matplotlib, W&B, and TensorBoard logging |
+| `lightning`            | Compatibility alias for `training` |
 | `cosyvoice`            | CosyVoice reconstruction decoder dependencies |
 | `espnet-wavlm-joint`   | ESPnet WavLM implementation             |
 | `pyannote`             | For the pyannote WeSpeaker implementation      |
@@ -45,7 +46,7 @@ Normally, when you import a module, you'll get a `ModuleNotFoundError` if the re
 For example:
 
 ```bash
-uv sync --extra transformers --extra asr --extra lightning
+uv sync --extra transformers --extra asr --extra training
 ```
 
 The current reference workflows require these extras:
@@ -54,10 +55,10 @@ The current reference workflows require these extras:
 | -------- | ------ |
 | Build a LibriSpeech manifest | none |
 | Precompute W2V-BERT content | `transformers` |
-| Train a SentencePiece tokenizer | `sentencepiece`, `lightning` |
+| Train a SentencePiece tokenizer | `sentencepiece`, `training` |
 | Evaluate Whisper ASR | `whisper`, `wer` |
-| Train VQ-ASR with W2V-BERT | `transformers`, `asr`, `lightning` |
-| Train SSL reconstruction with CosyVoice | `transformers`, `cosyvoice`, `lightning` |
+| Train VQ-ASR with W2V-BERT | `transformers`, `asr`, `training` |
+| Train SSL reconstruction with CosyVoice | `transformers`, `cosyvoice`, `training` |
 
 > **Note**
 >
