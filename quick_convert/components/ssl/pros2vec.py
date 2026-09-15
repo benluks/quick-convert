@@ -4,8 +4,11 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torchaudio
-from torch.nn.utils.rnn import pad_packed_sequence
+from torch.nn.utils.rnn import pad_sequence
+
+from quick_convert.data.types import AudioBatch
 
 from .base import ContentEncoder, ContentFeatures
 
@@ -14,180 +17,168 @@ from .base import ContentEncoder, ContentFeatures
 
 
 class ProsodyEncoder(ContentEncoder):
-    """Content encoder backed by Masked Prosody Model.
+    """Frame-level prosody representations from Masked Prosody Model."""
 
-    Extracts frame-level prosody representations from raw waveforms
-      using a transformers-like interface.
-    """
+    HOP_LENGTH = 256
+    POOL_FACTOR = 2
+    WINDOW_SECONDS = 6
 
     def __init__(
         self,
         model_name: str = "cdminix/masked_prosody_model",
-        sample_rate: int = 22050,
+        sample_rate: int = 22_050,
+        layer: int = 7,
         device: str | None = None,
-        local_files_only: bool = False,
     ) -> None:
-        """Initialise the encoder and load the pretrained model.
-
-        Args:
-                model_name: HuggingFace / ModelScope model identifier.
-                sample_rate: Expected input sample rate; audio is resampled to this
-                        value before encoding.
-                device: Target device string. Auto-detected (CUDA > MPS > CPU) when
-                        ``None``.
-                local_files_only: If ``True``, forbid downloading model weights.
-        """
-        self.model_name = "cdminix/masked_prosody_model"
+        super().__init__(device=device)
         self.model_name = model_name
         self.sample_rate = sample_rate
-        self.local_files_only = local_files_only
+        self.layer = layer
 
         from masked_prosody_model import MaskedProsodyModel
 
-        self.model = MaskedProsodyModel.from_pretrained(model_id=model_name).to(self.device)
+        self.model = MaskedProsodyModel.from_pretrained(model_name).to(self.device)
         self.model.eval()
+        self.FEATURE_DIM = int(self.model.args.filter_size)
 
     def encode_file(self, path: str | Path) -> ContentFeatures:
-        """Load an audio file from *path* and return its encoded features."""
-        path = Path(path)
-        wav, sr = torchaudio.load(path)
+        """Load an audio file, downmix it, and encode its valid samples."""
+        waveform, sample_rate = torchaudio.load(Path(path))
+        if waveform.ndim != 2:
+            raise ValueError(f"Expected waveform with shape (channels, time), got {tuple(waveform.shape)}.")
+        if waveform.shape[0] > 1:
+            waveform = waveform.mean(dim=0, keepdim=True)
 
-        if wav.dim() > 2:
-            raise ValueError(f"Expected waveform of shape (channels, time), got {tuple(wav.shape)}")
-
-        if wav.dim() == 2 and wav.shape[0] > 1:  # Convert to mono if needed
-            wav = wav.mean(dim=0, keepdim=True)
-
-        wav = wav.squeeze(0).unsqueeze(0)
-
-        return self.encode_waveforms(wav, sample_rate=sr)
-
-    def _create_padding_mask(self, lengths: torch.Tensor) -> torch.Tensor:  # lengths: (B,)
-        """Return a boolean mask of shape ``(B, T)`` where ``True`` marks padding."""
-        if lengths.dim() != 2:
-            lengths = lengths.unsqueeze(1)
-        max_length = lengths.max()
-        batch_size = lengths.shape[0]
-        mask = torch.arange(max_length).expand(batch_size, max_length) >= lengths
-        return mask.to(self.device)
-
-    def process_tensor(self, audio: torch.Tensor, sr: int = 22050, layer: int = 7) -> torch.Tensor:
-        """Process an audio file and extract model representations.
-
-        Args:
-                audio: Tensor containing the audio waveform
-                sr: Sample rate of the audio
-                layer: Which layer's representations to return
-
-        Returns:
-                Tensor containing the model's representations
-        """
-
-        # audio, sr = librosa.load(audio_path, sr=22050)
-        # Convert to numpy, normalize, and window into 6s chunks
-        audio = audio.detach().cpu().numpy()
-        audio = audio / np.abs(audio).max()
-        # window into 6s chunks
-        windows = []
-        for i in range(0, len(audio), sr * 6):
-            windows.append(audio[i : i + sr * 6])
-        results = []
-
-        for window in windows:
-            pitch = self.pitch_measure(window, np.array([1000]))["measure"]
-            energy = self.energy_measure(window, np.array([1000]))["measure"]
-            vad = self.vad_measure(window, np.array([1000]))["measure"]
-            pitch[np.isnan(pitch)] = -1000
-            energy[np.isnan(energy)] = -1000
-            vad[np.isnan(vad)] = -1000
-            pitch = np.clip(
-                pitch,
-                self.args.pitch_min,
-                self.args.pitch_max,
-            ) / (self.args.pitch_max - self.args.pitch_min)
-            energy = np.clip(
-                energy,
-                self.args.energy_min,
-                self.args.energy_max,
-            ) / (self.args.energy_max - self.args.energy_min)
-            vad = np.clip(
-                vad,
-                self.args.vad_min,
-                self.args.vad_max,
-            ) / (self.args.vad_max - self.args.vad_min)
-            pitch = torch.tensor(pitch)
-            energy = torch.tensor(energy)
-            vad = torch.tensor(vad)
-            pitch = torch.bucketize(pitch, self.bins).long().unsqueeze(0)
-            energy = torch.bucketize(energy, self.bins).long().unsqueeze(0)
-            vad = torch.bucketize(vad, torch.linspace(0, 1, 2)).long().unsqueeze(0)
-            all_features = torch.stack([pitch, energy, vad]).transpose(0, 1)
-            result = self.mpm(all_features, return_layer=layer)
-            results.append(result)
-        # bring all representations together
-        representations = []
-        for result in results:
-            representations.append(result["representations"].squeeze(0))
-        representations = torch.cat(representations, dim=0)
-        return representations
+        return self.encode_waveforms(waveform, sample_rate=sample_rate)
 
     @torch.inference_mode()
     def encode_waveforms(
         self,
-        wavs: torch.Tensor,
+        waveforms: torch.Tensor,
         lengths: torch.Tensor | None = None,
         sample_rate: int | None = None,
     ) -> ContentFeatures:
-        """Encode a batch of waveforms and return frame-level features.
+        """Encode padded waveforms while respecting each sample's valid length."""
+        if waveforms.ndim != 2:
+            raise ValueError(f"Expected waveforms with shape (batch, time), got {tuple(waveforms.shape)}.")
 
-        Args:
-                wavs: Float tensor of shape ``(batch, time)``.
-                lengths: Optional absolute lengths in samples, shape ``(batch,)``.
-                        When ``None``, all frames are treated as valid.
-                sample_rate: Sample rate of *wavs*. Resampled to ``self.sample_rate``
-                        when different. Defaults to ``self.sample_rate``.
+        batch_size, padded_length = waveforms.shape
+        if lengths is None:
+            lengths = torch.full((batch_size,), padded_length, dtype=torch.long, device=waveforms.device)
+        if lengths.ndim != 1 or lengths.shape[0] != batch_size:
+            raise ValueError("lengths must contain one value per waveform.")
+        if torch.any(lengths <= 0) or torch.any(lengths > padded_length):
+            raise ValueError(f"lengths must be between 1 and the padded length ({padded_length}).")
 
-        Returns:
-                :class:`ContentFeatures` with ``values`` of shape
-                ``(batch, frames, dim)``.
-        """
-        if wavs.dim() != 2:
-            raise ValueError(f"Expected wavs with shape (batch, time), got {tuple(wavs.shape)}")
-
-        sample_rate = sample_rate or self.sample_rate
-
-        if sample_rate != self.sample_rate:
-            wavs = torchaudio.functional.resample(
-                wavs,
-                orig_freq=sample_rate,
-                new_freq=self.sample_rate,
-            )
-            sample_rate = self.sample_rate
-
-        wavs = wavs.detach().cpu()
-
+        input_sample_rate = sample_rate or self.sample_rate
         outputs = []
-        for wav in wavs:
-            output = self.model.process_tensor(wav.unsqueeze(0), sample_rate=sample_rate)
-            outputs.append(output)
+        processed_lengths = []
+        for waveform, length in zip(waveforms, lengths, strict=True):
+            waveform = waveform[: int(length)].detach().cpu()
+            if input_sample_rate != self.sample_rate:
+                waveform = torchaudio.functional.resample(waveform, input_sample_rate, self.sample_rate)
+            outputs.append(self._encode_waveform(waveform))
+            processed_lengths.append(waveform.shape[0])
 
-        # Pad outputs to the same length
-        output, output_lengths = pad_packed_sequence(outputs, batch_first=True, padding_value=0.0)
-
-        # Subsample by a factor of 2 using average pooling
-        output = torch.nn.functional.avg_pool1d(output.transpose(1, 2), kernel_size=3, stride=2, padding=1).transpose(
-            1, 2
-        )
-
-        output_lengths = (output_lengths - 1) // 2 + 1
+        output_lengths = self.output_lengths(torch.tensor(processed_lengths, dtype=torch.long, device=self.device))
+        observed_lengths = torch.tensor([output.shape[0] for output in outputs], dtype=torch.long, device=self.device)
+        if not torch.equal(output_lengths, observed_lengths):
+            raise RuntimeError(
+                "Masked Prosody Model output disagrees with its deterministic length calculation: "
+                f"expected {output_lengths.tolist()}, observed {observed_lengths.tolist()}."
+            )
+        values = pad_sequence(outputs, batch_first=True)
 
         return ContentFeatures(
-            values=output,
+            values=values,
             lengths=output_lengths,
-            feature_dim=output.shape[-1],
+            feature_dim=self.feature_dim,
             representation_type="continuous",
             temporal_granularity="frame",
-            backend="funasr",
+            backend="masked-prosody-model",
             model_name=self.model_name,
             layer=self.layer,
+            frame_hz=self.sample_rate / (self.HOP_LENGTH * self.POOL_FACTOR),
         )
+
+    def output_lengths(self, input_lengths: torch.Tensor) -> torch.Tensor:
+        """Calculate pooled MPM frame counts, including six-second chunk boundaries."""
+        window_size = self.sample_rate * self.WINDOW_SECONDS
+        full_windows = torch.div(input_lengths, window_size, rounding_mode="floor")
+        remainder = torch.remainder(input_lengths, window_size)
+
+        frames_per_window = window_size // self.HOP_LENGTH + 1
+        raw_frames = full_windows * frames_per_window
+        raw_frames += torch.where(
+            remainder > 0,
+            torch.div(remainder, self.HOP_LENGTH, rounding_mode="floor") + 1,
+            0,
+        )
+        return torch.div(raw_frames + self.POOL_FACTOR - 1, self.POOL_FACTOR, rounding_mode="floor")
+
+    def _encode_waveform(self, waveform: torch.Tensor) -> torch.Tensor:
+        audio = waveform.numpy()
+        peak = np.abs(audio).max()
+        if peak > 0:
+            audio = audio / peak
+
+        representations = []
+        window_size = self.sample_rate * self.WINDOW_SECONDS
+        for start in range(0, len(audio), window_size):
+            representations.append(self._encode_window(audio[start : start + window_size]))
+
+        representation = torch.cat(representations, dim=0)
+        return (
+            F.avg_pool1d(
+                representation.transpose(0, 1).unsqueeze(0),
+                kernel_size=3,
+                stride=self.POOL_FACTOR,
+                padding=1,
+            )
+            .squeeze(0)
+            .transpose(0, 1)
+        )
+
+    def _encode_window(self, window: np.ndarray) -> torch.Tensor:
+        durations = np.array([1000])
+        pitch = self.model.pitch_measure(window, durations)["measure"]
+        energy = self.model.energy_measure(window, durations)["measure"]
+        vad = self.model.vad_measure(window, durations)["measure"]
+
+        frame_count = min(len(pitch), len(energy), len(vad))
+        pitch = self._normalize_measure(pitch[:frame_count], self.model.args.pitch_min, self.model.args.pitch_max)
+        energy = self._normalize_measure(energy[:frame_count], self.model.args.energy_min, self.model.args.energy_max)
+        vad = self._normalize_measure(vad[:frame_count], self.model.args.vad_min, self.model.args.vad_max)
+
+        bins = self.model.bins.to(self.device)
+        features = torch.stack(
+            [
+                torch.bucketize(torch.as_tensor(pitch, device=self.device), bins),
+                torch.bucketize(torch.as_tensor(energy, device=self.device), bins),
+                torch.bucketize(
+                    torch.as_tensor(vad, device=self.device),
+                    torch.linspace(0, 1, 2, device=self.device),
+                ),
+            ],
+        ).long()
+
+        result = self.model(features.unsqueeze(0), return_layer=self.layer)
+        representation = result["representations"]
+        if representation is None:
+            raise ValueError(f"Masked Prosody Model has no representation for layer {self.layer}.")
+        return representation.squeeze(0)
+
+    @staticmethod
+    def _normalize_measure(values: np.ndarray, minimum: float, maximum: float) -> np.ndarray:
+        values = np.nan_to_num(values, nan=minimum)
+        return np.clip(values, minimum, maximum) / (maximum - minimum)
+
+    def forward(self, batch: AudioBatch) -> ContentFeatures:
+        if batch.waveforms is None or batch.sample_rates is None:
+            raise RuntimeError(f"{type(self).__name__} requires a batch with loaded audio.")
+        if not (batch.sample_rates == self.sample_rate).all():
+            raise RuntimeError(
+                f"Expected {self.sample_rate} Hz audio, got {batch.sample_rates}. "
+                f"Set target_sr={self.sample_rate} in the dataset configuration."
+            )
+        return self.encode_waveforms(batch.waveforms, batch.lengths, self.sample_rate)

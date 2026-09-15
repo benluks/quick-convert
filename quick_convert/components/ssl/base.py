@@ -7,6 +7,8 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
+from quick_convert.utils.device import configure_device
+
 
 @dataclass
 class ContentFeatures:
@@ -66,7 +68,7 @@ class ContentEncoder(nn.Module, ABC):
 
     def __init__(self, device):
         super().__init__()
-        self.device = torch.device(device)
+        self.device = configure_device(device)
 
     @property
     def feature_dim(self) -> int:

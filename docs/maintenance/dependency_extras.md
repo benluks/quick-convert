@@ -20,7 +20,7 @@ still need architectural review.
 | `dac` | experimental | DAC content encoding. This is distinct from the deprecated DAC-style RVQ implementation. |
 | `espnet-wavlm-joint` | experimental | ESPnet WavLM speaker embeddings. |
 | `pyannote` | experimental | Pyannote WeSpeaker embeddings; its first-party contract remains incomplete. |
-| `mpm` | experimental | Masked Prosody Model integration; no current reference configuration uses it. |
+| `mpm` | integration | Masked Prosody Model prosody features; adapter and local model execution are verified, while pretrained checkpoint loading remains an optional integration test. |
 | `web` | legacy | Flask interface; currently unverified. |
 
 Compatibility names remain available for existing environments:
@@ -45,7 +45,7 @@ DAC and MPM can resolve together and therefore do not have a declared conflict.
 
 - [ ] Decide whether the DAC content encoder is still worth retaining; do not
   conflate this decision with retirement of the DAC-style RVQ layer.
-- [ ] Repair or remove the incomplete Masked Prosody Model adapter.
+- [x] Repair the Masked Prosody Model adapter and add a composable precompute configuration.
 - [ ] Bring the Pyannote and ESPnet speaker encoders under the current
   file/tensor/batch input and output contracts before calling them supported.
 - [ ] Verify the Whisper and emotion2vec model-backed inference paths in optional

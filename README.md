@@ -31,7 +31,7 @@ Many components rely on optional dependencies. These are grouped into extras so 
 | `cosyvoice`            | CosyVoice reconstruction decoder dependencies |
 | `emotion2vec`          | FunASR-backed emotion2vec feature extraction |
 | `conditional-rvq`     | Compatibility alias for `emotion2vec` |
-| `mpm`                  | Experimental Masked Prosody Model integration |
+| `mpm`                  | Masked Prosody Model feature extraction |
 | `espnet-wavlm-joint`   | ESPnet WavLM speaker encoder |
 | `pyannote`             | Experimental pyannote WeSpeaker integration |
 | `dac`                  | Experimental DAC content encoder; unrelated to the DAC-style RVQ layer |
