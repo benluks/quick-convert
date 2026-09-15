@@ -121,10 +121,13 @@ def test_speaker_encoder_configs_compose():
     with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
         espnet = compose(config_name="run/precompute_speaker_embedding_espnet_wavlm_joint")
         pyannote = compose(
-            config_name="components/speaker_encoder/pyannote_wespeaker_voxceleb_resnet34_LM",
-            overrides=["+device=cpu"],
+            config_name=None,
+            overrides=[
+                "+components/speaker_encoder@encoder=pyannote_wespeaker_voxceleb_resnet34_LM",
+                "+device=cpu",
+            ],
         )
 
     assert espnet.feature_extractor.encoder is espnet.encoder
     assert espnet.dataset.target_sr == 16_000
-    assert pyannote._target_ == "quick_convert.components.speaker.PyannoteWeSpeakerEncoder"
+    assert pyannote.encoder._target_ == "quick_convert.components.speaker.PyannoteWeSpeakerEncoder"
