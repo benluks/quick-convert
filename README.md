@@ -23,7 +23,9 @@ Many components rely on optional dependencies. These are grouped into extras so 
 | `transformers`         | Hugging Face-backed models, including W2V-BERT and WavLM |
 | `w2vbert`              | Compatibility alias for `transformers` |
 | `whisper`              | Whisper ASR model                    |
-| `asr`                  | SentencePiece tokenization and JIWER evaluation |
+| `sentencepiece`        | SentencePiece tokenization           |
+| `wer`                  | JIWER word-error-rate evaluation     |
+| `asr`                  | Compatibility bundle containing `sentencepiece` and `wer` |
 | `lightning`            | Lightning training and associated logging tools |
 | `cosyvoice`            | CosyVoice reconstruction decoder dependencies |
 | `espnet-wavlm-joint`   | ESPnet WavLM implementation             |
@@ -52,6 +54,8 @@ The current reference workflows require these extras:
 | -------- | ------ |
 | Build a LibriSpeech manifest | none |
 | Precompute W2V-BERT content | `transformers` |
+| Train a SentencePiece tokenizer | `sentencepiece`, `lightning` |
+| Evaluate Whisper ASR | `whisper`, `wer` |
 | Train VQ-ASR with W2V-BERT | `transformers`, `asr`, `lightning` |
 | Train SSL reconstruction with CosyVoice | `transformers`, `cosyvoice`, `lightning` |
 
