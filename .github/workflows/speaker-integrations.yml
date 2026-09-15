@@ -1,0 +1,38 @@
+name: Speaker integrations
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "llm/**"
+    paths:
+      - ".github/workflows/speaker-integrations.yml"
+      - "pyproject.toml"
+      - "quick_convert/components/speaker/**"
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: ${{ matrix.extra }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - extra: pyannote
+            import: pyannote.audio
+          - extra: espnet-wavlm-joint
+            import: espnet2.bin.spk_inference
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - name: Install isolated profile
+        run: uv sync --no-dev --extra "${{ matrix.extra }}"
+      - name: Import backend
+        run: uv run --no-sync python -c "import ${{ matrix.import }}"

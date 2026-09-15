@@ -30,6 +30,11 @@ Compatibility names remain available for existing environments:
 - `asr` bundles `sentencepiece` and `wer`;
 - `conditional-rvq` aliases `emotion2vec` under its former experimental name.
 
+Speaker backend profiles are checked independently by the `Speaker integrations`
+workflow. This keeps their large, mutually constrained dependency graphs out of
+the fast core test environment while still verifying Python 3.11 installation
+and backend imports.
+
 ## Verified conflicts
 
 The current conflicts are dependency-level incompatibilities, not assumptions:
