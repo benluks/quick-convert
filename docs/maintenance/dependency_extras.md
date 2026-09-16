@@ -35,6 +35,11 @@ workflow. This keeps their large, mutually constrained dependency graphs out of
 the fast core test environment while still verifying Python 3.11 installation
 and backend imports.
 
+The `Training integration` workflow similarly installs the `training` extra in
+isolation and runs the Lightning adapters, logging, Hydra targets, and former
+import paths without allowing dependency-based skips. The fast core workflow
+therefore remains usable without Lightning.
+
 ## Verified conflicts
 
 The current conflicts are dependency-level incompatibilities, not assumptions:

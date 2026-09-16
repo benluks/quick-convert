@@ -1,0 +1,54 @@
+name: Training integration
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "llm/**"
+    paths:
+      - ".github/workflows/training-integration.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "configs/trainer/**"
+      - "quick_convert/training/**"
+      - "quick_convert/pipelines/training/**"
+      - "tests/test_media_logger.py"
+      - "tests/test_reference_configs.py"
+      - "tests/test_ssl_reconstruction_contract.py"
+      - "tests/test_vq_asr_training_wrapper.py"
+
+permissions:
+  contents: read
+
+jobs:
+  lightning:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - name: Install training profile
+        run: uv sync --group dev --extra training
+      - name: Import canonical and compatibility paths
+        run: |
+          uv run --no-sync python - <<'PY'
+          from quick_convert.pipelines.training.lightning_trainer import LightningTrainer as LegacyTrainer
+          from quick_convert.training.lightning.trainer import LightningTrainer
+
+          assert LegacyTrainer is LightningTrainer
+          PY
+      - name: Run Lightning tests without skips
+        run: |
+          output=$(uv run --no-sync pytest -q \
+            tests/test_media_logger.py \
+            tests/test_reference_configs.py \
+            tests/test_ssl_reconstruction_contract.py \
+            tests/test_vq_asr_training_wrapper.py \
+            -r s)
+          echo "$output"
+          if grep -Eq '[0-9]+ skipped' <<< "$output"; then
+            echo "Lightning tests were unexpectedly skipped."
+            exit 1
+          fi
