@@ -1,1 +1,1 @@
-"""Training-module implementations."""
+"""Compatibility package for former Lightning module paths."""

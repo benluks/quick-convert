@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from quick_convert.data.base_dataset import BaseDataset
-from quick_convert.pipelines.training.base_trainer import BaseTrainer
+from quick_convert.training.base import BaseTrainer
 
 
 class TrainingPipeline:

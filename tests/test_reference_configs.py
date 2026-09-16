@@ -96,6 +96,8 @@ def test_vq_asr_config_exposes_an_inference_ready_system():
     assert "architecture" not in config
     assert system._target_ == "quick_convert.systems.asr.VQASRSystem"
     assert config.trainer.module.system == system
+    assert config.trainer._target_ == "quick_convert.training.lightning.trainer.LightningTrainer"
+    assert config.trainer.module._target_ == "quick_convert.training.lightning.modules.vq_asr.VQASRTrainingModule"
     assert "quantizer" not in config.trainer.module
     assert "ctc_head" not in config.trainer.module
 
@@ -182,6 +184,11 @@ def test_ssl_reconstruction_config_exposes_an_inference_ready_system(config_name
     assert "architecture" not in config
     assert system._target_ == "quick_convert.systems.reconstruction.SSLReconstructionSystem"
     assert config.trainer.module.system == system
+    assert config.trainer._target_ == "quick_convert.training.lightning.trainer.LightningTrainer"
+    assert (
+        config.trainer.module._target_
+        == "quick_convert.training.lightning.modules.ssl_reconstruction.SSLReconstructionTrainingModule"
+    )
     assert "encoder" not in system
     assert "decoder" not in config.trainer.module
     assert "feature_transform" not in config.trainer.module

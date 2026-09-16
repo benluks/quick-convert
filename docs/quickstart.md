@@ -498,10 +498,10 @@ The tokenizer trainer reads transcript values directly from the dataset resource
 The tokenizer trainer is defined in `configs/trainer/tokenizer.yaml`:
 
 ```yaml
-_target_: quick_convert.pipelines.training.sentencepiece_trainer.TokenizerTrainer
+_target_: quick_convert.training.tokenizer.TokenizerTrainer
 
 module:
-  _target_: quick_convert.pipelines.training.modules.tokenizer.bpe.SentencePieceBPETrainer
+  _target_: quick_convert.training.tokenizers.sentencepiece.SentencePieceBPETrainer
 
   vocab_size: 1000
   character_coverage: 1.0

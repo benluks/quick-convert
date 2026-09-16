@@ -7,11 +7,18 @@ import torch
 
 pytest.importorskip("lightning")
 
-from quick_convert.pipelines.training.logging.media_logger import (  # noqa: E402
+from quick_convert.pipelines.training.logging.media_logger import (
+    ReconstructedAudio as LegacyReconstructedAudio,
+)
+from quick_convert.training.lightning.logging.media_logger import (
     NullMediaLogger,
     ReconstructedAudio,
     TensorBoardMediaLogger,
 )
+
+
+def test_legacy_media_logger_import_is_compatible():
+    assert LegacyReconstructedAudio is ReconstructedAudio
 
 
 def test_supported_media_loggers_are_concrete():

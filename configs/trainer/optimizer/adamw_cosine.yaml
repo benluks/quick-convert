@@ -1,6 +1,6 @@
 # configs/optimization/adamw_cosine_warmup.yaml
 
-_target_: quick_convert.pipelines.training.optim.base.Optimization
+_target_: quick_convert.training.lightning.optim.Optimization
 
 optimizer:
   _target_: hydra.utils.get_class
@@ -18,7 +18,7 @@ lr_scheduler_kwargs:
   eta_min: 1.0e-6
 
 warmup:
-  _target_: quick_convert.pipelines.training.optim.base.LinearWarmup
+  _target_: quick_convert.training.lightning.optim.LinearWarmup
   steps: 0.05
   start_factor: 1.0e-6
 

@@ -148,9 +148,9 @@ Hydra composition
 
 `quick-convert` is an active research codebase.
 
-Some framework-specific training adapters still live beneath
-`quick_convert/pipelines/training`; these are expected to move into a dedicated
-training package. Compatibility re-exports also remain for anonymization
-systems that previously lived beneath `pipelines`.
+Framework-specific adapters and backends live under `quick_convert/training`;
+only executable workflow orchestration remains under
+`quick_convert/pipelines`. Compatibility re-exports preserve the former
+training and anonymization import paths.
 
 Optional dependency groups are also being revised and tested. Consult `pyproject.toml` when installing dependencies for a specific workflow.

@@ -14,10 +14,17 @@ from quick_convert.systems.reconstruction import SSLReconstructionSystem
 
 pytest.importorskip("lightning")
 
-from quick_convert.pipelines.training.modules.ssl_reconstruction import (  # noqa: E402
+from quick_convert.pipelines.training.modules.ssl_reconstruction import (
+    SSLReconstructionTrainingModule as LegacySSLReconstructionTrainingModule,
+)
+from quick_convert.training.lightning.modules.ssl_reconstruction import (
     SSLReconstructionTrainingModule,
 )
-from quick_convert.pipelines.training.optim.base import Optimization
+from quick_convert.training.lightning.optim import Optimization
+
+
+def test_legacy_training_module_import_is_compatible():
+    assert LegacySSLReconstructionTrainingModule is SSLReconstructionTrainingModule
 
 
 class FakeRVQEncoder(nn.Module):

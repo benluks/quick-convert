@@ -4,8 +4,15 @@ from types import SimpleNamespace
 import torch
 
 from quick_convert.data.types import AudioBatch
-from quick_convert.pipelines.training.modules.tokenizer.bpe import SentencePieceBPETrainer
+from quick_convert.pipelines.training.modules.tokenizer.bpe import (
+    SentencePieceBPETrainer as LegacySentencePieceBPETrainer,
+)
 from quick_convert.systems.asr.whisper_asr import WhisperASR
+from quick_convert.training.tokenizers.sentencepiece import SentencePieceBPETrainer
+
+
+def test_legacy_tokenizer_trainer_import_is_compatible():
+    assert LegacySentencePieceBPETrainer is SentencePieceBPETrainer
 
 
 def test_jiwer_module_remains_available_after_construction(monkeypatch):

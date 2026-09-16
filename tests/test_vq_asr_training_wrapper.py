@@ -13,8 +13,11 @@ from quick_convert.systems.asr import VQASRSystem
 
 pytest.importorskip("lightning")
 
-from quick_convert.pipelines.training.modules.vq_asr import VQASRTrainingModule  # noqa: E402
-from quick_convert.pipelines.training.optim.base import Optimization  # noqa: E402
+from quick_convert.pipelines.training.modules.vq_asr import (
+    VQASRTrainingModule as LegacyVQASRTrainingModule,
+)
+from quick_convert.training.lightning.modules.vq_asr import VQASRTrainingModule
+from quick_convert.training.lightning.optim import Optimization
 
 
 class FakeQuantizer(nn.Module):
@@ -41,6 +44,10 @@ class FakeQuantizer(nn.Module):
             latents=z_q + 1,
             loss=RVQLosses(loss=loss, raw={"commitment": loss}, weighted={"commitment": loss}),
         )
+
+
+def test_legacy_training_module_import_is_compatible():
+    assert LegacyVQASRTrainingModule is VQASRTrainingModule
 
 
 class FakeCTCHead(nn.Module):

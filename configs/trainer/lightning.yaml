@@ -4,7 +4,7 @@ defaults:
   - optimizations@compile: compile
   - _self_
 
-_target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
+_target_: quick_convert.training.lightning.trainer.LightningTrainer
 
 module: ???
 cudnn_benchmark: false

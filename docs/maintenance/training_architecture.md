@@ -81,10 +81,9 @@ Lightning modules should wrap a system and own only training behavior:
 - training/validation hooks; and
 - resumable Lightning checkpoint behavior.
 
-The wrappers may remain temporarily under `pipelines.training.modules` during
-migration, but their long-term home should be a framework-specific training
-package such as `quick_convert.training.lightning`. They are neither pipelines
-nor task systems.
+The wrappers live under `quick_convert.training.lightning.modules`. They are
+neither pipelines nor task systems. The former `pipelines.training` imports
+remain as compatibility aliases for saved configs and downstream callers.
 
 ### Pipelines and trainers
 
@@ -111,7 +110,7 @@ The trainer config should then wrap it:
 ```yaml
 trainer:
   module:
-    _target_: quick_convert.pipelines.training.modules.vq_asr.VQASRTrainingModule
+    _target_: quick_convert.training.lightning.modules.vq_asr.VQASRTrainingModule
     system: ${system}
     optimization: ...
     ctc_loss_weight: 1.0
@@ -170,8 +169,9 @@ system = load_inference_artifact("models/my-model", map_location="cpu")
 6. ~~Introduce a versioned inference artifact loader/exporter.~~
 7. ~~Replace the redundant `architecture.system` configuration with the
    top-level `system` convention already used by evaluation.~~
-8. Only after those contracts stabilize, move Lightning-specific modules and
-   runners out of `pipelines` into a dedicated training package.
+8. ~~Move Lightning-specific modules and runners out of `pipelines` into the
+   dedicated `quick_convert.training` package, retaining compatibility
+   imports.~~
 
 ## Decisions to workshop
 
@@ -184,6 +184,3 @@ system = load_inference_artifact("models/my-model", map_location="cpu")
   their upstream model identifiers, or support both policies explicitly?
 - How much compatibility is required for current Lightning checkpoints whose
   keys are not prefixed by `system.`?
-- Is `quick_convert.training` the desired long-term home for framework adapters,
-  or should this remain deliberately narrower until another training backend
-  exists?

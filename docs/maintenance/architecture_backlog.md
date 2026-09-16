@@ -21,6 +21,6 @@ Remaining work should:
 - verify the design against the supported VQ-ASR and SSL-reconstruction paths
   before generalizing it.
 
-Lightning modules now wrap plain systems. The main unresolved structural task
-is moving framework adapters and runners out of `pipelines` without conflating
-them with task systems.
+Lightning modules now wrap plain systems. Framework adapters and runners live
+under `quick_convert.training`, while the training workflow remains a pipeline.
+Former import paths are retained as compatibility aliases.
