@@ -10,7 +10,7 @@ from torch import nn
 from quick_convert.components.ssl.pros2vec import ProsodyEncoder
 
 
-CONFIG_DIR = Path(__file__).parents[1] / "configs"
+CONFIG_DIR = Path(__file__).parents[1] / "quick_convert" / "configs"
 
 
 class FakeMeasure:

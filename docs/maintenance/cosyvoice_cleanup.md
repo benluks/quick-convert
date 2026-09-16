@@ -6,8 +6,8 @@ Active maintenance item. The current CosyVoice-based SSL reconstruction path is 
 
 Reference architecture:
 
-- `configs/run/train_sslr_w2vbert_cmdiff.yaml`
-- `configs/system/reconstruction/w2vbert_cmdiff_cosyvoice.yaml`
+- `quick_convert/configs/run/train_sslr_w2vbert_cmdiff.yaml`
+- `quick_convert/configs/system/reconstruction/w2vbert_cmdiff_cosyvoice.yaml`
 
 Current path:
 

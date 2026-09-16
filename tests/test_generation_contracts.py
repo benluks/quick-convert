@@ -1,3 +1,6 @@
+import sys
+from types import ModuleType
+
 import pytest
 import torch
 from torch import nn
@@ -90,3 +93,40 @@ def test_cosyvoice_generation_preserves_input_lengths_and_reports_outputs():
     assert output.audio.waveforms.shape == (2, 40)
     assert output.audio.lengths.tolist() == [40, 24]
     assert output.audio.sample_rate == 24_000
+
+
+def test_cosyvoice_construction_does_not_load_vocoder(monkeypatch):
+    audio_module = ModuleType("quick_convert.external.matcha.utils.audio")
+    audio_module.mel_spectrogram = object()
+    monkeypatch.setitem(sys.modules, audio_module.__name__, audio_module)
+
+    flow = FakeFlow()
+    flow.vocab_size = 1
+    flow.input_size = 4
+    decoder = CosyVoiceSpectrogramGenerator(flow=flow, feature_dim=4, device="cpu")
+
+    assert decoder.vocoder is None
+
+
+def test_cosyvoice_default_vocoder_loads_once(monkeypatch):
+    decoder = make_decoder()
+    decoder.vocoder = None
+    decoder.vocoder_repo_id = "repo"
+    decoder.vocoder_filename = "hift.pt"
+    calls = []
+
+    class Loader:
+        @classmethod
+        def from_pretrained(cls, **kwargs):
+            calls.append(kwargs)
+            return FakeVocoder()
+
+    module = ModuleType("quick_convert.components.decoders.hift_generator")
+    module.CosyVoiceHiFTDecoder = Loader
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+
+    first = decoder._get_vocoder()
+    second = decoder._get_vocoder()
+
+    assert first is second
+    assert len(calls) == 1

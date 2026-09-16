@@ -150,6 +150,21 @@ Most experiments select a pipeline and its dependencies through Hydra. Task
 workflows configure a system directly at `system`; training workflows pass that
 same system to a framework-specific training module.
 
+## Python library use
+
+The package can be used without a pipeline. For example, load an exported
+system as a plain inference object:
+
+```python
+from quick_convert.inference import load_inference_artifact
+
+system = load_inference_artifact("models/vq-asr", map_location="cpu")
+```
+
+Installed Hydra recipes live under `quick_convert/configs/`; `quick-convert
+--help` lists their composition roots. Pipelines are orchestration conveniences,
+not a prerequisite for importing datasets, systems, or components.
+
 ## Contributing
 
 Contributions are welcome. Bug reports, feature requests, documentation improvements, and pull requests are all appreciated.

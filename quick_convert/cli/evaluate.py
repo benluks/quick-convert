@@ -8,7 +8,7 @@ from .run import execute_pipeline
 
 @hydra.main(
     version_base=None,
-    config_path="../../configs",
+    config_path="../configs",
     config_name="run/eval_asr_librispeech",
 )
 def main(cfg: DictConfig) -> None:

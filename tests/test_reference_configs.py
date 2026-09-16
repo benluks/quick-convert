@@ -8,7 +8,8 @@ from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
 
-CONFIG_DIR = Path(__file__).parents[1] / "configs"
+CONFIG_DIR = Path(__file__).parents[1] / "quick_convert" / "configs"
+RUN_CONFIGS = sorted(path.stem for path in (CONFIG_DIR / "run").glob("*.yaml"))
 
 
 @pytest.fixture(autouse=True)
@@ -23,6 +24,12 @@ def register_resolvers():
     for name, resolver in resolvers.items():
         if not OmegaConf.has_resolver(name):
             OmegaConf.register_new_resolver(name, resolver)
+
+
+@pytest.mark.parametrize("run_config", RUN_CONFIGS)
+def test_all_advertised_run_configs_compose(run_config):
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
+        compose(config_name=f"run/{run_config}", return_hydra_config=True)
 
 
 @pytest.mark.parametrize(

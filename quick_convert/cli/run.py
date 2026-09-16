@@ -44,7 +44,7 @@ def execute_pipeline(cfg: DictConfig) -> Any:
     return pipeline.run(**run_kwargs)
 
 
-@hydra.main(version_base=None, config_path="../../configs", config_name=None)
+@hydra.main(version_base=None, config_path="../configs", config_name=None)
 def main(cfg: DictConfig) -> Any:
     return execute_pipeline(cfg)
 

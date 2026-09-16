@@ -20,7 +20,7 @@ LINEAR_CONFIG = {
     "in_features": 3,
     "out_features": 2,
 }
-CONFIG_DIR = Path(__file__).parents[1] / "configs"
+CONFIG_DIR = Path(__file__).parents[1] / "quick_convert" / "configs"
 
 
 def register_config_resolvers():

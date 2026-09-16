@@ -6,7 +6,7 @@ from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 
-_CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "configs"
+_CONFIG_DIR = Path(__file__).resolve().parent.parent / "configs"
 
 
 def compose_component(

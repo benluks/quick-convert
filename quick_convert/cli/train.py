@@ -10,7 +10,7 @@ from .run import execute_pipeline
 
 @hydra.main(
     version_base=None,
-    config_path="../../configs",
+    config_path="../configs",
     config_name="run/train_bpe_tokenizer_librispeech",
 )
 def main(cfg: DictConfig) -> None:

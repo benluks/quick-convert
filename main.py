@@ -69,7 +69,7 @@ def main() -> None:
         module.main(sys.argv[2:])
         return
 
-    run_dir = Path(__file__).resolve().parent / "configs" / "run"
+    run_dir = Path(__file__).resolve().parent / "quick_convert" / "configs" / "run"
     config_name, overrides = _resolve_config(command, sys.argv[1:], run_dir)
     module = importlib.import_module("quick_convert.cli.run")
 

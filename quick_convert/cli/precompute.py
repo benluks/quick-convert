@@ -10,7 +10,7 @@ from .run import execute_pipeline
 
 @hydra.main(
     version_base=None,
-    config_path="../../configs",
+    config_path="../configs",
     config_name="run/precompute_speaker_embedding_espnet_wavlm_joint",
 )
 def main(cfg: DictConfig) -> None:

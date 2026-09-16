@@ -44,30 +44,36 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         feature_dim: int | None,
         cond_strategy: Literal["rvq", "mel"] | None = None,
         device: DeviceLike = None,
-        # content_dim: int,
-        # speaker_dim: int,
         mel_dim: int = 80,
+        vocoder: CosyVoiceHiFTDecoder | None = None,
+        vocoder_repo_id: str = "FunAudioLLM/Fun-CosyVoice3-0.5B-2512",
+        vocoder_filename: str = "hift.pt",
     ):
         super().__init__()
 
         from ...external.matcha.utils.audio import mel_spectrogram
-        from .hift_generator import CosyVoiceHiFTDecoder
 
         self.device = configure_device(device)
         self.flow = flow
         self.mel_extractor = mel_spectrogram
         self.cond_strategy = cond_strategy
-        self.vocoder: CosyVoiceHiFTDecoder = CosyVoiceHiFTDecoder.from_pretrained(device=self.device)
+        self.vocoder = vocoder
+        self.vocoder_repo_id = vocoder_repo_id
+        self.vocoder_filename = vocoder_filename
         self.input_projection = None
         if flow.vocab_size is None and feature_dim != flow.input_size:
             self.input_projection = nn.Linear(feature_dim, flow.input_size, device=self.device)
 
-    def project_speaker(
-        self,
-        speaker_embedding: torch.Tensor,
-    ):
-        speaker_embedding = F.normalize(speaker_embedding, dim=-1)
-        return self.speaker_proj(speaker_embedding)
+    def _get_vocoder(self) -> CosyVoiceHiFTDecoder:
+        if self.vocoder is None:
+            from .hift_generator import CosyVoiceHiFTDecoder
+
+            self.vocoder = CosyVoiceHiFTDecoder.from_pretrained(
+                repo_id=self.vocoder_repo_id,
+                filename=self.vocoder_filename,
+                device=self.device,
+            )
+        return self.vocoder
 
     @staticmethod
     def mel_output_lengths(sample_lengths: torch.Tensor, sampling_rate: int) -> torch.Tensor:
@@ -108,10 +114,8 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         return mel, mel_lengths
 
     def mel2wav(self, mel: torch.Tensor) -> torch.Tensor:
-        """
-        Use the pretrained CosyVoice vocoder to convert mel spectrograms to waveforms.
-        """
-        return self.vocoder(mel)
+        """Convert mel spectrograms to waveforms, loading the default vocoder on first use."""
+        return self._get_vocoder()(mel)
 
     def compute_loss(
         self,
@@ -173,12 +177,6 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         feature: torch.Tensor,
         length: torch.Tensor,
         speaker_embedding: torch.Tensor,
-        n_timesteps: int = 10,
-        # adding max_len because this only suppoorts batch size 1, so in parent class we iterate through batch and
-        # call forward on each sample. Instead of unpadding them and then padding them together later, we just
-        # pass in the max length for the batch and let the flow handle the masking and padding.
-        max_len: int | None = 0,
-        cond: torch.Tensor | None = None,
         run_vocoder: bool = False,
     ) -> CosyVoiceGenerationOutput:
 
@@ -217,14 +215,15 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
             raise RuntimeError("A generated mel length exceeds the padded mel tensor.")
 
         if run_vocoder:
-            wav = self.mel2wav(mel)  # mel must be `B, 80, T`
+            vocoder = self._get_vocoder()
+            wav = vocoder(mel)  # mel must be `B, 80, T`
             if wav.ndim == 3 and wav.shape[1] == 1:
                 wav = wav.squeeze(1)
-            waveform_lengths = mel_lengths * self.vocoder.samples_per_frame
+            waveform_lengths = mel_lengths * vocoder.samples_per_frame
             audio = GeneratedAudio(
                 waveforms=wav,
                 lengths=waveform_lengths,
-                sample_rate=self.vocoder.sample_rate,
+                sample_rate=vocoder.sample_rate,
             )
         else:
             audio = None

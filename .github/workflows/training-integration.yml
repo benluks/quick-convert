@@ -9,7 +9,7 @@ on:
       - ".github/workflows/training-integration.yml"
       - "pyproject.toml"
       - "uv.lock"
-      - "configs/trainer/**"
+      - "quick_convert/configs/trainer/**"
       - "quick_convert/training/**"
       - "quick_convert/pipelines/training/**"
       - "tests/test_media_logger.py"

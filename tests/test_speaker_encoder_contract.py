@@ -16,7 +16,7 @@ from quick_convert.components.speaker import (
 from quick_convert.data import AudioBatch
 
 
-CONFIG_DIR = Path(__file__).parents[1] / "configs"
+CONFIG_DIR = Path(__file__).parents[1] / "quick_convert" / "configs"
 
 
 def make_batch() -> AudioBatch:

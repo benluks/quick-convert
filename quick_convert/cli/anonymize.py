@@ -6,7 +6,7 @@ from .run import execute_pipeline
 
 @hydra.main(
     version_base=None,
-    config_path="../../configs",
+    config_path="../configs",
     config_name="run/anonymize_asrbn_clac",
 )
 def main(cfg: DictConfig):

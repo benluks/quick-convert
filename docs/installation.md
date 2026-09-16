@@ -11,7 +11,7 @@ uv sync
 
 ## Running pipelines
 
-Pipeline-style files in `configs/run/` can be launched through the universal
+Pipeline-style files in `quick_convert/configs/run/` can be launched through the universal
 entrypoint using the complete filename stem:
 
 ```bash
@@ -29,8 +29,8 @@ uv run build_manifest libri
 ```
 
 An alias prepends its config prefix. For example, `evaluate asr_librispeech`
-selects `configs/run/eval_asr_librispeech.yaml`; `train vq_asr_librispeech`
-selects `configs/run/train_vq_asr_librispeech.yaml`. The older
+selects `quick_convert/configs/run/eval_asr_librispeech.yaml`; `train vq_asr_librispeech`
+selects `quick_convert/configs/run/train_vq_asr_librispeech.yaml`. The older
 `eval_asr librispeech` command remains available for compatibility, but new
 usage should prefer `evaluate`.
 

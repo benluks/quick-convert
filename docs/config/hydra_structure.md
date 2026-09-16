@@ -27,7 +27,7 @@ Hydra merges these into a single config, then you pass it forward.
 ## Example Entry Point
 
 ```yaml
-# configs/run/anonymize_knnvc_clac.yaml
+# quick_convert/configs/run/anonymize_knnvc_clac.yaml
 
 defaults:
   - /global: default

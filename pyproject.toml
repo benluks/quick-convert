@@ -8,6 +8,16 @@ py-modules = ["main"]
 [tool.setuptools.packages.find]
 include = ["quick_convert*"]
 
+[tool.setuptools.package-data]
+quick_convert = [
+    "configs/**/*.yaml",
+    "external/cosyvoice/tokenizer/assets/*.tiktoken",
+    "external/matcha/VERSION",
+    "external/matcha/hifigan/LICENSE",
+    "external/matcha/hifigan/README.md",
+    "external/matcha/utils/monotonic_align/*.pyx",
+]
+
 [tool.uv]
 conflicts = [
     [
@@ -36,9 +46,13 @@ dependencies = [
 
 name = "quick-convert"
 version = "0.1.0"
-description = "Add your description here"
+description = "Composable speech privacy research workflows, systems, and components"
 readme = "README.md"
 requires-python = ">=3.11"
+
+[project.urls]
+Documentation = "https://benluks.github.io/quick-convert/"
+Repository = "https://github.com/benluks/quick-convert"
 
 [dependency-groups]
 dev = [
@@ -97,4 +111,3 @@ eval_asr = "main:main"
 precompute = "main:main"
 train = "main:main"
 test = "quick_convert.cli.test:main"
-# eval_asv = "main:main"
