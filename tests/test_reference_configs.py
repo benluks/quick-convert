@@ -112,9 +112,7 @@ def test_vq_asr_config_exposes_an_inference_ready_system():
     assert config.trainer.module.system == system
     assert config.trainer._target_ == "quick_convert.training.lightning.trainer.LightningTrainer"
     assert config.trainer.module._target_ == "quick_convert.training.lightning.modules.vq_asr.VQASRTrainingModule"
-    assert not {"project_name", "exp_name", "batch_size", "val_batch_size", "dataloader"}.intersection(
-        config.pipeline
-    )
+    assert not {"project_name", "exp_name", "batch_size", "val_batch_size", "dataloader"}.intersection(config.pipeline)
     assert config.trainer.train_dataloader_kwargs.batch_size == 32
     assert config.trainer.val_dataloader_kwargs.batch_size == 32
     assert "quantizer" not in config.trainer.module
