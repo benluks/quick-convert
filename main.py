@@ -38,7 +38,10 @@ def _resolve_config(
     if not argv or argv[0] in {"-h", "--help"}:
         if universal:
             choices = ", ".join(_available_run_configs(run_dir)) or "(none found)"
-            usage = f"Usage: {command} <run-config> [hydra overrides...]"
+            usage = (
+                f"Usage: {command} <run-config> [hydra overrides...]\n"
+                f"       {command} export <run-dir> <destination> [options]"
+            )
         else:
             choices = ", ".join(_available_aliases(config_prefix, run_dir)) or "(none found)"
             usage = f"Usage: {command} <config-alias> [hydra overrides...]"
@@ -61,6 +64,11 @@ def _resolve_config(
 
 def main() -> None:
     command = Path(sys.argv[0]).stem
+    if command in {"quick-convert", "quick_convert"} and sys.argv[1:2] == ["export"]:
+        module = importlib.import_module("quick_convert.cli.export")
+        module.main(sys.argv[2:])
+        return
+
     run_dir = Path(__file__).resolve().parent / "configs" / "run"
     config_name, overrides = _resolve_config(command, sys.argv[1:], run_dir)
     module = importlib.import_module("quick_convert.cli.run")

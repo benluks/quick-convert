@@ -1,8 +1,9 @@
+import sys
 from pathlib import Path
 
 import pytest
 
-from main import _resolve_config
+from main import _resolve_config, main
 
 
 def make_run_configs(tmp_path: Path) -> Path:
@@ -48,3 +49,27 @@ def test_missing_alias_lists_valid_choices(tmp_path: Path) -> None:
 
     with pytest.raises(SystemExit, match="asrbn_clac"):
         _resolve_config("anonymize", ["missing"], run_dir)
+
+
+def test_universal_help_lists_export(tmp_path: Path) -> None:
+    run_dir = make_run_configs(tmp_path)
+
+    with pytest.raises(SystemExit, match=r"quick-convert export <run-dir>"):
+        _resolve_config("quick-convert", ["--help"], run_dir)
+
+
+def test_universal_command_dispatches_export(monkeypatch) -> None:
+    called_with = None
+
+    class ExportModule:
+        @staticmethod
+        def main(argv):
+            nonlocal called_with
+            called_with = argv
+
+    monkeypatch.setattr("main.importlib.import_module", lambda name: ExportModule)
+    monkeypatch.setattr(sys, "argv", ["quick-convert", "export", "run", "model"])
+
+    main()
+
+    assert called_with == ["run", "model"]

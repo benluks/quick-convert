@@ -141,6 +141,18 @@ a training run, while `save_inference_artifact()` and
 `load_inference_artifact()` support already-instantiated systems without
 requiring Lightning.
 
+Export a completed run from the command line and load it in Python:
+
+```console
+quick-convert export outputs/my-run models/my-model
+```
+
+```python
+from quick_convert.inference import load_inference_artifact
+
+system = load_inference_artifact("models/my-model", map_location="cpu")
+```
+
 ## Recommended migration sequence
 
 1. ~~Define a typed VQ-ASR inference output.~~ SSL reconstruction still needs
