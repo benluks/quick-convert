@@ -114,7 +114,7 @@ class LinguisticConformerCTCHead(nn.Module):
         conv_kernel_size: int = 31,
         bias: bool = True,
         num_heads: int = 4,
-        ffn_dim: int = None,
+        ffn_dim: int | None = None,
         use_flash_attention: bool = True,
     ):
         super().__init__()

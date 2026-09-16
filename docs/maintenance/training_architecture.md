@@ -17,8 +17,9 @@ checkpoint, not approval for a broad refactor.
 5. `BaseTrainingModule` supplies Lightning steps, optimization, logging, and
    checkpoint filtering.
 
-The orchestration boundary is reasonable, but the object called `module` is
-currently both the task model and its Lightning training adapter.
+The task model and its Lightning training adapter are now separate objects.
+The remaining `module` name refers only to the framework adapter that wraps the
+configured system.
 
 ## Current ownership
 
@@ -158,8 +159,7 @@ system = load_inference_artifact("models/my-model", map_location="cpu")
 
 ## Recommended migration sequence
 
-1. ~~Define a typed VQ-ASR inference output.~~ SSL reconstruction still needs
-   its equivalent.
+1. ~~Define typed VQ-ASR and SSL-reconstruction inference outputs.~~
 2. ~~Extract `VQASRSystem` and verify that it returns CTC logits as well as
    useful intermediate representations.~~
 3. ~~Make `VQASRTrainingModule` wrap the system, retain legacy construction,
@@ -181,14 +181,14 @@ system = load_inference_artifact("models/my-model", map_location="cpu")
     is resolved into `pipeline.out_dir`, while dataloader settings live on the
     trainer backend that consumes them.~~
 
-## Decisions to workshop
+## Decisions made in this pass
 
-- Should VQ-ASR inference return only logits, or a typed result containing
-  logits, lengths, quantizer output, and contextual features?
-- Should objective objects live wholly in Lightning adapters, or may supervised
-  heads retain `compute_loss()` convenience methods while systems call only
-  their prediction path?
-- Should an inference artifact bundle frozen online encoder weights, reference
-  their upstream model identifiers, or support both policies explicitly?
-- How much compatibility is required for current Lightning checkpoints whose
-  keys are not prefixed by `system.`?
+- VQ-ASR inference returns a typed result with logits, lengths, quantizer
+  output, and contextual features.
+- Training objectives and loss weighting belong to the Lightning adapters;
+  systems expose prediction behavior.
+- Inference artifacts record excluded external state prefixes. The system
+  configuration reconstructs those dependencies rather than silently treating
+  a Lightning checkpoint as a portable model.
+- Current unprefixed Lightning checkpoints remain loadable through explicit key
+  migration. New training modules save system state under `system.*`.

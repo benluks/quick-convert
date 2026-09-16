@@ -33,9 +33,6 @@ class BaseTrainer(ABC):
         self,
         train_dataset: Any | None = None,
         val_dataset: Any | None = None,
-        # test_dataset: Any | None = None,
-        # out_dir: str | Path | None = None,
-        # **kwargs: Any,
     ) -> Any:
         """
         Run training.
@@ -48,13 +45,6 @@ class BaseTrainer(ABC):
                 Dataset used for training, if applicable.
             val_dataset:
                 Optional validation dataset.
-            test_dataset:
-                Optional test dataset.
-            output_dir:
-                Optional runtime output directory. If provided, this should
-                usually override `self.output_dir`.
-            **kwargs:
-                Escape hatch for backend-specific runtime options.
 
         Returns:
             Backend-specific training result.
