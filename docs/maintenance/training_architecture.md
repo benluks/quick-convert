@@ -8,8 +8,8 @@ checkpoint, not approval for a broad refactor.
 
 1. A run config selects `pipeline: training`, a trainer, an architecture, and
    datasets.
-2. Hydra places architecture components directly beneath
-   `trainer.module`.
+2. Hydra constructs the task model beneath `architecture.system`; the selected
+   trainer module wraps that system.
 3. `TrainingPipeline` asks the selected trainer to build itself, writes the
    fully resolved run config, and invokes training.
 4. `LightningTrainer` performs dataset-dependent module setup, constructs the
@@ -27,8 +27,8 @@ currently both the task model and its Lightning training adapter.
 | Dataset and output orchestration | `TrainingPipeline` | Pipeline responsibility. |
 | Dataloaders, DDP, precision, compilation, and `fit()` | `LightningTrainer` | Training runtime responsibility, not a task system. |
 | Optimizer and scheduler construction | `Optimization` and `BaseTrainingModule` | Training-only state. |
-| Model architecture | Plain systems and concrete Lightning modules | VQ-ASR is separated; SSL reconstruction remains coupled to training construction. |
-| Task inference | Plain systems and concrete Lightning modules | VQ-ASR now has a typed, Lightning-independent result; SSL reconstruction still exposes inference through its training module. |
+| Model architecture | Plain systems under `architecture.system` | Supported VQ-ASR and SSL-reconstruction configurations construct systems independently of Lightning. |
+| Task inference | Plain systems | VQ-ASR and SSL reconstruction expose typed, Lightning-independent results. |
 | Losses and training metrics | Concrete Lightning modules and some components | Training behavior is interleaved with model execution. |
 | Media and gradient logging | Lightning modules and mixins | Training-only behavior. |
 | Frozen online resource encoders | Concrete Lightning modules | Needed by some inference paths, but deliberately omitted from some checkpoints. |
@@ -142,8 +142,9 @@ checkpoints; future checkpoints can save the system state explicitly.
 3. ~~Make `VQASRTrainingModule` wrap the system, retain legacy construction,
    and convert historical checkpoint keys explicitly.~~
 4. ~~Expose `architecture.system` in the supported VQ-ASR Hydra config.~~
-5. Extract `SSLReconstructionSystem`, moving `inference()` and file/tensor
-   conveniences out of the Lightning module.
+5. ~~Extract `SSLReconstructionSystem`, move file/tensor inference conveniences
+   out of the Lightning module, and expose it as `architecture.system` in each
+   supported SSL-reconstruction configuration.~~
 6. Introduce a versioned inference artifact loader/exporter.
 7. Only after those contracts stabilize, move Lightning-specific modules and
    runners out of `pipelines` into a dedicated training package.
