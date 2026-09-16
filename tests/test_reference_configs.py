@@ -45,6 +45,10 @@ def register_resolvers():
             "quick_convert.pipelines.training.pipeline.TrainingPipeline",
         ),
         (
+            "run/train_bpe_tokenizer_librispeech",
+            "quick_convert.pipelines.training.pipeline.TrainingPipeline",
+        ),
+        (
             "run/build_manifest_libri",
             "quick_convert.pipelines.build_manifest.BuildManifestPipeline",
         ),
@@ -83,6 +87,16 @@ def test_librispeech_can_be_composed_into_a_named_dataset_slot():
         )
 
     assert config.source_dataset._target_ == "quick_convert.data.BaseDataset"
+
+
+def test_tokenizer_training_has_an_explicit_output_directory():
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
+        config = compose(
+            config_name="run/train_bpe_tokenizer_librispeech",
+            return_hydra_config=True,
+        )
+
+    assert config.pipeline.out_dir == "outputs/tokenizer/librispeech_1000_tokens"
 
 
 def test_vq_asr_config_exposes_an_inference_ready_system():

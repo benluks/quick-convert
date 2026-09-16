@@ -10,8 +10,8 @@ checkpoint, not approval for a broad refactor.
    datasets.
 2. Hydra constructs the task model at `system`; the selected training module
    wraps that system.
-3. `TrainingPipeline` asks the selected trainer to build itself, writes the
-   fully resolved run config, and invokes training.
+3. The shared runner explicitly prepares `TrainingPipeline`, writes the fully
+   resolved config to the prepared run directory, and invokes training.
 4. `LightningTrainer` performs dataset-dependent module setup, constructs the
    Lightning trainer, optionally compiles submodules, and calls `fit()`.
 5. `BaseTrainingModule` supplies Lightning steps, optimization, logging, and
@@ -24,7 +24,7 @@ currently both the task model and its Lightning training adapter.
 
 | Concern | Current owner | Architectural observation |
 | --- | --- | --- |
-| Dataset and output orchestration | `TrainingPipeline` | Pipeline responsibility. |
+| Dataset and output orchestration | `TrainingPipeline` | Pipeline responsibility; construction has no runtime side effects. |
 | Dataloaders, DDP, precision, compilation, and `fit()` | `LightningTrainer` | Training runtime responsibility, not a task system. |
 | Optimizer and scheduler construction | `Optimization` and `BaseTrainingModule` | Training-only state. |
 | Task model | Plain systems under `system` | Supported VQ-ASR and SSL-reconstruction configurations construct systems independently of Lightning. |
@@ -88,9 +88,11 @@ remain as compatibility aliases for saved configs and downstream callers.
 ### Pipelines and trainers
 
 `TrainingPipeline` should continue to coordinate datasets, output paths,
-configuration capture, and execution. A Lightning runner and a SentencePiece
-runner are training backends/adapters. Naming them `systems` would blur the
-existing meaning of a system as a task-level capability.
+configuration capture, and execution. Its explicit, idempotent `prepare()`
+step delegates backend setup and records the returned artifact directory before
+configuration is written. A Lightning runner and a SentencePiece runner are
+training backends/adapters. Naming them `systems` would blur the existing
+meaning of a system as a task-level capability.
 
 ## Configuration boundary
 
@@ -172,6 +174,9 @@ system = load_inference_artifact("models/my-model", map_location="cpu")
 8. ~~Move Lightning-specific modules and runners out of `pipelines` into the
    dedicated `quick_convert.training` package, retaining compatibility
    imports.~~
+9. ~~Remove trainer construction from `TrainingPipeline.__init__` and define a
+   backend-neutral preparation contract shared by Lightning and tokenizer
+   training.~~
 
 ## Decisions to workshop
 

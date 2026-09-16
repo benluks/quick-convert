@@ -9,8 +9,13 @@ class RecordingPipeline:
     def __init__(self):
         self.config = None
         self.run_kwargs = None
+        self.prepared = False
+
+    def prepare(self):
+        self.prepared = True
 
     def write_config(self, config):
+        assert self.prepared
         self.config = config
 
     def run(self, **kwargs):
@@ -30,6 +35,7 @@ def test_execute_pipeline_handles_optional_capabilities(monkeypatch) -> None:
     result = run_module.execute_pipeline(cfg)
 
     assert result == "result"
+    assert pipeline.prepared
     assert pipeline.config == "rendered: true\n"
     assert pipeline.run_kwargs == {"flag": True}
 

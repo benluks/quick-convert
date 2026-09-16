@@ -74,3 +74,16 @@ class BaseTrainer(ABC):
             return Path(out_dir)
 
         return self.output_dir
+
+    def prepare(
+        self,
+        train_dataset: Any,
+        out_dir: str | Path | None = None,
+    ) -> Path:
+        """Prepare the backend and return the directory for run artifacts."""
+        output_dir = self.resolve_output_dir(out_dir)
+        if output_dir is None:
+            raise ValueError("No output directory was provided.")
+
+        self.output_dir = output_dir
+        return output_dir

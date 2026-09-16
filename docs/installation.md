@@ -42,10 +42,11 @@ uv run evaluate
 uv run quick-convert
 ```
 
-The shared runner composes the selected config, instantiates `cfg.pipeline`,
-passes the resolved config to `write_config()` when the pipeline provides that
-method, and calls `pipeline.run(**cfg.run)`. This keeps the CLI orchestration
-generic while allowing pipelines to expose their own run arguments.
+The shared runner composes the selected config and instantiates `cfg.pipeline`.
+When supported, it calls `prepare()` before persisting the resolved config with
+`write_config()`, then calls `pipeline.run(**cfg.run)`. Preparation is explicit
+because some backends determine their final run directory during setup. Direct
+library calls to `TrainingPipeline.run()` prepare automatically.
 
 Special-purpose utilities whose interfaces do not follow this pipeline
 contract, including ASV evaluation and manifest splitting, remain available as

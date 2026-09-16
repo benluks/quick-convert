@@ -20,7 +20,7 @@ class LightningTrainer(BaseTrainer):
         ddp: dict | None = None,
         precision: dict | None = None,
     ):
-
+        super().__init__()
         self.module = module
         self.train_dataloader_kwargs = train_dataloader_kwargs or {}
         self.val_dataloader_kwargs = val_dataloader_kwargs or {}
@@ -83,11 +83,12 @@ class LightningTrainer(BaseTrainer):
             )
             setattr(self.module, target, compiled_submodule)
 
-    def build(
+    def prepare(
         self,
         train_dataset,
         out_dir=None,
-    ):
+    ) -> Path:
+        output_dir = super().prepare(train_dataset, out_dir)
 
         # where indexing and loss building happens
         self.module.setup_training(train_dataset)
@@ -103,7 +104,7 @@ class LightningTrainer(BaseTrainer):
         if self.precision is not None:
             trainer_kwargs.setdefault("precision", self.precision)
 
-        self.pl_trainer = L.Trainer(default_root_dir=out_dir, **trainer_kwargs)
+        self.pl_trainer = L.Trainer(default_root_dir=output_dir, **trainer_kwargs)
         # self.log_dir = self.pl_trainer.log_dir
         for logger in self.pl_trainer.loggers:
             print(
@@ -112,6 +113,12 @@ class LightningTrainer(BaseTrainer):
                 logger.version,
                 logger.save_dir,
             )
+
+        return self.log_dir
+
+    def build(self, train_dataset, out_dir=None) -> None:
+        """Compatibility alias for the former backend lifecycle."""
+        self.prepare(train_dataset, out_dir)
 
     @property
     def log_dir(self) -> Path:

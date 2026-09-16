@@ -30,6 +30,10 @@ def execute_pipeline(cfg: DictConfig) -> Any:
     print(rendered_config)
 
     pipeline = instantiate(cfg.pipeline)
+    prepare = getattr(pipeline, "prepare", None)
+    if callable(prepare):
+        prepare()
+
     write_config = getattr(pipeline, "write_config", None)
     if callable(write_config):
         write_config(rendered_config)
