@@ -177,6 +177,9 @@ system = load_inference_artifact("models/my-model", map_location="cpu")
 9. ~~Remove trainer construction from `TrainingPipeline.__init__` and define a
    backend-neutral preparation contract shared by Lightning and tokenizer
    training.~~
+10. ~~Remove configuration-only fields from `TrainingPipeline`: output naming
+    is resolved into `pipeline.out_dir`, while dataloader settings live on the
+    trainer backend that consumes them.~~
 
 ## Decisions to workshop
 

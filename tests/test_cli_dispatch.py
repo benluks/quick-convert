@@ -19,12 +19,12 @@ def test_universal_command_accepts_full_run_config(tmp_path: Path) -> None:
 
     config, overrides = _resolve_config(
         "quick-convert",
-        ["train_vq_asr_librispeech", "pipeline.batch_size=4"],
+        ["train_vq_asr_librispeech", "trainer.train_dataloader_kwargs.batch_size=4"],
         run_dir,
     )
 
     assert config == "run/train_vq_asr_librispeech"
-    assert overrides == ["pipeline.batch_size=4"]
+    assert overrides == ["trainer.train_dataloader_kwargs.batch_size=4"]
 
 
 def test_command_can_map_to_a_different_config_prefix(tmp_path: Path) -> None:

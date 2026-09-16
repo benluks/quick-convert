@@ -15,13 +15,13 @@ Pipeline-style files in `configs/run/` can be launched through the universal
 entrypoint using the complete filename stem:
 
 ```bash
-uv run quick-convert train_vq_asr_librispeech pipeline.batch_size=16
+uv run quick-convert train_vq_asr_librispeech trainer.train_dataloader_kwargs.batch_size=16
 ```
 
 Common operations also have shorter, verb-oriented aliases:
 
 ```bash
-uv run train vq_asr_librispeech pipeline.batch_size=16
+uv run train vq_asr_librispeech trainer.train_dataloader_kwargs.batch_size=16
 uv run evaluate asr_librispeech
 uv run anonymize knnvc_clac target_id=6081
 uv run precompute content_w2vbert_librispeech

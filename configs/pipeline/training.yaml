@@ -5,18 +5,7 @@ trainer: ${trainer}
 train_dataset: ${train_dataset}
 val_dataset: ${val_dataset}
 test_dataset: null
-project_name: ${project_name}
-exp_name: ${exp_name}
-out_dir: ${out_root}/${pipeline.project_name}/${pipeline.exp_name}
-
-batch_size: 32
-val_batch_size: ${.batch_size}
-
-dataloader:
-  num_workers: 24
-  pin_memory: true
-  drop_last: true
-  persistent_workers: true
+out_dir: ${out_root}/${project_name}/${exp_name}
 
 # test_dataset: null
 # test_dataloader_kwargs: {}

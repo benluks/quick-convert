@@ -15,11 +15,9 @@ class TrainingPipeline:
         self,
         trainer: BaseTrainer,
         train_dataset: BaseDataset,
-        exp_name: str,
         val_dataset: BaseDataset | None = None,
         test_dataset: BaseDataset | None = None,
         out_dir: PathLike | None = None,
-        **kwargs,
     ) -> None:
         self.trainer = trainer
         self.train_dataset = train_dataset

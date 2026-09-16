@@ -27,7 +27,6 @@ def make_pipeline(tmp_path: Path):
         trainer=trainer,
         train_dataset="train",
         val_dataset="validation",
-        exp_name="experiment",
         out_dir=tmp_path / "configured",
     )
     return pipeline, trainer
@@ -85,7 +84,6 @@ def test_tokenizer_backend_uses_the_shared_prepare_contract(tmp_path):
     pipeline = TrainingPipeline(
         trainer=TokenizerTrainer(module=TokenizerModule(), model_prefix="tokens"),
         train_dataset=dataset,
-        exp_name="tokenizer",
         out_dir=tmp_path / "tokenizer",
     )
 

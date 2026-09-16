@@ -13,10 +13,8 @@ defaults:
 dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
 dataset_path: ${out_root}/${dataset_name}
 
-pipeline:
-  exp_name: ${hydra:runtime.choices.system/reconstruction@system}_${dataset_name}
-  project_name: ${hydra:runtime.choices.trainer}
-  batch_size: 32
+exp_name: ${hydra:runtime.choices.system/reconstruction@system}_${dataset_name}
+project_name: ${hydra:runtime.choices.trainer}
 
 data: &data
   load:

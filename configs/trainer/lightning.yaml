@@ -10,20 +10,20 @@ module: ???
 cudnn_benchmark: false
 
 train_dataloader_kwargs:
-  batch_size: ${pipeline.batch_size}
+  batch_size: 32
   shuffle: true
-  num_workers: ${pipeline.dataloader.num_workers}
-  pin_memory: ${pipeline.dataloader.pin_memory}
-  drop_last: ${pipeline.dataloader.drop_last}
-  persistent_workers: ${pipeline.dataloader.persistent_workers}
+  num_workers: 24
+  pin_memory: true
+  drop_last: true
+  persistent_workers: true
 
 val_dataloader_kwargs:
-  batch_size: ${pipeline.val_batch_size}
+  batch_size: ${..train_dataloader_kwargs.batch_size}
   shuffle: false
-  num_workers: ${pipeline.dataloader.num_workers}
-  pin_memory: ${pipeline.dataloader.pin_memory}
-  drop_last: ${pipeline.dataloader.drop_last}
-  persistent_workers: ${pipeline.dataloader.persistent_workers}
+  num_workers: ${..train_dataloader_kwargs.num_workers}
+  pin_memory: ${..train_dataloader_kwargs.pin_memory}
+  drop_last: ${..train_dataloader_kwargs.drop_last}
+  persistent_workers: ${..train_dataloader_kwargs.persistent_workers}
 
 trainer_kwargs:
   max_steps: -1
@@ -57,5 +57,5 @@ trainer_kwargs:
   logger:
     _target_: lightning.pytorch.loggers.WandbLogger
     save_dir: ${out_root}
-    project: ${pipeline.project_name}
-    name: ${pipeline.exp_name}
+    project: ${project_name}
+    name: ${exp_name}

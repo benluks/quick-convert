@@ -211,7 +211,7 @@ Hydra will compose the configuration from the files listed in the `defaults` sec
 Configuration values can be overridden directly from the command line. For example, to adjust the batch size:
 
 ```bash
-uv run -m quick_convert.cli.train --config-name run/train_vq_asr_librispeech pipeline.batch_size=64
+uv run -m quick_convert.cli.train --config-name run/train_vq_asr_librispeech trainer.train_dataloader_kwargs.batch_size=64
 ```
 
 Or to change the training split:
@@ -858,6 +858,9 @@ defaults:
   - /system/vq_asr@system: w2vbert_conformer
   - /dataset@train_dataset: manifest
   - _self_
+
+project_name: vq_asr
+exp_name: w2vbert_conformer_manifest
 
 train_dataset:
   manifest_path: outputs/librispeech/clean_460/manifest.csv

@@ -17,9 +17,8 @@ resources_path: ${resources_root}/${dataset_name}
 dataset_path: ${out_root}/${dataset_name}
 data_path_suffix: ""
 
-pipeline:
-  exp_name: ${hydra:runtime.choices.system/vq_asr@system}_${dataset_name}
-  project_name: ${hydra:runtime.choices.trainer}
+exp_name: ${hydra:runtime.choices.system/vq_asr@system}_${dataset_name}
+project_name: ${hydra:runtime.choices.trainer}
 
 data: &data # compute info from sample
   resources:

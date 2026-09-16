@@ -11,9 +11,8 @@ defaults:
 dataset: ${train_dataset}
 out_dir_suffix: _${trainer.module.vocab_size}_tokens
 
-pipeline:
-  project_name: tokenizer
-  exp_name: librispeech${out_dir_suffix}
+project_name: tokenizer
+exp_name: librispeech${out_dir_suffix}
 
 train_dataset:
   splits:
