@@ -85,14 +85,15 @@ def test_librispeech_can_be_composed_into_a_named_dataset_slot():
     assert config.source_dataset._target_ == "quick_convert.data.BaseDataset"
 
 
-def test_vq_asr_architecture_exposes_an_inference_ready_system():
+def test_vq_asr_config_exposes_an_inference_ready_system():
     with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
         config = compose(
             config_name="run/train_vq_asr_librispeech",
             return_hydra_config=True,
         )
 
-    system = config.architecture.system
+    system = config.system
+    assert "architecture" not in config
     assert system._target_ == "quick_convert.systems.asr.VQASRSystem"
     assert config.trainer.module.system == system
     assert "quantizer" not in config.trainer.module
@@ -170,14 +171,15 @@ def test_clac_root_comes_from_environment(monkeypatch, tmp_path):
         "run/train_sslr_w2vbert_dit",
     ],
 )
-def test_ssl_reconstruction_architecture_exposes_an_inference_ready_system(config_name):
+def test_ssl_reconstruction_config_exposes_an_inference_ready_system(config_name):
     with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
         config = compose(
             config_name=config_name,
             return_hydra_config=True,
         )
 
-    system = config.architecture.system
+    system = config.system
+    assert "architecture" not in config
     assert system._target_ == "quick_convert.systems.reconstruction.SSLReconstructionSystem"
     assert config.trainer.module.system == system
     assert "encoder" not in system
@@ -193,11 +195,11 @@ def test_rvq_ssl_reconstruction_uses_plain_quantizer_encoder():
             return_hydra_config=True,
         )
 
-    system = config.architecture.system
+    system = config.system
     encoder = system.encoder
     assert system._target_ == "quick_convert.systems.reconstruction.SSLReconstructionSystem"
     assert config.trainer.module.system == system
     assert encoder._target_ == "quick_convert.components.layers.rvq_ema.ResidualVectorQuantizerEMA"
-    assert encoder.input_dim == config.architecture.feature_dim
-    assert system.decoder.feature_dim == config.architecture.feature_dim
+    assert encoder.input_dim == 1024
+    assert system.decoder.feature_dim == encoder.input_dim
     assert "encoder" not in config.trainer.module

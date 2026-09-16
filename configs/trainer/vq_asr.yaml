@@ -10,6 +10,6 @@ defaults:
 
 module:
   _target_: quick_convert.pipelines.training.modules.vq_asr.VQASRTrainingModule
-  system: ${architecture.system}
-  tokenizer_model_path: ${architecture.tokenizer_model_path}
+  system: ${system}
+  tokenizer_model_path: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
   ctc_loss_weight: 1.

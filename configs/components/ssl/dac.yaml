@@ -7,4 +7,4 @@ pretrained: 16khz
 trainable: false
 sample_rate: 16000
 device: ${device}
-feature_dim: 1024   # consumed by Hydra wiring (architecture.content_ssl.feature_dim)
+feature_dim: 1024

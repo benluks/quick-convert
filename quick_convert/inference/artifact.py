@@ -124,12 +124,15 @@ def export_inference_artifact(
     map_location: DeviceLike = "cpu",
     overwrite: bool = False,
 ) -> Path:
-    """Export ``architecture.system`` from a Lightning training run."""
+    """Export the system from a training run."""
     run_dir = Path(run_dir)
     cfg = OmegaConf.load(run_dir / config)
-    system_config = OmegaConf.select(cfg, "architecture.system")
+    system_config = OmegaConf.select(cfg, "system")
     if system_config is None:
-        raise ValueError("Run config does not define `architecture.system`.")
+        # Runs written before the top-level system config was introduced.
+        system_config = OmegaConf.select(cfg, "architecture.system")
+    if system_config is None:
+        raise ValueError("Run config does not define `system`.")
 
     checkpoint_path = Path(checkpoint)
     if not checkpoint_path.is_absolute():

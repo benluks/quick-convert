@@ -1,8 +1,15 @@
 # Pipelines and inference
 
-Pipelines are executable workflows. They assemble datasets and systems or
-components, iterate over data, and persist task-specific outputs. They should
-not contain model architecture or backend-specific inference logic.
+Pipelines are executable workflows. They assemble datasets and the smallest
+appropriate executable dependency—usually a task system, or directly a focused
+component for preprocessing—iterate over data, and persist task-specific
+outputs. They should not contain model architecture or backend-specific
+inference logic.
+
+The pipeline–system–component model describes roles rather than mandatory
+nesting. Training additionally uses a trainer backend and a framework adapter:
+the pipeline owns the run, the trainer owns framework execution, the adapter
+owns objectives and hooks, and the wrapped system remains usable for inference.
 
 The current inference-oriented pipelines share data contracts, but they do not
 yet share enough lifecycle behavior to justify a common base class.

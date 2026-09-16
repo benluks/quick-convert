@@ -11,13 +11,13 @@ class BaseTrainer(ABC):
     """
     Base interface for objects that know how to train something.
 
-    A training system owns the training strategy/curriculum, while the pipeline
-    owns I/O and orchestration.
+    A trainer backend owns training execution, while the pipeline owns I/O and
+    workflow orchestration.
 
     Examples:
-        - LightningTrainingSystem
-        - TokenizerTrainingSystem
-        - SpeechBrainTrainingSystem
+        - LightningTrainer
+        - TokenizerTrainer
+        - SpeechBrainTrainer
     """
 
     def __init__(
@@ -54,10 +54,10 @@ class BaseTrainer(ABC):
                 Optional runtime output directory. If provided, this should
                 usually override `self.output_dir`.
             **kwargs:
-                Escape hatch for system-specific runtime options.
+                Escape hatch for backend-specific runtime options.
 
         Returns:
-            System-specific training result.
+            Backend-specific training result.
         """
         raise NotImplementedError
 

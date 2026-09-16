@@ -855,6 +855,7 @@ defaults:
   - /global: default
   - /pipeline: training
   - /trainer: vq_asr
+  - /system/vq_asr@system: w2vbert_conformer
   - /dataset@train_dataset: manifest
   - _self_
 
@@ -879,13 +880,15 @@ val_dataset: null
 
 ### 1. Select the training pipeline and model
 
-The first three defaults select the standard training machinery and the VQ-ASR architecture:
+The first four defaults select the standard training machinery and the VQ-ASR
+system:
 
 ```yaml
 defaults:
   - /global: default
   - /pipeline: training
   - /trainer: vq_asr
+  - /system/vq_asr@system: w2vbert_conformer
 ```
 
 The training dataset is now selected from the manifest implementation:

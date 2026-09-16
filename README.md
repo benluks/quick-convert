@@ -87,44 +87,53 @@ Along the way, it introduces the core abstractions used throughout the project:
 
 ## Design philosophy
 
-quick-convert is organized into three conceptual layers:
+quick-convert separates workflow orchestration from task behavior and reusable
+implementation pieces:
 
-Pipelines
-    │
-    ▼
-Systems
-    │
-    ▼
-Components
+- **Pipelines** execute workflows over datasets and persist outputs.
+- **Systems** provide complete task-level capabilities through a library API.
+- **Components** are focused building blocks used to construct systems or
+  specialized workflows.
+
+These are roles and dependency boundaries, not a requirement that every
+workflow instantiate all three. For example, feature precomputation may apply a
+feature-extractor component directly. Training inserts a trainer and a
+framework-specific training module around a system without making either one a
+task system.
 
 ### Pipelines
 
-Pipelines define complete executable workflows. These can be found under `quick_convert/pipelines/{[PIPELINE_NAME]/pipeline.py,[PIPLEINE_NAME].py}`.
+Pipelines define complete executable workflows under `quick_convert/pipelines`.
 
 Examples include:
 
-Model training pipelines, which is agnostic to the task (system) and architecture (components);
-Evaluation which is similarly agnostic;
-Anonymization a dataset;
-Precomputing features (although maybe this should be under an "inference" pipeline, we'll see);
+- model training, independent of the particular task system;
+- evaluation;
+- dataset anonymization; and
+- feature precomputation.
 
 A pipeline coordinates data loading, systems, output handling, and runtime configuration.
 
 ### Systems
 
-Systems implement a complete task-level capability. They're found under `quick_convert/pipelines/{[PIPELINE_NAME]/[SYSTEM_NAME]/...}`. I put ASR in a dedicated systems folder `quick_convert/systems/asr`. That's the plan for the future. I just haven't done the refactoring yet.
+Systems implement a complete task-level capability under
+`quick_convert/systems`. Their public inference behavior does not depend on a
+pipeline or training framework.
 
 Examples include:
 
-ASR system, invariant to the exact architecture;
-Automatic Speaker Verification (ASV);
-Anonymization/Voice Converstion.
+- automatic speech recognition;
+- speech reconstruction; and
+- anonymization or voice conversion.
 
-A system may combine multiple models, and, frankly, a model may utilize multiple systems.
+A system may combine several models or call another system when that dependency
+is itself task-level.
 
 ### Components
 
-Components are the reusable building blocks from which systems are constructed. This are analogous to pytorch `nn.Module`s, and are similarly recursive.
+Components are reusable, focused building blocks. Many are recursive PyTorch
+modules, but the role also includes stateless signal processing and feature
+extraction utilities.
 
 Examples include:
 
@@ -137,21 +146,9 @@ x-vector extractors
 
 This separation allows low-level components to be reused across different systems, while pipelines remain focused on how those systems are trained, evaluated, or applied.
 
-Configuration
-      │
-      ▼
-   Pipeline
-      │
-      ▼
-    System
-      │
-      ▼
-  Components
-      │
-      ▼
-    Output
-
-Most experiments in quick-convert are created by selecting a pipeline, configuring a system, and composing its components through Hydra.
+Most experiments select a pipeline and its dependencies through Hydra. Task
+workflows configure a system directly at `system`; training workflows pass that
+same system to a framework-specific training module.
 
 ## Contributing
 

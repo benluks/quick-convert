@@ -41,7 +41,7 @@ This is the **composition root**.
 
 Think of it as:
 
-> “Take these building blocks and assemble a runnable system.”
+> “Take these building blocks and assemble a runnable workflow.”
 
 ---
 

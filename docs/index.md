@@ -21,17 +21,11 @@ It also introduces the main abstractions used throughout the project, including 
 
 ## Core concepts
 
-`quick-convert` is organized around three conceptual layers:
-
-```text
-Pipelines
-    │
-    ▼
-Systems
-    │
-    ▼
-Components
-```
+`quick-convert` distinguishes three architectural roles: pipelines orchestrate
+workflows, systems implement task-level capabilities, and components provide
+focused reusable building blocks. These roles define ownership and dependency
+direction; a preprocessing pipeline may use a component directly when no
+task-level system is needed.
 
 ⚠️ WARNING: Most of the following pages don't exist yet. ⚠️
 
@@ -55,7 +49,8 @@ Systems implement task-level capabilities, such as:
 * automatic speaker verification;
 * speech anonymization and voice conversion.
 
-A system is generally independent of the exact architecture used to implement it.
+A system's task contract is independent of the particular components used to
+implement it.
 
 ### [Components](components/index.md)
 
@@ -143,10 +138,7 @@ Hydra composition
     Pipeline
        │
        ▼
-     System
-       │
-       ▼
-   Components
+  Dependencies
        │
        ▼
      Outputs
@@ -156,6 +148,9 @@ Hydra composition
 
 `quick-convert` is an active research codebase.
 
-Some parts of the package structure reflect earlier iterations of the design. In particular, several task-level systems currently live beneath `quick_convert/pipelines/`; these are expected to move gradually into `quick_convert/systems/`.
+Some framework-specific training adapters still live beneath
+`quick_convert/pipelines/training`; these are expected to move into a dedicated
+training package. Compatibility re-exports also remain for anonymization
+systems that previously lived beneath `pipelines`.
 
 Optional dependency groups are also being revised and tested. Consult `pyproject.toml` when installing dependencies for a specific workflow.

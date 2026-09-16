@@ -8,8 +8,8 @@ checkpoint, not approval for a broad refactor.
 
 1. A run config selects `pipeline: training`, a trainer, an architecture, and
    datasets.
-2. Hydra constructs the task model beneath `architecture.system`; the selected
-   trainer module wraps that system.
+2. Hydra constructs the task model at `system`; the selected training module
+   wraps that system.
 3. `TrainingPipeline` asks the selected trainer to build itself, writes the
    fully resolved run config, and invokes training.
 4. `LightningTrainer` performs dataset-dependent module setup, constructs the
@@ -27,7 +27,7 @@ currently both the task model and its Lightning training adapter.
 | Dataset and output orchestration | `TrainingPipeline` | Pipeline responsibility. |
 | Dataloaders, DDP, precision, compilation, and `fit()` | `LightningTrainer` | Training runtime responsibility, not a task system. |
 | Optimizer and scheduler construction | `Optimization` and `BaseTrainingModule` | Training-only state. |
-| Model architecture | Plain systems under `architecture.system` | Supported VQ-ASR and SSL-reconstruction configurations construct systems independently of Lightning. |
+| Task model | Plain systems under `system` | Supported VQ-ASR and SSL-reconstruction configurations construct systems independently of Lightning. |
 | Task inference | Plain systems | VQ-ASR and SSL reconstruction expose typed, Lightning-independent results. |
 | Losses and training metrics | Concrete Lightning modules and some components | Training behavior is interleaved with model execution. |
 | Media and gradient logging | Lightning modules and mixins | Training-only behavior. |
@@ -95,14 +95,15 @@ existing meaning of a system as a task-level capability.
 
 ## Configuration boundary
 
-The architecture config should construct a system independently:
+The system config should construct the task capability directly. `system` is
+the object; “architecture” describes how it is assembled and does not need a
+second configuration namespace:
 
 ```yaml
-architecture:
-  system:
-    _target_: quick_convert.systems.asr.VQASRSystem
-    quantizer: ...
-    ctc_head: ...
+system:
+  _target_: quick_convert.systems.asr.VQASRSystem
+  quantizer: ...
+  ctc_head: ...
 ```
 
 The trainer config should then wrap it:
@@ -111,12 +112,12 @@ The trainer config should then wrap it:
 trainer:
   module:
     _target_: quick_convert.pipelines.training.modules.vq_asr.VQASRTrainingModule
-    system: ${architecture.system}
+    system: ${system}
     optimization: ...
     ctc_loss_weight: 1.0
 ```
 
-This allows the same `architecture.system` node to be instantiated for
+This allows the same `system` node to be instantiated for
 inference without resolving optimizer, loss-weight, logger, or trainer config.
 
 ## Artifact boundary
@@ -128,8 +129,9 @@ Two artifacts serve different purposes and should not be conflated:
 | Training checkpoint | System weights, optimizer/scheduler state, epochs, steps, and Lightning callback state | Exact training resumption. |
 | Inference artifact | System config, system weights, format/version metadata, and declarations for excluded external weights | Portable inference and library use. |
 
-An inference loader should instantiate `architecture.system` and load only the
-system state. Loading should not require `cfg.pipeline.trainer.module`.
+An inference loader should instantiate `system` and load only the system state.
+Loading should not require `cfg.pipeline.trainer.module`. The exporter retains
+a fallback for historical run configs containing `architecture.system`.
 Initially, an export helper can extract `system.*` keys from existing Lightning
 checkpoints; future checkpoints can save the system state explicitly.
 
@@ -161,12 +163,14 @@ system = load_inference_artifact("models/my-model", map_location="cpu")
    useful intermediate representations.~~
 3. ~~Make `VQASRTrainingModule` wrap the system, retain legacy construction,
    and convert historical checkpoint keys explicitly.~~
-4. ~~Expose `architecture.system` in the supported VQ-ASR Hydra config.~~
+4. ~~Expose an independent system in the supported VQ-ASR Hydra config.~~
 5. ~~Extract `SSLReconstructionSystem`, move file/tensor inference conveniences
-   out of the Lightning module, and expose it as `architecture.system` in each
+   out of the Lightning module, and expose it as `system` in each
    supported SSL-reconstruction configuration.~~
 6. ~~Introduce a versioned inference artifact loader/exporter.~~
-7. Only after those contracts stabilize, move Lightning-specific modules and
+7. ~~Replace the redundant `architecture.system` configuration with the
+   top-level `system` convention already used by evaluation.~~
+8. Only after those contracts stabilize, move Lightning-specific modules and
    runners out of `pipelines` into a dedicated training package.
 
 ## Decisions to workshop

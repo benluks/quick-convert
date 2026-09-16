@@ -4,7 +4,7 @@ defaults:
   - /global: default
   - /pipeline: training
   - /trainer: vq_asr
-  - /architecture/vq_asr@architecture: w2vbert_conformer
+  - /system/vq_asr@system: w2vbert_conformer
   - /dataset@train_dataset: manifest
   - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
@@ -18,7 +18,7 @@ dataset_path: ${out_root}/${dataset_name}
 data_path_suffix: ""
 
 pipeline:
-  exp_name: ${hydra:runtime.choices.architecture/vq_asr@architecture}_${dataset_name}
+  exp_name: ${hydra:runtime.choices.system/vq_asr@system}_${dataset_name}
   project_name: ${hydra:runtime.choices.trainer}
 
 data: &data # compute info from sample

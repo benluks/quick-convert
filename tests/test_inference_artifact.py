@@ -59,7 +59,7 @@ def test_training_run_export_keeps_only_system_state(tmp_path):
     checkpoint_dir = run_dir / "checkpoints"
     checkpoint_dir.mkdir(parents=True)
     OmegaConf.save(
-        OmegaConf.create({"architecture": {"system": LINEAR_CONFIG}}),
+        OmegaConf.create({"system": LINEAR_CONFIG}),
         run_dir / "config.yaml",
     )
     checkpoint = {
@@ -80,6 +80,24 @@ def test_training_run_export_keeps_only_system_state(tmp_path):
     torch.testing.assert_close(loaded.bias, checkpoint["state_dict"]["system.bias"])
 
 
+def test_export_accepts_legacy_architecture_system_config(tmp_path):
+    run_dir = tmp_path / "run"
+    checkpoint_dir = run_dir / "checkpoints"
+    checkpoint_dir.mkdir(parents=True)
+    OmegaConf.save(
+        OmegaConf.create({"architecture": {"system": LINEAR_CONFIG}}),
+        run_dir / "config.yaml",
+    )
+    torch.save(
+        {"state_dict": {"system.weight": torch.ones(2, 3), "system.bias": torch.ones(2)}},
+        checkpoint_dir / "last.ckpt",
+    )
+
+    artifact_dir = export_inference_artifact(run_dir, tmp_path / "artifact")
+
+    assert (artifact_dir / "artifact.yaml").is_file()
+
+
 def test_run_export_resolves_system_config_in_its_full_hydra_context(tmp_path):
     run_dir = tmp_path / "run"
     checkpoint_dir = run_dir / "checkpoints"
@@ -87,9 +105,9 @@ def test_run_export_resolves_system_config_in_its_full_hydra_context(tmp_path):
     register_config_resolvers()
     with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
         config = compose(config_name="run/train_sslr_w2vbert_cmdiff")
-    resolved_system = OmegaConf.to_container(config.architecture.system, resolve=True)
+    resolved_system = OmegaConf.to_container(config.system, resolve=True)
     OmegaConf.save(
-        OmegaConf.create({"architecture": {"system": resolved_system}}),
+        OmegaConf.create({"system": resolved_system}),
         run_dir / "config.yaml",
     )
     torch.save(
@@ -101,8 +119,8 @@ def test_run_export_resolves_system_config_in_its_full_hydra_context(tmp_path):
     manifest = OmegaConf.load(artifact_dir / "artifact.yaml")
 
     assert manifest.system.online_encoders.content.device == config.device
-    assert manifest.system.decoder.feature_dim == config.architecture.feature_dim
-    assert manifest.system.decoder.flow.spk_embed_dim == config.architecture.speaker_dim
+    assert manifest.system.decoder.feature_dim == 1024
+    assert manifest.system.decoder.flow.spk_embed_dim == 192
 
 
 def test_run_export_accepts_a_plain_system_state_dict(tmp_path):
@@ -110,7 +128,7 @@ def test_run_export_accepts_a_plain_system_state_dict(tmp_path):
     checkpoint_dir = run_dir / "checkpoints"
     checkpoint_dir.mkdir(parents=True)
     OmegaConf.save(
-        OmegaConf.create({"architecture": {"system": LINEAR_CONFIG}}),
+        OmegaConf.create({"system": LINEAR_CONFIG}),
         run_dir / "config.yaml",
     )
     torch.save(
@@ -133,7 +151,7 @@ def test_declared_external_weights_are_reconstructed_before_strict_loading(tmp_p
     checkpoint_dir = run_dir / "checkpoints"
     checkpoint_dir.mkdir(parents=True)
     OmegaConf.save(
-        OmegaConf.create({"architecture": {"system": LINEAR_CONFIG}}),
+        OmegaConf.create({"system": LINEAR_CONFIG}),
         run_dir / "config.yaml",
     )
     torch.save(

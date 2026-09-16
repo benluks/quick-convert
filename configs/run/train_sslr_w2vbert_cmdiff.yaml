@@ -4,7 +4,7 @@ defaults:
   - /global: default
   - /pipeline: training
   - /trainer: ssl_reconstruction
-  - /architecture/sslr@architecture: w2vbert_cmdiff_cosyvoice
+  - /system/reconstruction@system: w2vbert_cmdiff_cosyvoice
   - /dataset@train_dataset: manifest
   - /dataset@val_dataset: manifest
   - /dataset@source_dataset: librispeech
@@ -16,7 +16,7 @@ dataset_path: ${out_root}/${dataset_name}
 data_file_suffix: "_cfs"
 
 pipeline:
-  exp_name: ${hydra:runtime.choices.architecture/sslr@architecture}_${dataset_name}
+  exp_name: ${hydra:runtime.choices.system/reconstruction@system}_${dataset_name}
   project_name: ${hydra:runtime.choices.trainer}
   batch_size: 32
 
