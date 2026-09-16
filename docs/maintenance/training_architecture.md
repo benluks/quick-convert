@@ -133,6 +133,14 @@ system state. Loading should not require `cfg.pipeline.trainer.module`.
 Initially, an export helper can extract `system.*` keys from existing Lightning
 checkpoints; future checkpoints can save the system state explicitly.
 
+Inference artifacts now use a versioned directory contract. `artifact.yaml`
+contains the resolved Hydra system configuration, format version, weights file,
+and prefixes for deliberately excluded external state. `weights.pt` contains
+only system weights. `export_inference_artifact()` creates this directory from
+a training run, while `save_inference_artifact()` and
+`load_inference_artifact()` support already-instantiated systems without
+requiring Lightning.
+
 ## Recommended migration sequence
 
 1. ~~Define a typed VQ-ASR inference output.~~ SSL reconstruction still needs
@@ -145,7 +153,7 @@ checkpoints; future checkpoints can save the system state explicitly.
 5. ~~Extract `SSLReconstructionSystem`, move file/tensor inference conveniences
    out of the Lightning module, and expose it as `architecture.system` in each
    supported SSL-reconstruction configuration.~~
-6. Introduce a versioned inference artifact loader/exporter.
+6. ~~Introduce a versioned inference artifact loader/exporter.~~
 7. Only after those contracts stabilize, move Lightning-specific modules and
    runners out of `pipelines` into a dedicated training package.
 
