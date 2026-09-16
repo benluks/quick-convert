@@ -1,0 +1,17 @@
+_target_: quick_convert.data.clac.ClacDataset
+# Set this to the local CLAC dataset directory before composing this config.
+root: ${oc.env:QUICK_CONVERT_CLAC_ROOT}
+splits:
+  - cookie_theft
+  - counting_1_to_20
+  - days_of_the_week
+  - grandfather
+  - max_phonation
+  - picnic
+  - rainbow
+  - repeat_5_times
+  - repeat_5_times_artillery
+  - repeat_5_times_catastrophe
+  - repeat_5_times_impossibility
+  - smr
+file_format: wav

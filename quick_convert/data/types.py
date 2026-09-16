@@ -17,6 +17,36 @@ from .resources import ResourceCollection, TemplateResourceProvider, collate_res
 
 
 @dataclass(frozen=True)
+class GeneratedAudio:
+    """Padded generated waveforms with their valid lengths and sample rate."""
+
+    waveforms: torch.Tensor
+    lengths: torch.LongTensor
+    sample_rate: int
+
+    def __post_init__(self) -> None:
+        if self.waveforms.ndim != 2:
+            raise ValueError(f"Expected waveforms with shape (batch, time), got {tuple(self.waveforms.shape)}.")
+        if self.lengths.shape != (self.waveforms.shape[0],):
+            raise ValueError(
+                f"Expected lengths with shape ({self.waveforms.shape[0]},), got {tuple(self.lengths.shape)}."
+            )
+        if torch.any(self.lengths < 0):
+            raise ValueError("Waveform lengths must be non-negative.")
+        if torch.any(self.lengths > self.waveforms.shape[1]):
+            raise ValueError("A waveform length exceeds the padded waveform size.")
+        if self.sample_rate <= 0:
+            raise ValueError("sample_rate must be positive.")
+
+    def __len__(self) -> int:
+        return self.waveforms.shape[0]
+
+    def waveform(self, index: int) -> torch.Tensor:
+        """Return one generated waveform without batch padding."""
+        return self.waveforms[index, : int(self.lengths[index])]
+
+
+@dataclass(frozen=True)
 class MetadataSample:
     """Metadata and resources describing one dataset item.
 
@@ -39,7 +69,7 @@ class AudioSample(MetadataSample):
     Because samples are immutable, :meth:`load_audio` returns a new sample.
     """
 
-    waveform: float["1 t"] | None = None
+    waveform: torch.Tensor | None = None
     sample_rate: int | None = None
 
     @classmethod
@@ -55,7 +85,7 @@ class AudioSample(MetadataSample):
             **kwargs,
         )
 
-    def load_audio(self, *args, **kwargs) -> "AudioSample":
+    def load_audio(self, *args, **kwargs) -> AudioSample:
         """Return a copy of the sample with its waveform loaded."""
         waveform, sr = load_audio(self.path, *args, **kwargs)
         return replace(self, waveform=waveform, sample_rate=sr)
@@ -67,17 +97,25 @@ class MetadataBatch:
     paths: list[Path]
     splits: list[str | None]
     resources: dict[str, Any]
+    resource_refs: list[ResourceCollection] | None = None
 
     def __len__(self) -> int:
         return len(self.paths)
 
-    def __getitem__(self, idx: int) -> AudioSample:
-        return AudioSample(
+    def __getitem__(self, idx: int) -> MetadataSample:
+        return MetadataSample(
             utt_id=self.utt_ids[idx],
             path=self.paths[idx],
             split=self.splits[idx],
-            resources={key: value[idx] for key, value in self.resources.items()},
+            resources=self._sample_resources(idx),
         )
+
+    def _sample_resources(self, idx: int) -> ResourceCollection:
+        if self.resource_refs is not None:
+            return ResourceCollection.from_refs(self.resource_refs[idx])
+        if self.resources:
+            raise RuntimeError("Cannot reconstruct sample resources because this batch has no resource references.")
+        return ResourceCollection()
 
     def __iter__(self):
         for i in range(len(self)):
@@ -93,12 +131,12 @@ class AudioBatch(MetadataBatch):
     load audio, all audio-specific fields remain ``None``.
     """
 
-    waveforms: float["b t"] | None = None
-    lengths: int["b"] | None = None
-    sample_rates: int["b"] | None = None
+    waveforms: torch.Tensor | None = None
+    lengths: torch.Tensor | None = None
+    sample_rates: torch.Tensor | None = None
 
     @classmethod
-    def from_samples(cls, samples: list[AudioSample], max_length: int | None = None) -> "AudioBatch":
+    def from_samples(cls, samples: list[AudioSample], max_length: int | None = None) -> AudioBatch:
         """Collate samples into a batch.
 
         Audio is padded along time, and named resources are independently
@@ -118,6 +156,7 @@ class AudioBatch(MetadataBatch):
             "paths": [s.path for s in samples],
             "splits": [s.split for s in samples],
             "resources": collate_resources(samples),
+            "resource_refs": [s.resources for s in samples],
         }
 
         if not has_audio:
@@ -142,13 +181,13 @@ class AudioBatch(MetadataBatch):
     def from_paths(
         cls,
         paths: str | Path | list[str | Path],
-        resource_providers: Iterable[TemplateResourceProvider] | None = [],
+        resource_providers: Iterable[TemplateResourceProvider] | None = None,
         target_sr: int | None = None,
         mono: bool = True,
         max_length: int | None = None,
         utt_id_fn: Callable[[Path], str] | None = None,
         **kwargs,
-    ) -> "AudioBatch":
+    ) -> AudioBatch:
         """Load audio paths directly into a batch.
 
         This convenience constructor is useful for inference and ad-hoc feature
@@ -163,6 +202,7 @@ class AudioBatch(MetadataBatch):
         samples = []
 
         for path in map(Path, paths):
+            resources = ResourceCollection()
             sample = AudioSample.from_path(
                 path,
                 utt_id=utt_id_fn(path) if utt_id_fn else path.stem,
@@ -174,8 +214,9 @@ class AudioBatch(MetadataBatch):
                     sample,
                     resources=resources,
                 )
-            for name, ref in resources.items():
-                resources[name] = load_resource(ref)
+            resources = ResourceCollection.from_refs(
+                load_resource(ref) if ref.value is None else ref for ref in resources
+            )
             sample = sample.load_audio(target_sr=target_sr, mono=mono)
 
             samples.append(sample)
@@ -186,14 +227,19 @@ class AudioBatch(MetadataBatch):
         return len(self.paths)
 
     def __getitem__(self, idx: int) -> AudioSample:
+        waveform = None
+        if self.waveforms is not None:
+            if self.lengths is None:
+                raise RuntimeError("AudioBatch has waveforms but no valid lengths.")
+            waveform = self.waveforms[idx, : int(self.lengths[idx])]
+
         return AudioSample(
             utt_id=self.utt_ids[idx],
             path=self.paths[idx],
             split=self.splits[idx],
-            waveform=self.waveforms[idx] if self.waveforms is not None else None,
+            waveform=waveform,
             sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
-            # features={key: value[idx] for key, value in self.features.items()},
-            resources={key: value[idx] for key, value in self.resources.items()},
+            resources=self._sample_resources(idx),
         )
 
     def __iter__(self):

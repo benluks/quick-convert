@@ -7,99 +7,55 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 
 
-ResourceKind = Literal[
-    # serialized tensors/features
-    "torch_tensor",
-    "numpy_array",
-    # raw media
-    "audio",
-    "image",
-    "video",
-    # structured/textual data
-    "text",
-    "json",
-    "csv",
-    # model-specific semantic categories
-    "ssl_features",
-    "speaker_embedding",
-    "token_ids",
-]
-
-
-@dataclass
-class ResourceRef:
-    """Description of a named resource associated with one sample.
-
-    A resource may either contain a materialized ``value`` or point to a
-    serialized representation through ``path``. Path-backed resources can be
-    loaded lazily by :func:`load_resource`.
-
-    ``name`` identifies the resource within a sample, while ``kind`` determines
-    how it is loaded and collated.
-
-    Examples:
-        An immediately available metadata value::
-
-            ResourceRef(
-                name="speaker_id",
-                kind="text",
-                value="1089",
-            )
-
-        A lazily loaded tensor::
-
-            ResourceRef(
-                name="wavlm",
-                kind="torch_tensor",
-                path=Path("/features/1089-134686-0000.pt"),
-            )
-
-    Args:
-        name:
-            Name used to access the resource, such as ``"transcript"`` or
-            ``"wavlm"``.
-        kind:
-            Resource representation used to select loading and collation
-            behavior.
-        path:
-            Optional path to a serialized resource.
-        value:
-            Optional materialized resource value.
-        max_length:
-            Optional fixed time length used when collating tensor resources.
+class BaseResourceProvider:
+    """
+    An abstracton class for resource providers, which are responsible for providing access to various types of
+    resources (e.g. annotation files, precompute feature files, etc.) associated with samples in a dataset.
     """
 
+    def __init__(self, name: str):
+        self.name = name
+
+    def __call__(self, sample):
+        raise NotImplementedError
+
+
+ResourceKind = Literal[
+    "torch_tensor",
+    "text",
+    "token_ids",
+]
+RESOURCE_KINDS = frozenset(ResourceKind.__args__)
+
+
+@dataclass(frozen=True)
+class ResourceRef:
     name: str
-    kind: ResourceKind | None = None
+    kind: ResourceKind
     path: Path | None = None
     value: Any | None = None
 
     # Only set if using cudnn benchmark
     max_length: int | None = None
 
+    def __post_init__(self) -> None:
+        if self.kind not in RESOURCE_KINDS:
+            raise ValueError(f"Unsupported resource kind {self.kind!r}. Supported kinds: {sorted(RESOURCE_KINDS)}")
+        if self.path is None and self.value is None:
+            raise ValueError(f"Resource {self.name!r} must have a path or a value.")
+        if self.max_length is not None and self.kind not in {"torch_tensor", "token_ids"}:
+            raise ValueError("max_length is only supported for tensor and token resources.")
 
-@dataclass
+
+@dataclass(frozen=True)
 class ResourceCollection:
-    """Named collection of sample-level :class:`ResourceRef` objects.
-
-    Resources can be accessed using either dictionary or attribute syntax::
-
-        sample.resources["transcript"]
-        sample.resources.transcript
-
-    Resource names must be unique within a collection.
-    """
-
     _items: dict[str, ResourceRef] = field(default_factory=dict)
 
-    def __contains__(self, name: str) -> bool:
-        return name in self._items
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_items", dict(self._items))
 
     def __getitem__(self, name: str) -> ResourceRef:
         return self._items[name]
-
-    def __setitem__(self, name: str, ref: ResourceRef) -> None:
-        self._items[name] = ref
 
     def __getattr__(self, name: str) -> ResourceRef:
         if name.startswith("__") or name == "_items":
@@ -131,12 +87,6 @@ class ResourceCollection:
 
     @classmethod
     def from_refs(cls, refs: Iterable[ResourceRef]) -> "ResourceCollection":
-        """Construct a collection from resource references.
-
-        Raises:
-            ValueError:
-                If two resources have the same name.
-        """
         items = {}
         for ref in refs:
             if ref.name in items:
@@ -149,19 +99,6 @@ class ResourceCollection:
         other: "ResourceCollection",
         overwrite: bool = False,
     ) -> "ResourceCollection":
-        """Return a new collection containing resources from both collections.
-
-        Args:
-            other:
-                Resources to add.
-            overwrite:
-                Whether resources in ``other`` may replace resources with the
-                same name.
-
-        Raises:
-            ValueError:
-                If duplicate names are encountered and ``overwrite`` is false.
-        """
         items = self.as_dict()
 
         for name, ref in other.items():
@@ -174,17 +111,6 @@ class ResourceCollection:
 
 @dataclass
 class TensorResourceBatch:
-    """Padded batch of variable-length tensor resources.
-
-    ``values`` contains the padded tensors and ``lengths`` records the original
-    length of each item along the first, time-like dimension.
-
-    Indexing returns an individual item with padding removed::
-
-        features = batch.resources["wavlm"]
-        first_utterance = features[0]
-    """
-
     values: torch.Tensor
     lengths: torch.Tensor
 
@@ -202,18 +128,15 @@ class TensorResourceBatch:
 
 
 def _normalize_tensor_resource(x: torch.Tensor) -> torch.Tensor:
-    """Normalize a tensor so its leading dimension represents time.
+    """
+    Normalize tensor resources so the first dim is always time.
 
-    Accepted shapes::
-
-        [D]          -> [1, D]
-        [T, D]       -> [T, D]
-        [1, T, D]    -> [T, D]
-        [T, L, D]    -> [T, L, D]
-        [1, T, L, D] -> [T, L, D]
-
-    This allows frame-level features, fixed embeddings, and multi-layer
-    features to share the same collation path.
+    Accepted:
+    - [D]         -> [1, D]
+    - [T, D]      -> [T, D]
+    - [1, T, D]   -> [T, D]
+    - [T, L, D]   -> [T, L, D]
+    - [1,T,L,D]   -> [T, L, D]
     """
     if x.dim() == 1:
         return x.unsqueeze(0)
@@ -237,14 +160,9 @@ def _normalize_tensor_resource(x: torch.Tensor) -> torch.Tensor:
 def _collate_tensor_resources(
     refs: list[ResourceRef], squeeze_single_frame: bool = False, max_length: int | None = None
 ) -> TensorResourceBatch:
-    """Pad tensor resources along their leading time dimension.
-
-    All trailing dimensions must match. The original sequence lengths are
-    retained in the returned :class:`TensorResourceBatch`.
-
-    ``max_length`` may be used to force a consistent padded time dimension,
-    for example when fixed batch shapes are useful for compilation or cuDNN
-    benchmarking.
+    """
+    max_length: An optional arbitrary max length to pad or trim batch. Useful in the case of cudnn, which needs
+    all batches to have the same input shape.
     """
 
     tensors = []
@@ -270,11 +188,11 @@ def _collate_tensor_resources(
     lengths = torch.tensor([x.shape[0] for x in tensors], dtype=torch.long)
     if max_length is not None:
         if lengths.max() > max_length:
-            raise NotImplementedError("This function is only implemented to increase the maximum length. ")
-        T, *d_rest = tensors[0].shape
-        padded_tensor = torch.zeros((max_length, *d_rest), dtype=tensors[0].dtype)
-        padded_tensor[:T] = tensors[0]
-        tensors[0] = padded_tensor
+            raise ValueError(f"Resource max_length={max_length} is shorter than a sequence in the batch.")
+        tensors[0] = torch.nn.functional.pad(
+            tensors[0],
+            (0, 0) * (tensors[0].dim() - 1) + (0, max_length - int(lengths[0])),
+        )
 
     padded = pad_sequence(tensors, batch_first=True)
 
@@ -290,6 +208,12 @@ def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors
         raise ValueError(f"Cannot collate mixed resource kinds: {sorted(kinds)}")
 
     kind = refs[0].kind
+    max_lengths = {ref.max_length for ref in refs}
+    if len(max_lengths) != 1:
+        raise ValueError(
+            f"Resource {refs[0].name!r} has inconsistent max_length values: {sorted(max_lengths, key=str)}"
+        )
+    max_length = refs[0].max_length
 
     if kind == "text":
         return [ref.value for ref in refs]
@@ -298,12 +222,10 @@ def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors
         return _collate_tensor_resources(
             refs,
             squeeze_single_frame=squeeze_single_frame_tensors,
-            # max_length is carried by the ResourceRef so fixed-shape padding can
-            # remain resource-specific without adding dataset-level special cases.
-            max_length=refs[0].max_length,
+            max_length=max_length,
         )
     if kind == "token_ids":
-        return collate_token_sequences([ref.value for ref in refs], padding_value=0)
+        return collate_token_sequences([ref.value for ref in refs], padding_value=0, max_length=max_length)
 
     raise NotImplementedError(f"Collation for resource kind {kind!r} is not implemented.")
 
@@ -312,18 +234,6 @@ def collate_resources(
     batch,
     squeeze_single_frame_tensors: bool = False,
 ) -> dict[str, Any]:
-    """Collate all resources shared by the samples in a batch.
-
-    Each resource name is collated according to its ``kind``. Every sample
-    must contain every resource present in the batch; missing resources raise
-    an error rather than silently producing an irregular batch.
-
-    Typical outputs include:
-
-    - ``text`` -> ``list[str]``
-    - ``torch_tensor`` -> :class:`TensorResourceBatch`
-    - ``token_ids`` -> :class:`TensorResourceBatch`
-    """
     resource_names = {name for item in batch for name in (item.resources.keys() if item.resources is not None else [])}
 
     collated = {}
@@ -331,7 +241,7 @@ def collate_resources(
     for name in resource_names:
         refs = []
         for item in batch:
-            if item.resources is None or name not in item.resources:
+            if item.resources is None or name not in item.resources.keys():
                 raise ValueError(f"Sample {item.utt_id!r} is missing resource {name!r}")
             refs.append(item.resources[name])
 
@@ -340,14 +250,26 @@ def collate_resources(
     return collated
 
 
-def collate_token_sequences(sequences: list[list[int]], padding_value: int = 0) -> TensorResourceBatch:
-    """Pad integer token sequences and retain their original lengths."""
-    tensors = [torch.tensor(seq, dtype=torch.long) for seq in sequences]
+def collate_token_sequences(
+    sequences: list[list[int] | torch.Tensor],
+    padding_value: int = 0,
+    max_length: int | None = None,
+) -> TensorResourceBatch:
+    tensors = [torch.as_tensor(seq, dtype=torch.long) for seq in sequences]
 
     lengths = torch.tensor(
         [len(x) for x in tensors],
         dtype=torch.long,
     )
+
+    if max_length is not None:
+        if lengths.max() > max_length:
+            raise ValueError(f"Resource max_length={max_length} is shorter than a token sequence in the batch.")
+        tensors[0] = torch.nn.functional.pad(
+            tensors[0],
+            (0, max_length - int(lengths[0])),
+            value=padding_value,
+        )
 
     padded = pad_sequence(
         tensors,

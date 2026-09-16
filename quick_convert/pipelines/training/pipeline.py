@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from quick_convert.data.base_dataset import BaseDataset
-from quick_convert.pipelines.training.base_trainer import BaseTrainer
+from quick_convert.training.base import BaseTrainer
 
 
 class TrainingPipeline:
@@ -18,26 +18,29 @@ class TrainingPipeline:
         val_dataset: BaseDataset | None = None,
         test_dataset: BaseDataset | None = None,
         out_dir: PathLike | None = None,
-        **kwargs,
     ) -> None:
         self.trainer = trainer
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.test_dataset = test_dataset
         self.out_dir = out_dir
+        self.out_path: Path | None = None
 
-        # separate build and train so that trainer.save_config can be called in between, because I want all pipelines to have that
-        # options, but the lightningmodule needs to have been built to expose the log dir to which the yaml config should be saved
-        # the `build` function on a trainer make the output dir accessible, because `write_config` is called on the pipeline level.
-        self.trainer.build(
-            train_dataset=self.train_dataset,
-            # kwargs=self.train_kwargs,
-            out_dir=self.out_dir,
+    def prepare(self) -> Path:
+        if self.out_path is not None:
+            return self.out_path
+
+        self.out_path = Path(
+            self.trainer.prepare(
+                train_dataset=self.train_dataset,
+                out_dir=self.out_dir,
+            )
         )
-        self.out_path = Path(self.trainer.log_dir)
+        return self.out_path
 
-    # TODO: abstract this abstract pipeline class
-    def write_config(self, config):
+    def write_config(self, config: str) -> None:
+        if self.out_path is None:
+            raise RuntimeError("Prepare the training pipeline before writing its config.")
 
         self.out_path.mkdir(parents=True, exist_ok=True)
         config_path = self.out_path / "config.yaml"
@@ -45,9 +48,8 @@ class TrainingPipeline:
         print(f"Full config written to {config_path}")
 
     def run(self) -> Any:
+        self.prepare()
         return self.trainer.train(
             train_dataset=self.train_dataset,
             val_dataset=self.val_dataset,
-            # out_dir=self.out_dir,
-            # kwargs=self.train_kwargs,
         )

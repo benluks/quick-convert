@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
 
 import torch
 
@@ -14,14 +13,16 @@ class ASRSystem(torch.nn.Module, ABC):
         self.device = device
         self.name = name
         self.sr = sr
-        self.pred_key=pred_key
-
+        self.pred_key = pred_key
 
     @abstractmethod
     def transcribe(self, sample: MetadataSample) -> str: ...
 
     @abstractmethod
-    def transcribe_batch(self, batch: AudioBatch) -> dict[str, Any]: ...
+    def transcribe_batch(self, batch: AudioBatch) -> list[str]: ...
 
     def predict_batch(self, batch: AudioBatch):
+        return self.transcribe_batch(batch)
+
+    def get_labels(self, batch: AudioBatch) -> list[str]:
         return self.transcribe_batch(batch)

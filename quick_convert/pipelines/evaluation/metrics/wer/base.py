@@ -13,7 +13,7 @@ class WERMetric(Metric):
         self.key = key
 
     @abstractmethod
-    def compute(self, references: list[str], hypotheses: list[str]) -> float: ...
+    def compute(self, references: str | list[str], hypotheses: str | list[str]) -> dict[str, float]: ...
 
     def get_references(self, batch):
         return batch.resources[self.key]

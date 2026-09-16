@@ -13,6 +13,13 @@ from .metrics import Metric
 
 
 class EvalPipeline:
+    """Generate predictions and evaluate them against reference values.
+
+    ``record_resources`` names sample resources to copy into each prediction
+    record. This keeps metadata such as speaker identity generic and opt-in
+    instead of assigning it a dedicated sample field.
+    """
+
     def __init__(
         self,
         dataset: BaseDataset,
@@ -22,6 +29,7 @@ class EvalPipeline:
         batch_size: int,
         num_workers: int = 0,
         ref_dataset: BaseDataset | None = None,  # optional argument
+        record_resources: Iterable[str] | None = None,
     ):
         self.dataset = dataset
         self.ref_dataset = ref_dataset  # Store the reference dataset
@@ -30,6 +38,10 @@ class EvalPipeline:
         self.out_dir = Path(out_dir)
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.record_resources = list(dict.fromkeys(record_resources or []))
+        reserved_columns = {"utt_id", "path", "split"}.intersection(self.record_resources)
+        if reserved_columns:
+            raise ValueError(f"Resource columns conflict with sample metadata: {sorted(reserved_columns)}")
 
         if self.ref_dataset is None:
             print("No reference dataset provided. Falling back to predictions for evaluation.")
@@ -76,31 +88,26 @@ class EvalPipeline:
 
         records = []
         for pred_batch in tqdm(pred_loader, desc="Evaluating"):
+            ref_batch = next(ref_iter) if ref_iter is not None else pred_batch
+            if len(ref_batch) != len(pred_batch):
+                raise ValueError("Mismatch between reference and prediction batches.")
+
             refs = {}
-            preds = {}
+            predictions = self.system.get_labels(pred_batch) if self.metrics else []
 
             for metric in self.metrics:
-                if ref_iter is not None:
-                    ref_batch = next(ref_iter)
-                    if len(ref_batch) != len(pred_batch):
-                        raise ValueError("Mismatch between reference and prediction batches.")
-                    refs[metric.key] = metric.get_references(ref_batch)
-                else:
-                    # If no reference dataset is provided, use predictions as references
-                    refs[metric.key] = metric.get_references(pred_batch)
-
-                preds[metric.key] = self.system.get_labels(pred_batch)
+                refs[metric.key] = metric.get_references(ref_batch)
 
             # Validate batch sizes
-            for key, values in preds.items():
+            if self.metrics and len(predictions) != len(pred_batch):
+                raise ValueError(
+                    f"System returned {len(predictions)} predictions for a batch of size {len(pred_batch)}"
+                )
+            for key, values in refs.items():
                 if len(values) != len(pred_batch):
                     raise ValueError(
-                        f"Anonymized dataset returned {len(values)} predictions for key {key!r}, but batch has size {len(pred_batch)}"
-                    )
-            for key, values in refs.items():
-                if len(values) != len(ref_batch):
-                    raise ValueError(
-                        f"Original dataset returned {len(values)} references for key {key!r}, but batch has size {len(ref_batch)}"
+                        f"Reference data returned {len(values)} values for key {key!r}, "
+                        f"but batch has size {len(pred_batch)}"
                     )
 
             # Combine reference and prediction data into records
@@ -111,14 +118,24 @@ class EvalPipeline:
                     "split": sample.split,
                 }
 
-                if getattr(sample, "spk_id", None) is not None:
-                    record["spk_id"] = sample.spk_id
+                for name in self.record_resources:
+                    try:
+                        resource = sample.resources[name]
+                    except KeyError as error:
+                        raise ValueError(f"Sample {sample.utt_id!r} has no resource named {name!r}.") from error
+
+                    if resource.value is not None:
+                        record[name] = resource.value
+                    elif resource.path is not None:
+                        record[name] = str(resource.path)
+                    else:
+                        raise ValueError(f"Resource {name!r} for sample {sample.utt_id!r} has no value or path.")
 
                 for key, values in refs.items():
                     record[f"ref_{key}"] = values[i]
 
-                for key, values in preds.items():
-                    record[f"pred_{key}"] = values[i]
+                for metric in self.metrics:
+                    record[metric.pred_key] = predictions[i]
 
                 records.append(record)
 
@@ -139,7 +156,7 @@ class EvalPipeline:
 
         fieldnames = sorted({key for record in records for key in record})
 
-        preferred = ["utt_id", "path", "split", "spk_id"]
+        preferred = ["utt_id", "path", "split", *self.record_resources]
         fieldnames = [
             *[key for key in preferred if key in fieldnames],
             *[key for key in fieldnames if key not in preferred],

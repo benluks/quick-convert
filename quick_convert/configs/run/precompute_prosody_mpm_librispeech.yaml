@@ -1,0 +1,23 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: precompute_features
+  - /dataset: librispeech
+  - /components/feature_extractor@feature_extractor: content
+  - /components/ssl@encoder: pros2vec
+  - _self_
+
+dataset:
+  splits:
+    - train-clean-100
+    - train-clean-360
+    - train-other-500
+    - dev-clean
+    - dev-other
+  load: true
+  target_sr: ${encoder.sample_rate}
+
+pipeline:
+  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/pros2vec
+  skip_existing: true

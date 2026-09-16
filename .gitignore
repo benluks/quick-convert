@@ -206,4 +206,6 @@ SHH
 
 # Code Editor-specific
 .vscode/
+
+# i often make a test file just to try stuff out
 test.py

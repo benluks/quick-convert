@@ -3,29 +3,18 @@
 from __future__ import annotations
 
 import hydra
-from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
-
-OmegaConf.register_new_resolver("add", lambda x, y: int(x) + int(y))
-OmegaConf.register_new_resolver("mul", lambda x, y: int(x) * int(y))
-OmegaConf.register_new_resolver("bool", lambda x: bool(x))
-OmegaConf.register_new_resolver(
-    "len",
-    lambda value: len(value),
-)
+from .run import execute_pipeline
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../configs",
+    config_path="../configs",
     config_name="run/train_bpe_tokenizer_librispeech",
 )
 def main(cfg: DictConfig) -> None:
-
-    pipeline = instantiate(cfg.pipeline)
-    pipeline.write_config(OmegaConf.to_yaml(cfg, resolve=True))
-    pipeline.run()
+    execute_pipeline(cfg)
 
 
 def entrypoint() -> None:

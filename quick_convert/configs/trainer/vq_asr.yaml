@@ -1,0 +1,15 @@
+# trainer/vq_asr.yaml
+
+defaults:
+  - /global: default
+  # belongs to LightningTrainer base
+  - lightning
+  - /trainer/optimizer@module.optimization: adamw_cosine
+
+  - _self_
+
+module:
+  _target_: quick_convert.training.lightning.modules.vq_asr.VQASRTrainingModule
+  system: ${system}
+  tokenizer_model_path: outputs/tokenizer/librispeech_1000_tokens/tokenizer.model
+  ctc_loss_weight: 1.

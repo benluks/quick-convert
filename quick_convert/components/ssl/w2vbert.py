@@ -113,11 +113,39 @@ class W2VBertContentEncoder(ContentEncoder):
         Returns:
             ContentFeatures with values of shape (batch, frames, dim).
         """
-        waveforms_list = [waveforms[i, : lengths[i]].cpu() for i in range(waveforms.shape[0])]
+        if waveforms.ndim != 2:
+            raise ValueError(f"Expected waveforms with shape (batch, time), got {tuple(waveforms.shape)}")
+
+        input_sample_rate = sample_rate or self.sample_rate
+        if input_sample_rate != self.sample_rate:
+            raise ValueError(f"Expected {self.sample_rate} Hz audio, got {input_sample_rate} Hz.")
+
+        batch_size, padded_length = waveforms.shape
+        if lengths is None:
+            lengths = torch.full(
+                (batch_size,),
+                padded_length,
+                dtype=torch.long,
+                device=waveforms.device,
+            )
+        else:
+            lengths = lengths.to(dtype=torch.long)
+
+        if lengths.shape != (batch_size,):
+            raise ValueError(f"Expected lengths with shape ({batch_size},), got {tuple(lengths.shape)}")
+        if torch.any(lengths <= 0):
+            raise ValueError("All waveform lengths must be positive.")
+        if torch.any(lengths > padded_length):
+            raise ValueError(
+                "A waveform length exceeds the padded waveform size: "
+                f"maximum length is {padded_length}, got {int(lengths.max())}."
+            )
+
+        waveforms_list = [waveforms[i, : int(lengths[i])].cpu() for i in range(batch_size)]
 
         features = self.processor(
             waveforms_list,
-            sampling_rate=sample_rate or self.sample_rate,
+            sampling_rate=input_sample_rate,
             return_tensors="pt",
             padding=True,
             return_attention_mask=True,
@@ -135,7 +163,15 @@ class W2VBertContentEncoder(ContentEncoder):
             selected = torch.stack(hidden_states[1:], dim=2)  # (batch, frames, layer, dim)
         else:
             selected = hidden_states[self.layer]  # (batch, frames, dim)
-        output_lengths = features.attention_mask.sum(1)
+        # The W2V-BERT processor produces feature-frame inputs and an attention
+        # mask on the same time axis consumed by the model. These are exact
+        # runtime lengths, rather than an estimate from waveform samples.
+        if features.attention_mask.shape != selected.shape[:2]:
+            raise RuntimeError(
+                "W2V-BERT processor and model returned different temporal shapes: "
+                f"mask {tuple(features.attention_mask.shape)}, model {tuple(selected.shape[:2])}."
+            )
+        output_lengths = features.attention_mask.sum(1).to(dtype=torch.long, device=selected.device)
 
         # pad to some fixed length
         effective_max_length = max_length or self.max_length

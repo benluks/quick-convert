@@ -1,7 +1,8 @@
 import torch
 from torch import nn
 
-from .activations import Swish, SnakeBeta
+from .activations import SnakeBeta, Swish
+
 
 class PositionwiseFeedForward(nn.Module):
     """

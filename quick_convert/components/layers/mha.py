@@ -1,11 +1,8 @@
-from typing import Optional
-
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 
 # Heavily inspired by "https://github.com/BUTSpeechFIT/DiariZen/blob/main/diarizen/models/module/conformer.py"
-
 from .positional_embeddings import RoPE
 
 
@@ -49,7 +46,7 @@ class MultiHeadAttention(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        padding_mask: Optional[torch.Tensor] = None,
+        padding_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         B, T, D = x.shape
 

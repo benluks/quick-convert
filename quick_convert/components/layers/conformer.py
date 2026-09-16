@@ -3,9 +3,9 @@ from torch import nn
 
 from quick_convert.utils.masking import mask_pad
 
-from .mha import MultiHeadAttention
 from .conv import DepthWiseConvolution
 from .ffn import PositionwiseFeedForward
+from .mha import MultiHeadAttention
 
 
 class ConformerBlock(nn.Module):
@@ -22,7 +22,7 @@ class ConformerBlock(nn.Module):
         pre_norm: bool = False,
     ):
 
-        super(ConformerBlock, self).__init__()
+        super().__init__()
 
         # All blocks implemented with RMSNorm instead of LayerNorm (let's see how it works)
         # Implemented with RoPE

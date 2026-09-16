@@ -5,8 +5,7 @@ encoder as its content front-end, in place of the W2V-BERT SSL encoder.
 
 It adds two things:
 
-- **`components/ssl/dac.py`** — `DACContentEncoder`, a drop-in content encoder
-  that feeds the RVQ disentangler.
+- **`components/ssl/dac.py`** — `DACContentEncoder`, a drop-in content encoder.
 - **`pipelines/training/train_dac_from_scratch.py`** — a standalone script to
   train (or fine-tune) a DAC codec and produce encoder weights.
 
@@ -14,17 +13,15 @@ It adds two things:
 
 ## 1. What it is
 
-The pipeline turns a waveform into a frame-level "content" representation, then
-disentangles it (speaker / content / emotion+prosody) with an RVQ stack. 
+The pipeline turns a waveform into a frame-level content representation.
 
 `DACContentEncoder` replaces that front-end with DAC's **single compact latent**:
 - **50 Hz** frame rate (hop 320 at 16 kHz) → matches emotion2vec, the mel
-  target, and the vocoder exactly, so **nothing downstream changes**.
+  target, and the vocoder exactly.
 - Output shape `(B, T, 1, D)` with `D = 1024`. The singleton "layer" axis lets
   the existing `ParallelConformerEncoder` consume it unchanged.
 
-Only DAC's **encoder** is used. DAC's own quantizer and decoder are discarded —
-the pipeline's RVQ and flow-matching decoder do those jobs.
+Only DAC's **encoder** is used. DAC's own quantizer and decoder are discarded.
 
 ---
 
@@ -50,7 +47,7 @@ Nothing to run. Just build it in the pipeline:
 ```python
 from quick_convert.components.ssl import DACContentEncoder
 
-content_encoder = DACContentEncoder.from_pretrained("16khz")   # frozen
+content_encoder = DACContentEncoder.from_pretrained("16khz")  # frozen
 ```
 
 This downloads Descript's fully-trained 16 kHz codec and keeps its encoder. You
@@ -95,8 +92,8 @@ content_encoder = DACContentEncoder.from_pretrained("16khz")
 # content_encoder.dac_encoder.load_state_dict(torch.load("dac_ft_encoder.pt"))
 
 conformer = ParallelConformerEncoder(
-    input_dim=content_encoder.FEATURE_DIM,   # 1024 for DAC-16k  (was 1024 for W2V-BERT)
-    num_layers=1,                            # was 24 for W2V-BERT's stacked layers
+    input_dim=content_encoder.FEATURE_DIM,  # 1024 for DAC-16k  (was 1024 for W2V-BERT)
+    num_layers=1,  # was 24 for W2V-BERT's stacked layers
     # keep embed_dim and everything after it unchanged
 )
 ```
@@ -189,7 +186,7 @@ synthetic smoke test or `--steps 50` to verify the loop before a full run.
 import torch
 from quick_convert.components.ssl import DACContentEncoder
 
-enc = DACContentEncoder.from_scratch(trainable=True)          # empty architecture
+enc = DACContentEncoder.from_scratch(trainable=True)  # empty architecture
 enc.dac_encoder.load_state_dict(torch.load("dac_ft_encoder.pt"))  # fill with trained weights
 ```
 

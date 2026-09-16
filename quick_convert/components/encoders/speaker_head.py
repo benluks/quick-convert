@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import Any
 
 import torch
@@ -10,14 +10,6 @@ from torch import nn
 from quick_convert.components.layers import AttentiveStatisticsPooling
 from quick_convert.components.layers.heads import HeadOutput, HeadTarget, SupervisedHead
 from quick_convert.components.losses.speaker_losses import BaseSpeakerLoss
-
-
-@dataclass
-class SpeakerASRHeadOutput:
-    speaker_features: torch.FloatTensor
-    accuracy: torch.FloatTensor | None = None
-    predictions: torch.LongTensor | None = None
-    loss: torch.FloatTensor | None = None
 
 
 class SpeakerASPHead(SupervisedHead):

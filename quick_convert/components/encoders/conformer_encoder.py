@@ -63,14 +63,18 @@ class ConformerEncoder(nn.Module):
         )
         self.embed_dim = embed_dim
 
-    # callable so it works with chatterbox
     def output_size(self):
         return self.embed_dim
 
+    @staticmethod
+    def output_lengths(input_lengths: torch.Tensor) -> torch.Tensor:
+        """Conformer blocks and feature projections preserve the time axis."""
+        return input_lengths
+
     def forward(
         self,
-        x: float["b t d"],
-        padding_mask: float["b t [1]"] | None = None,
+        x: torch.Tensor,
+        padding_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         x = self.input_proj(x)
         for block in self.blocks:
@@ -142,9 +146,13 @@ class ConformerEncoderSSL(nn.Module):
         self.embed_dim = embed_dim
         self.layer_weights = nn.Parameter(torch.randn(1, num_ssl_layers))  # (1, L)
 
-    # callable so it works with chatterbox
     def output_size(self):
         return self.embed_dim
+
+    @staticmethod
+    def output_lengths(input_lengths: torch.Tensor) -> torch.Tensor:
+        """SSL layer fusion, conformer blocks, and projections preserve time."""
+        return input_lengths
 
     def forward(
         self,

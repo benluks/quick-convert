@@ -1,12 +1,6 @@
-from dataclasses import dataclass
-from os import PathLike
-from typing import Optional
+"""Compatibility imports for the former pipeline-owned kNN-VC target."""
+
+from quick_convert.systems.anonymization.targets.knnvc import KNNVCDirectoryTarget, KNNVCTarget
 
 
-@dataclass(frozen=True)
-class KNNVCDirectoryTarget:
-    target: PathLike
-    pattern: Optional[str] = None
-
-
-KNNVCTarget = KNNVCDirectoryTarget
+__all__ = ["KNNVCDirectoryTarget", "KNNVCTarget"]

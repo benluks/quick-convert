@@ -13,14 +13,7 @@ from ..utils.paths import TemplateFormatter
 
 
 class BuildManifestPipeline:
-    def __init__(
-        self,
-        dataset,
-        out_path: PathLike,
-        columns: dict[str, str],
-        overwrite: bool = False,
-        **kwargs
-    ) -> None:
+    def __init__(self, dataset, out_path: PathLike, columns: dict[str, str], overwrite: bool = False, **kwargs) -> None:
         self.dataset = dataset
         self.out_path = Path(out_path)
         self.columns = columns

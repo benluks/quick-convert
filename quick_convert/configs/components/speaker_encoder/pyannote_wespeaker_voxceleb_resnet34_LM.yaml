@@ -1,0 +1,4 @@
+_target_: quick_convert.components.speaker.PyannoteWeSpeakerEncoder
+model_name: pyannote/wespeaker-voxceleb-resnet34-LM
+window: whole
+device: ${device}

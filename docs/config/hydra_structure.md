@@ -27,7 +27,7 @@ Hydra merges these into a single config, then you pass it forward.
 ## Example Entry Point
 
 ```yaml
-# configs/run/anonymize_knnvc_clac.yaml
+# quick_convert/configs/run/anonymize_knnvc_clac.yaml
 
 defaults:
   - /global: default
@@ -41,7 +41,7 @@ This is the **composition root**.
 
 Think of it as:
 
-> “Take these building blocks and assemble a runnable system.”
+> “Take these building blocks and assemble a runnable workflow.”
 
 ---
 
@@ -83,20 +83,23 @@ Important:
 
 ```yaml
 _target_: quick_convert.data.clac.ClacDataset
-root: ...
+root: ${oc.env:QUICK_CONVERT_CLAC_ROOT}
 splits: ...
 file_format: wav
-return_spkid: true
 ```
 
 Defines how to **instantiate the dataset**.
+
+Machine-specific dataset locations are supplied through environment variables
+rather than committed paths. For this example, set `QUICK_CONVERT_CLAC_ROOT`
+to the local CLAC dataset directory before composing or running the config.
 
 ---
 
 ### 4. Anonymizer Config
 
 ```yaml
-_target_: quick_convert.pipelines.anonymization.KNNVCAnonymizer
+_target_: quick_convert.systems.anonymization.KNNVCAnonymizer
 ```
 
 Defines the **model/algorithm**.
@@ -159,7 +162,7 @@ Each component is defined independently:
 You can swap components without changing code:
 
 ```bash
-anonymize dataset=other_dataset anonymizer=nac
+anonymize dataset=other_dataset anonymizer=knnvc
 ```
 
 ---

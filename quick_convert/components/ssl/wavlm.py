@@ -199,7 +199,7 @@ class WavLMContentEncoder(ContentEncoder):
                     f"indices are 0 through {len(hidden_states) - 1}."
                 ) from error
 
-        output_lengths = self._feature_output_lengths(lengths)
+        output_lengths = self.output_lengths(lengths)
         output_lengths = output_lengths.to(selected.device)
 
         effective_max_length = max_length or self.max_length
@@ -227,7 +227,7 @@ class WavLMContentEncoder(ContentEncoder):
             layer=self.layer,
         )
 
-    def _feature_output_lengths(
+    def output_lengths(
         self,
         input_lengths: torch.Tensor,
     ) -> torch.Tensor:

@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from dataclasses import replace
 from fnmatch import fnmatch
-from os import PathLike
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,104 +16,6 @@ from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 
 
 class BaseDataset(Dataset):
-    """Generic audio dataset with composable resources.
-
-    ``BaseDataset`` discovers audio samples from a directory, an explicit list
-    of paths, or preconstructed :class:`MetadataSample` rows. Additional data
-    associated with each sample—such as transcripts, speaker IDs, SSL
-    features, token sequences, or acoustic measurements—is attached through
-    resource providers rather than dataset-specific fields.
-
-    Audio and path-backed resources are loaded lazily according to ``load``.
-    This makes it possible to use the same dataset definition for lightweight
-    metadata inspection, preprocessing, and model training.
-
-    Exactly one of ``root``, ``paths``, or ``rows`` must be provided.
-
-    Args:
-        root:
-            Root directory containing audio files. If ``splits`` is provided,
-            each split is interpreted as a subdirectory of ``root``.
-        splits:
-            Optional split directories to include, for example
-            ``["train-clean-100", "train-clean-360"]``.
-        file_format:
-            Audio format or formats to include, such as ``"flac"`` or
-            ``["wav", "flac"]``. If omitted, all supported audio formats are
-            accepted.
-        paths:
-            Explicit audio paths from which to construct the dataset.
-        rows:
-            Preconstructed sample metadata. This is primarily useful for
-            dataset subclasses such as :class:`ManifestDataset`.
-        load:
-            Controls which resources are materialized when a sample is
-            accessed.
-
-            - ``False`` or ``None`` loads no audio or path-backed resources.
-            - A list such as ``["audio", "wavlm"]`` loads only those names.
-            - ``True`` or ``"all"`` loads audio and all configured resources.
-
-            Resources that already contain an in-memory value do not require
-            loading and are available regardless of this setting.
-        target_sr:
-            Optional sampling rate used when loading audio. Audio is resampled
-            when necessary.
-        convert_to_mono:
-            Whether loaded audio should be converted to mono.
-        utt_id_template:
-            Template used to derive utterance IDs from discovered paths, for
-            example ``"{path.stem}"``.
-        get_utt_id_fn:
-            Optional callable used instead of ``utt_id_template`` to derive an
-            utterance ID from a path.
-        pattern:
-            Glob pattern used during recursive file discovery. Defaults to
-            ``"*"``.
-        exclude_patterns:
-            Optional filename or path patterns to exclude.
-        resource_providers:
-            Providers evaluated for every sample. Each provider associates a
-            named resource with the sample.
-        sort_key:
-            Template used to sort discovered rows. Defaults to ``"{row.path}"``.
-        max_length:
-            Optional waveform length to pad batches to, expressed in samples
-            after resampling. Useful when fixed input shapes are required.
-
-    Examples:
-        Create a simple filesystem dataset::
-
-            dataset = BaseDataset(
-                root="/data/LibriSpeech",
-                splits=["train-clean-100"],
-                file_format="flac",
-                utt_id_template="{path.stem}",
-                load=["audio"],
-                target_sr=16_000,
-            )
-
-        Add precomputed features without changing the dataset class::
-
-            wavlm = PathResourceProvider(
-                name="wavlm",
-                path_template="/features/wavlm/{sample.utt_id}.pt",
-                kind="torch_tensor",
-            )
-
-            dataset = BaseDataset(
-                root="/data/LibriSpeech",
-                splits=["train-clean-100"],
-                file_format="flac",
-                utt_id_template="{path.stem}",
-                resource_providers=[wavlm],
-                load=["audio", "wavlm"],
-            )
-
-            sample = dataset[0]
-            sample.resources.wavlm.value
-    """
-
     VALID_FORMATS = get_supported_formats()
 
     def __init__(
@@ -128,7 +29,7 @@ class BaseDataset(Dataset):
         target_sr: int | None = None,
         convert_to_mono: bool = True,
         utt_id_template: str | None = None,
-        get_utt_id_fn: Callable[[PathLike], str] | None = None,
+        get_utt_id_fn: Callable[[Path], str] | None = None,
         pattern: str | None = None,
         exclude_patterns: Iterable[str] | None = None,
         resource_providers: Iterable[BaseResourceProvider] | None = None,
@@ -138,9 +39,6 @@ class BaseDataset(Dataset):
         max_length: int | None = None,
         **kwargs,
     ):
-        # Samples may come from filesystem discovery, explicit paths, or an
-        # already-constructed metadata table. Mixing sources would make row
-        # ownership and filtering ambiguous.
         sources = [
             root is not None,
             paths is not None,
@@ -165,9 +63,9 @@ class BaseDataset(Dataset):
 
         self.pattern = pattern or "*"
         self.exclude_patterns = exclude_patterns or []
-        self.resource_providers = resource_providers or []
+        self.resource_providers = list(resource_providers or [])
 
-        # Normalize once so __getitem__ only needs a cheap membership check.
+        self.load_all_resources = load is True or load == "all"
         self.load = self._normalize_load(load)
         self.max_length = max_length
 
@@ -226,7 +124,6 @@ class BaseDataset(Dataset):
 
     @classmethod
     def _normalize_and_validate_format(cls, file_format: str | Iterable[str] | None) -> set[str] | None:
-        """Normalize requested audio extensions and reject unsupported formats."""
         if file_format is None:
             return None
 
@@ -246,7 +143,6 @@ class BaseDataset(Dataset):
         return normalized
 
     def _normalize_load(self, load: bool | list[str] | Literal["all"] | None) -> bool | set[str]:
-        """Convert the public ``load`` argument into a set of resource names."""
         if load is None or load is False:
             return []
 
@@ -259,12 +155,10 @@ class BaseDataset(Dataset):
         return set(load)
 
     def _should_load(self, ref: ResourceRef | Literal["audio"]) -> bool:
-        """Return whether an unresolved resource should be materialized.
-
-        Resources that already contain a value are never loaded again.
-        """
         if getattr(ref, "value", None) is not None:
             return False
+        if self.load_all_resources:
+            return True
         name = "audio" if ref == "audio" else ref.name
         return name in self.load
 
@@ -277,17 +171,10 @@ class BaseDataset(Dataset):
         if self._should_load("audio"):
             sample = self.load_sample(sample)
 
-        # Providers contribute ResourceRefs at access time, allowing the same
-        # dataset rows to be reused with different experiment-specific data.
-        resource_refs = [
-            *sample.resources,
-            *(provider(sample) for provider in self.resource_providers),
-        ]
-        resources = ResourceCollection.from_refs(resource_refs)
-
-        for name, ref in resources.items():
-            if self._should_load(ref):
-                resources[name] = load_resource(ref)
+        resource_refs = list(sample.resources) + [provider(sample) for provider in self.resource_providers]
+        resources = ResourceCollection.from_refs(
+            load_resource(ref) if self._should_load(ref) else ref for ref in resource_refs
+        )
 
         return replace(sample, resources=resources)
 
@@ -309,21 +196,25 @@ class BaseDataset(Dataset):
             )
 
     def load_sample(self, sample: AudioSample) -> dict[str, Any]:
-        """Load and optionally resample the audio associated with ``sample``.
-
-        The returned sample preserves its metadata and resources while adding
-        ``waveform`` and ``sample_rate``.
+        """
+        If target_sr is set, loading will resample audio. I haven't implemented a way to override this.
+        Maybe it's better to leave the resampling concern to a different part of the pipeline. Time will tell.
         """
         waveform, sample_rate = load_audio(sample.path, target_sr=self.target_sr, mono=self.convert_to_mono)
         return AudioSample(
             utt_id=sample.utt_id,
             path=sample.path,
             split=sample.split,
-            # spk_id=sample.spk_id,
             waveform=waveform,
             sample_rate=sample_rate,
             resources=sample.resources,
         )
+
+    def _collate_dicts(self, batch: list[AudioSample], property="resources") -> dict[str, list[Any]]:
+        return {
+            key: [d.get(key) for d in (getattr(item, property) or {} for item in batch)]
+            for key in {k for item in batch for k in (getattr(item, property) or {})}
+        }
 
     def collate_fn(self, batch: list[AudioSample]) -> MetadataBatch | AudioBatch:
         return AudioBatch.from_samples(batch, max_length=self.max_length)
@@ -337,26 +228,6 @@ class BaseDataset(Dataset):
         drop_last: bool = False,
         **kwargs,
     ) -> DataLoader:
-        """Create a DataLoader using the dataset's resource-aware collator.
-
-        This is preferred over constructing ``torch.utils.data.DataLoader``
-        directly because :meth:`collate_fn` handles variable-length audio and
-        resource collation.
-
-        Args:
-            batch_size:
-                Number of samples per batch.
-            shuffle:
-                Whether to reshuffle samples each epoch.
-            num_workers:
-                Number of worker processes used for loading.
-            pin_memory:
-                Whether DataLoader should place tensors in pinned CPU memory.
-            drop_last:
-                Whether to discard an incomplete final batch.
-            **kwargs:
-                Additional arguments forwarded to :class:`DataLoader`.
-        """
         return DataLoader(
             self,
             batch_size=batch_size,

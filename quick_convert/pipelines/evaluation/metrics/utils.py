@@ -1,5 +1,6 @@
-from typing import Iterable, TextIO
 import os
+from collections.abc import Iterable
+from typing import TextIO
 
 
 def load_lines(

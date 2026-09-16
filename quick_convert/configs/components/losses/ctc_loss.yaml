@@ -1,0 +1,3 @@
+_target_: quick_convert.components.losses.CTCLoss
+reduction: mean
+blank_id: 0

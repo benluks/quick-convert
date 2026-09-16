@@ -1,0 +1,23 @@
+_target_: quick_convert.components.layers.rvq_ema.ResidualVectorQuantizerEMA
+
+input_dim: ???
+n_codebooks: ???
+codebook_size: ???
+codebook_dim: ???
+
+decay: 0.8
+
+kmeans_init: true
+kmeans_iters: 10
+
+threshold_ema_dead_code: 2
+
+use_cosine_sim: true
+
+quantizer_dropout: 0.0
+quant_grad_frac: 0.0
+
+loss_weights:
+  commitment: 0.25
+  orthogonal_reg: 0.0
+  codebook_diversity: 0.0

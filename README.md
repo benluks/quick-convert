@@ -19,36 +19,50 @@ Many components rely on optional dependencies. These are grouped into extras so 
 
 | Extra                  | Description                          |
 | ---------------------- | ------------------------------------ |
-| `w2vbert`              | W2V-BERT feature extraction          |
+| `manifests`            | Data-frame utilities for splitting manifests |
+| `transformers`         | Hugging Face-backed models, including W2V-BERT and WavLM |
+| `w2vbert`              | Compatibility alias for `transformers` |
 | `whisper`              | Whisper ASR model                    |
-| `jiwer`                | JIWER implementation of WER metric   |
-| `chatterbox`           | Chatterbox decoder.                   |
-| `lightning`      | pytorch-lightning, and associated tools for training with lightning.                    |
-| `emotion-compensation` | To run this one specific emotion-compensation pipeline (needs Python 3.9. Total nightmare)          |
-| `espnet-wavlm-joint`   | ESPnet WavLM implementation             |
-| `pyannote`             | For the pyannote WeSpeaker implementation      |
-| `dac`                  | Descript Audio Codec support         |
-| `nac`                  | Neural audio codec anonymizer. Relies on Coqui TTS, which is deprecated. Also a total nightmare.        |
-| `web`                  | Web interface components. I think she's currently broken.             |
-
-* **Hydra-based configuration** for reproducible, composable experiments.
-* **Flexible datasets** with pluggable resource providers.
-* **Preprocessing pipelines** for manifest generation, feature precomputation, and tokenizer training.
-* **Training pipelines** for speech models and auxiliary components.
-* **Evaluation pipelines** for benchmarking and analysis.
-* **Reusable components**, including encoders, decoders, feature extractors, SSL models, quantizers, and losses.
+| `sentencepiece`        | SentencePiece tokenization           |
+| `wer`                  | JIWER word-error-rate evaluation     |
+| `asr`                  | Compatibility bundle containing `sentencepiece` and `wer` |
+| `training`             | Lightning training with Matplotlib, W&B, and TensorBoard logging |
+| `lightning`            | Compatibility alias for `training` |
+| `cosyvoice`            | CosyVoice reconstruction decoder dependencies |
+| `emotion2vec`          | FunASR-backed emotion2vec feature extraction |
+| `conditional-rvq`     | Compatibility alias for `emotion2vec` |
+| `mpm`                  | Masked Prosody Model feature extraction |
+| `espnet-wavlm-joint`   | ESPnet WavLM speaker encoder |
+| `pyannote`             | Experimental pyannote WeSpeaker integration |
+| `dac`                  | Experimental DAC content encoder; unrelated to the DAC-style RVQ layer |
+| `web`                  | Legacy Flask interface; currently unverified |
 
 Normally, when you import a module, you'll get a `ModuleNotFoundError` if the requisite dependencies are missing. Check out `pyproject.toml` to see which extras are needed to run whatever it is you're trying to run.
 
 For example:
 
 ```bash
-uv sync --extra w2vbert --extra module-training
+uv sync --extra transformers --extra asr --extra training
 ```
+
+The current reference workflows require these extras:
+
+| Workflow | Extras |
+| -------- | ------ |
+| Build a LibriSpeech manifest | none |
+| Precompute W2V-BERT content | `transformers` |
+| Train a SentencePiece tokenizer | `sentencepiece`, `training` |
+| Evaluate Whisper ASR | `whisper`, `wer` |
+| Train VQ-ASR with W2V-BERT | `transformers`, `asr`, `training` |
+| Train SSL reconstruction with CosyVoice | `transformers`, `cosyvoice`, `training` |
 
 > **Note**
 >
-> Some extras depend on conflicting versions of third-party libraries and therefore cannot be installed together. See `pyproject.toml` for the defined compatibility groups. I can't promise it's up-to-date. I didn't fully understand how conflicts worked back when I started writing it. Currently in the process of fixing it, and writing tests.
+> The declared conflicts are verified against the current dependency metadata.
+> `dac` conflicts with `espnet-wavlm-joint` over incompatible Protobuf ranges;
+> `mpm` conflicts with `espnet-wavlm-joint` over NumPy 1.x versus 2.x.
+> See the [dependency profile maintenance notes](docs/maintenance/dependency_extras.md)
+> for support status and open decisions.
 
 ## Quickstart
 
@@ -73,44 +87,53 @@ Along the way, it introduces the core abstractions used throughout the project:
 
 ## Design philosophy
 
-quick-convert is organized into three conceptual layers:
+quick-convert separates workflow orchestration from task behavior and reusable
+implementation pieces:
 
-Pipelines
-    │
-    ▼
-Systems
-    │
-    ▼
-Components
+- **Pipelines** execute workflows over datasets and persist outputs.
+- **Systems** provide complete task-level capabilities through a library API.
+- **Components** are focused building blocks used to construct systems or
+  specialized workflows.
+
+These are roles and dependency boundaries, not a requirement that every
+workflow instantiate all three. For example, feature precomputation may apply a
+feature-extractor component directly. Training inserts a trainer and a
+framework-specific training module around a system without making either one a
+task system.
 
 ### Pipelines
 
-Pipelines define complete executable workflows. These can be found under `quick_convert/pipelines/{[PIPELINE_NAME]/pipeline.py,[PIPLEINE_NAME].py}`.
+Pipelines define complete executable workflows under `quick_convert/pipelines`.
 
 Examples include:
 
-Model training pipelines, which is agnostic to the task (system) and architecture (components);
-Evaluation which is similarly agnostic;
-Anonymization a dataset;
-Precomputing features (although maybe this should be under an "inference" pipeline, we'll see);
+- model training, independent of the particular task system;
+- evaluation;
+- dataset anonymization; and
+- feature precomputation.
 
 A pipeline coordinates data loading, systems, output handling, and runtime configuration.
 
 ### Systems
 
-Systems implement a complete task-level capability. They're found under `quick_convert/pipelines/{[PIPELINE_NAME]/[SYSTEM_NAME]/...}`. I put ASR in a dedicated systems folder `quick_convert/systems/asr`. That's the plan for the future. I just haven't done the refactoring yet.
+Systems implement a complete task-level capability under
+`quick_convert/systems`. Their public inference behavior does not depend on a
+pipeline or training framework.
 
 Examples include:
 
-ASR system, invariant to the exact architecture;
-Automatic Speaker Verification (ASV);
-Anonymization/Voice Converstion.
+- automatic speech recognition;
+- speech reconstruction; and
+- anonymization or voice conversion.
 
-A system may combine multiple models, and, frankly, a model may utilize multiple systems.
+A system may combine several models or call another system when that dependency
+is itself task-level.
 
 ### Components
 
-Components are the reusable building blocks from which systems are constructed. This are analogous to pytorch `nn.Module`s, and are similarly recursive.
+Components are reusable, focused building blocks. Many are recursive PyTorch
+modules, but the role also includes stateless signal processing and feature
+extraction utilities.
 
 Examples include:
 
@@ -123,21 +146,24 @@ x-vector extractors
 
 This separation allows low-level components to be reused across different systems, while pipelines remain focused on how those systems are trained, evaluated, or applied.
 
-Configuration
-      │
-      ▼
-   Pipeline
-      │
-      ▼
-    System
-      │
-      ▼
-  Components
-      │
-      ▼
-    Output
+Most experiments select a pipeline and its dependencies through Hydra. Task
+workflows configure a system directly at `system`; training workflows pass that
+same system to a framework-specific training module.
 
-Most experiments in quick-convert are created by selecting a pipeline, configuring a system, and composing its components through Hydra.
+## Python library use
+
+The package can be used without a pipeline. For example, load an exported
+system as a plain inference object:
+
+```python
+from quick_convert.inference import load_inference_artifact
+
+system = load_inference_artifact("models/vq-asr", map_location="cpu")
+```
+
+Installed Hydra recipes live under `quick_convert/configs/`; `quick-convert
+--help` lists their composition roots. Pipelines are orchestration conveniences,
+not a prerequisite for importing datasets, systems, or components.
 
 ## Contributing
 

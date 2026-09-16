@@ -1,0 +1,5 @@
+_target_: quick_convert.components.ssl.ProsodyEncoder
+model_name: cdminix/masked_prosody_model
+sample_rate: 22050
+layer: 7
+device: ${device}

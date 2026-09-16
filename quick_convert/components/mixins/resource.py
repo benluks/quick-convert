@@ -52,6 +52,11 @@ class OnlineResourceMixin:
                 lengths=resource.lengths,
             )
 
+        # Tensors expose a callable ``values`` method for sparse operations;
+        # they are already the resource value, not a resource wrapper.
+        if isinstance(resource, torch.Tensor):
+            return ResolvedResource(values=resource.detach(), lengths=None)
+
         if hasattr(resource, "values"):
             return ResolvedResource(
                 values=OnlineResourceMixin._detach(resource.values),

@@ -1,0 +1,12 @@
+# configs/pipeline/training.yaml
+
+_target_: quick_convert.pipelines.training.pipeline.TrainingPipeline
+trainer: ${trainer}
+train_dataset: ${train_dataset}
+val_dataset: ${val_dataset}
+test_dataset: null
+out_dir: ${out_root}/${project_name}/${exp_name}
+
+# test_dataset: null
+# test_dataloader_kwargs: {}
+# run_test: false

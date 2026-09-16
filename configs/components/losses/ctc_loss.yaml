@@ -1,3 +1,0 @@
-__target__: quick_convert.components.losses.CTCLoss
-input_dim: ${architecture.linguistic_head.hidden_dim}
-output_dim: ${architecture.tokenizer_vocab_size}

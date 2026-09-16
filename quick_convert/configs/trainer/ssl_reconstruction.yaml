@@ -1,0 +1,20 @@
+defaults:
+  - /global: default
+  - lightning
+  - /trainer/optimizer@module.optimization: adamw_cosine
+  - _self_
+
+# cudnn, ddp and compile are disabled by default. Switch enabled to true to turn on
+cudnn_benchmark: false
+
+ddp:
+  enabled: false
+
+compile:
+  enabled: false
+  targets:
+    - decoder
+
+module:
+  _target_: quick_convert.training.lightning.modules.ssl_reconstruction.SSLReconstructionTrainingModule
+  system: ${system}

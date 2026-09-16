@@ -1,0 +1,61 @@
+# configs/trainer/lightning.yaml
+defaults:
+  - optimizations@ddp: ddp
+  - optimizations@compile: compile
+  - _self_
+
+_target_: quick_convert.training.lightning.trainer.LightningTrainer
+
+module: ???
+cudnn_benchmark: false
+
+train_dataloader_kwargs:
+  batch_size: 32
+  shuffle: true
+  num_workers: 24
+  pin_memory: true
+  drop_last: true
+  persistent_workers: true
+
+val_dataloader_kwargs:
+  batch_size: ${..train_dataloader_kwargs.batch_size}
+  shuffle: false
+  num_workers: ${..train_dataloader_kwargs.num_workers}
+  pin_memory: ${..train_dataloader_kwargs.pin_memory}
+  drop_last: ${..train_dataloader_kwargs.drop_last}
+  persistent_workers: ${..train_dataloader_kwargs.persistent_workers}
+
+trainer_kwargs:
+  max_steps: -1
+  # for step-based validation
+  # val_check_interval: 1000
+  accelerator: auto
+  devices: auto
+  precision: 32
+  log_every_n_steps: 200
+  enable_checkpointing: true
+  enable_progress_bar: true
+  enable_model_summary: true
+  max_epochs: 10
+
+  callbacks:
+    - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+      save_top_k: 2
+      monitor: step
+      mode: max
+      every_n_epochs: 1
+      save_last: true
+
+    - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+      monitor: val/loss
+      mode: min
+      save_top_k: 1
+      save_last: false
+
+    - _target_: lightning.pytorch.callbacks.LearningRateMonitor
+      logging_interval: step
+  logger:
+    _target_: lightning.pytorch.loggers.WandbLogger
+    save_dir: ${out_root}
+    project: ${project_name}
+    name: ${exp_name}
