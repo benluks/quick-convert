@@ -4,6 +4,13 @@
 
 📚 **Documentation:** https://benluks.github.io/quick-convert/
 
+Choose the shortest path for your goal:
+
+- [Install and learn the core concepts](https://benluks.github.io/quick-convert/getting-started/installation.html)
+- [Run a supported workflow](https://benluks.github.io/quick-convert/guides/workflows.html)
+- [Use the Python library directly](https://benluks.github.io/quick-convert/library/python-api.html)
+- [Extend the library](https://benluks.github.io/quick-convert/extending/)
+
 The framework is designed around composition. Datasets, resources, models, feature extractors, trainers, and pipelines are all interchangeable, making it straightforward to build new workflows while reusing existing infrastructure.
 
 ## Features
@@ -66,7 +73,7 @@ The current reference workflows require these extras:
 
 ## Quickstart
 
-The recommended introduction to the framework is the [Quickstart guide](https://benluks.github.io/quick-convert/quickstart.html).
+The recommended end-to-end introduction is the [Quickstart guide](https://benluks.github.io/quick-convert/quickstart.html). For a shorter task lookup, use the [workflow guide](https://benluks.github.io/quick-convert/guides/workflows.html).
 
 Starting from a downloaded LibriSpeech dataset, it walks through:
 

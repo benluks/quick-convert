@@ -1,4 +1,9 @@
-## Installation
+# Installation
+
+> This page is retained for existing links. The canonical installation guide is
+> [Getting started: installation](getting-started/installation.md).
+
+## Install the project
 
 Quick Convert uses [uv](https://docs.astral.sh/uv/) for Python environment
 management:
