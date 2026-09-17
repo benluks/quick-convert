@@ -13,6 +13,8 @@
   YAML should express composition, environment values, and intentional
   overrides rather than duplicate those defaults.
 - Do not use catch-all constructor arguments to hide stale config fields.
+- Represent values fixed by an underlying model as class constants and
+  read-only instance properties, not configurable constructor arguments.
 - Systems expose complete inference behavior and must not depend on pipelines or training frameworks.
 - Training modules add losses, logging, and optimization around systems.
 - Pipelines orchestrate datasets, execution, persistence, and other workflow concerns.

@@ -182,7 +182,6 @@ def test_public_component_configs_only_pass_declared_arguments(config_path, targ
 @pytest.mark.parametrize(
     ("config_path", "target"),
     [
-        ("components/ssl/w2vbert.yaml", "quick_convert.components.ssl.W2VBertContentEncoder"),
         ("components/ssl/emo2vec.yaml", "quick_convert.components.ssl.EmotionEncoder"),
         ("components/ssl/dac.yaml", "quick_convert.components.ssl.DACContentEncoder"),
         ("components/ssl/pros2vec.yaml", "quick_convert.components.ssl.ProsodyEncoder"),
@@ -198,11 +197,25 @@ def test_composition_sample_rate_matches_constructor_default(config_path, target
     assert config.sample_rate == constructor_default
 
 
-def test_w2vbert_rejects_an_unsupported_sample_rate_before_loading_model():
+def test_w2vbert_exposes_sample_rate_as_a_fixed_capability():
     from quick_convert.components.ssl import W2VBertContentEncoder
 
-    with pytest.raises(ValueError, match="16 kHz"):
-        W2VBertContentEncoder(sample_rate=8_000)
+    signature = inspect.signature(W2VBertContentEncoder)
+
+    assert "sample_rate" not in signature.parameters
+    assert W2VBertContentEncoder.SAMPLE_RATE == 16_000
+
+
+def test_w2vbert_precompute_rate_matches_encoder_capability():
+    from quick_convert.components.ssl import W2VBertContentEncoder
+
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
+        config = compose(
+            config_name="run/precompute_content_w2vbert_librispeech",
+            return_hydra_config=True,
+        )
+
+    assert config.dataset.target_sr == W2VBertContentEncoder.SAMPLE_RATE
 
 
 @pytest.mark.parametrize(

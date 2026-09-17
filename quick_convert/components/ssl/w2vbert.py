@@ -13,12 +13,12 @@ from .base import ContentEncoder, ContentFeatures
 
 class W2VBertContentEncoder(ContentEncoder):
     FEATURE_DIM = 1024
+    SAMPLE_RATE = 16_000
     TIME_D = 1
 
     def __init__(
         self,
         model_name: str = "facebook/w2v-bert-2.0",
-        sample_rate: int = 16000,
         layer: int | None = None,
         device: str | None = None,
         local_files_only: bool = False,
@@ -26,10 +26,7 @@ class W2VBertContentEncoder(ContentEncoder):
         max_length: int | None = None,
     ) -> None:
         super().__init__(device=device)
-        if sample_rate != 16_000:
-            raise ValueError("W2V-BERT expects 16 kHz audio.")
         self.model_name = model_name
-        self.sample_rate = sample_rate
         self.layer = layer
         self.local_files_only = local_files_only
         self.downsample_factor = downsample_factor
@@ -51,6 +48,11 @@ class W2VBertContentEncoder(ContentEncoder):
             local_files_only=local_files_only,
         ).to(self.device)
         self.model.eval()
+
+    @property
+    def sample_rate(self) -> int:
+        """Required input sample rate fixed by the pretrained model."""
+        return self.SAMPLE_RATE
 
     def encode_file(self, path: PathLike) -> ContentFeatures:
         path = Path(path)

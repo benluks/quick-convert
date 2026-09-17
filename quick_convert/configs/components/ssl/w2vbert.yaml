@@ -1,3 +1,2 @@
 _target_: quick_convert.components.ssl.W2VBertContentEncoder
-sample_rate: 16000
 device: ${device}

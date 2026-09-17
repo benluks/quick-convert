@@ -32,7 +32,8 @@ and intentional overrides—not a second copy of every constructor default. When
 composition needs static capability metadata such as a feature dimension, keep
 that fact explicit in the system wiring and validate it against the component
 contract. Public constructors must not silently absorb unknown configuration
-keys.
+keys. Values fixed by an underlying model are capabilities, not constructor
+choices: expose them through class constants and read-only instance properties.
 
 The preferred top-level task model key is `system`. Avoid parallel vocabulary such as `architecture.system`; it obscures the boundary between the inference object and its training wrapper.
 

@@ -19,7 +19,9 @@ dataset:
     - test-other
 
   load: true
-  target_sr: ${encoder.sample_rate}
+  # Fixed capability of facebook/w2v-bert-2.0. The reference-config test ties
+  # this composition-time value to W2VBertContentEncoder.SAMPLE_RATE.
+  target_sr: 16000
 
 feature_extractor:
   encoder:
