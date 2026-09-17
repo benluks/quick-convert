@@ -41,6 +41,8 @@ def _resolve_config(
             usage = (
                 f"Usage: {command} <run-config> [hydra overrides...]\n"
                 f"       {command} export <run-dir> <destination> [options]"
+                f"\n       {command} requirements <run-config> [hydra overrides...]"
+                f"\n       {command} doctor <run-config> [hydra overrides...]"
             )
         else:
             choices = ", ".join(_available_aliases(config_prefix, run_dir)) or "(none found)"
@@ -64,10 +66,15 @@ def _resolve_config(
 
 def main() -> None:
     command = Path(sys.argv[0]).stem
-    if command in {"quick-convert", "quick_convert"} and sys.argv[1:2] == ["export"]:
-        module = importlib.import_module("quick_convert.cli.export")
-        module.main(sys.argv[2:])
-        return
+    if command in {"quick-convert", "quick_convert"} and sys.argv[1:2]:
+        action = sys.argv[1]
+        if action == "export":
+            module = importlib.import_module("quick_convert.cli.export")
+            module.main(sys.argv[2:])
+            return
+        if action in {"requirements", "doctor"}:
+            module = importlib.import_module("quick_convert.cli.dependencies")
+            raise SystemExit(module.main(sys.argv[2:], action=action))
 
     run_dir = Path(__file__).resolve().parent / "quick_convert" / "configs" / "run"
     config_name, overrides = _resolve_config(command, sys.argv[1:], run_dir)

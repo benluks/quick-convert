@@ -1,0 +1,50 @@
+# Optional installation capabilities selected by configured Python targets.
+# Keep package versions in pyproject.toml; this file maps semantic capabilities
+# to import probes and composed object-graph targets.
+extras:
+  asr:
+    probes: [jiwer, sentencepiece]
+  cosyvoice:
+    probes: [diffusers, librosa, onnxruntime, x_transformers]
+  dac:
+    probes: [dac]
+  emotion2vec:
+    probes: [funasr]
+  espnet-wavlm-joint:
+    probes: [espnet2, s3prl]
+  manifests:
+    probes: [pandas]
+  mpm:
+    probes: [masked_prosody_model]
+  pyannote:
+    probes: [pyannote.audio]
+  sentencepiece:
+    probes: [sentencepiece]
+  training:
+    probes: [lightning, matplotlib, tensorboard, wandb]
+  transformers:
+    probes: [transformers]
+  wer:
+    probes: [jiwer]
+  whisper:
+    probes: [whisper]
+
+targets:
+  quick_convert.components.decoders.CosyVoiceSpectrogramGenerator: [cosyvoice]
+  quick_convert.components.feature_extractors.TokenizerFeatureExtractor: [sentencepiece]
+  quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusSpeakerEncoder: [cosyvoice]
+  quick_convert.components.speaker.ESPnetSpeakerEncoder: [espnet-wavlm-joint]
+  quick_convert.components.speaker.PyannoteWeSpeakerEncoder: [pyannote]
+  quick_convert.components.ssl.DACContentEncoder: [dac]
+  quick_convert.components.ssl.EmotionEncoder: [emotion2vec]
+  quick_convert.components.ssl.ProsodyEncoder: [mpm]
+  quick_convert.components.ssl.W2VBertContentEncoder: [transformers]
+  quick_convert.components.ssl.WavLMContentEncoder: [transformers]
+  quick_convert.pipelines.evaluation.metrics.JiwerWER: [wer]
+  quick_convert.systems.asr.WhisperASR: [whisper]
+  quick_convert.systems.ser.odyssey_ser.OdysseySER: [transformers]
+  quick_convert.training.lightning.modules.vq_asr.VQASRTrainingModule: [asr, training]
+  quick_convert.training.lightning.modules.ssl_reconstruction.SSLReconstructionTrainingModule: [training]
+  quick_convert.training.lightning.trainer.LightningTrainer: [training]
+  quick_convert.training.tokenizer.TokenizerTrainer: [sentencepiece]
+  quick_convert.training.tokenizers.sentencepiece.SentencePieceBPETrainer: [sentencepiece]

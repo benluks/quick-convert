@@ -25,6 +25,9 @@
 ## Public behavior
 
 - Keep optional dependencies lazy. Importing an unrelated public module must not require an optional backend.
+- When a configured target adds or changes an optional backend, update
+  `quick_convert/configs/dependencies.yaml`; keep package requirements and
+  versions in `pyproject.toml`.
 - Do not accept public arguments that are ignored.
 - Preserve caller-owned tensors and objects unless mutation is explicitly documented.
 - Report valid sequence lengths alongside padded tensors.

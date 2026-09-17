@@ -6,7 +6,14 @@ This guide follows the supported reference path from LibriSpeech to VQ-ASR train
 
     git clone https://github.com/benluks/quick-convert.git
     cd quick-convert
-    uv sync --extra transformers --extra asr --extra training --extra manifests
+    uv sync
+    uv run quick-convert requirements train_vq_asr_librispeech
+    uv sync --extra asr --extra manifests --extra training --extra transformers
+
+The requirements command derives the training dependencies from the configured
+system. This end-to-end guide additionally installs `manifests` for its CSV
+splitting step. If you override the content encoder, run the requirements
+command with the same Hydra overrides before installing dependencies.
 
 The reference configs expect the standard LibriSpeech directories beneath
 `/data/librispeech/Librispeech/`. For example:

@@ -40,6 +40,12 @@ constructor argument.
 
 The preferred top-level task model key is `system`. Avoid parallel vocabulary such as `architecture.system`; it obscures the boundary between the inference object and its training wrapper.
 
+Optional environments follow the composed object graph rather than fixed run
+names. `configs/dependencies.yaml` maps targets to semantic extras, while
+`pyproject.toml` remains the mechanical package-to-distribution mapping. This
+allows encoder or decoder overrides to change requirements without multiplying
+workflow-specific extras.
+
 ## Support boundary
 
 The supported public spine is under `quick_convert.data`, `quick_convert.components`, `quick_convert.systems`, `quick_convert.training`, `quick_convert.pipelines`, and `quick_convert.inference`. Code under `quick_convert.external` is vendored implementation detail reached through first-party adapters.

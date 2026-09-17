@@ -1,5 +1,8 @@
 # Configuration reference
 
+See [optional dependency planning](dependencies.md) for deriving installation
+requirements from a composed run.
+
 Quick Convert installs its Hydra tree under `quick_convert/configs/`. A file in `run/` is an executable composition root rather than a separate kind of Python object.
 
 ## CLI resolution
