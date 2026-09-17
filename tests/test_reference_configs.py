@@ -106,6 +106,31 @@ def test_tokenizer_training_has_an_explicit_output_directory():
     assert config.pipeline.out_dir == "outputs/tokenizer/librispeech_1000_tokens"
 
 
+def test_tokenizer_training_uses_the_transcript_provider():
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
+        config = compose(
+            config_name="run/train_bpe_tokenizer_librispeech",
+            return_hydra_config=True,
+        )
+
+    providers = [instantiate(provider) for provider in config.train_dataset.resource_providers]
+
+    assert [provider.name for provider in providers] == ["transcript"]
+
+
+def test_flat_manifest_contains_vq_asr_resources():
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
+        config = compose(
+            config_name="run/build_flat_manifest_libri",
+            return_hydra_config=True,
+        )
+
+    providers = [instantiate(provider) for provider in config.dataset.resource_providers]
+
+    assert [provider.name for provider in providers] == ["transcript", "spkid"]
+    assert set(config.columns) == {"utt_id", "path", "split", "transcript", "spkid"}
+
+
 def test_vq_asr_config_exposes_an_inference_ready_system():
     with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
         config = compose(

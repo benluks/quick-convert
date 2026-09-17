@@ -4,13 +4,15 @@ defaults:
   - /global: default
   - /pipeline: build_manifest
   - /dataset: librispeech
+  - /resource_providers/librispeech@transcript_provider: transcript
+  - /resource_providers/librispeech@spkid_provider: spkid
   - _self_
 
 columns:
   utt_id: "{sample.utt_id}"
   path: "{sample.path}"
   split: "{sample.split}"
-  spk_id: "{sample.path.parent.parent.stem}"
+  transcript: "{sample.resources.transcript.value}"
   spkid: "{sample.resources.spkid.value}"
 
 pipeline:
@@ -29,5 +31,6 @@ dataset:
     - dev-clean
     - dev-other
   resource_providers:
-    - ${dataset.spkid_provider}
+    - ${transcript_provider}
+    - ${spkid_provider}
   sort_key: "{row.utt_id}"

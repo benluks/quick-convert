@@ -31,4 +31,5 @@ Inspect the run YAML before launching an expensive job. A composed configuration
 
 ## End-to-end reference
 
-The [VQ-ASR quickstart](../quickstart.md) covers tokenizer training, feature precomputation, manifest preparation, training, and inference export in order.
+The [VQ-ASR quickstart](../quickstart.md) covers tokenizer training, token ID
+precomputation, manifest preparation, training, and inference export in order.
