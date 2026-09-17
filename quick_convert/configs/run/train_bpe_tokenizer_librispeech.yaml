@@ -21,6 +21,6 @@ train_dataset:
     - train-other-500
   load: false
   resource_providers:
-    - ${transcript}
+    - ${transcript_provider}
 
 val_dataset: null
