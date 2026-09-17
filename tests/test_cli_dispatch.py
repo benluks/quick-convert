@@ -73,3 +73,23 @@ def test_universal_command_dispatches_export(monkeypatch) -> None:
     main()
 
     assert called_with == ["run", "model"]
+
+
+@pytest.mark.parametrize("action", ["requirements", "doctor"])
+def test_universal_command_dispatches_dependency_actions(monkeypatch, action) -> None:
+    called_with = None
+
+    class DependencyModule:
+        @staticmethod
+        def main(argv, *, action):
+            nonlocal called_with
+            called_with = (argv, action)
+            return 0
+
+    monkeypatch.setattr("main.importlib.import_module", lambda name: DependencyModule)
+    monkeypatch.setattr(sys, "argv", ["quick-convert", action, "train_vq_asr_librispeech"])
+
+    with pytest.raises(SystemExit, match="0"):
+        main()
+
+    assert called_with == (["train_vq_asr_librispeech"], action)
