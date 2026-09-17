@@ -1,9 +1,14 @@
 from pathlib import Path
 
+import pytest
 import torch
 
 from quick_convert.data import AudioBatch
 from quick_convert.data.resources import ResourceCollection, ResourceRef
+
+
+pytest.importorskip("lightning")
+
 from quick_convert.training.lightning.modules import base as base_module
 from quick_convert.training.lightning.modules.base import BaseTrainingModule
 
