@@ -74,7 +74,29 @@ def save_inference_artifact(
     excluded_state_prefixes: Iterable[str] = (),
     overwrite: bool = False,
 ) -> Path:
-    """Save an instantiated system as a portable inference artifact."""
+    """Save an instantiated system as a portable inference artifact.
+
+    The artifact contains a resolved Hydra system configuration and CPU model
+    weights. It intentionally contains no training-module, optimizer, logger,
+    scheduler, or callback state.
+
+    Args:
+        system: Instantiated inference system whose state should be saved.
+        system_config: Resolvable Hydra configuration for ``system``. It must
+            contain a ``_target_`` key.
+        destination: Directory in which to write ``artifact.yaml`` and
+            ``weights.pt``.
+        excluded_state_prefixes: State-dict prefixes to omit. Use this only for
+            reproducible external state, such as a pretrained online encoder.
+        overwrite: Allow writing into a non-empty destination directory.
+
+    Returns:
+        The artifact directory.
+
+    Raises:
+        FileExistsError: If the destination is non-empty and overwrite is false.
+        ValueError: If the system configuration is not a resolved Hydra target.
+    """
     excluded = tuple(_normalize_prefix(prefix) for prefix in excluded_state_prefixes)
     state_dict = {
         key: value.detach().cpu() for key, value in system.state_dict().items() if not _matches_prefix(key, excluded)
@@ -124,7 +146,28 @@ def export_inference_artifact(
     map_location: DeviceLike = "cpu",
     overwrite: bool = False,
 ) -> Path:
-    """Export the system from a training run."""
+    """Export the inference system from a Quick Convert training run.
+
+    The run configuration supplies the top-level ``system`` definition. For
+    compatibility, older runs may use ``architecture.system``. Lightning
+    checkpoints are reduced to ``system.*`` parameters; plain system state
+    dictionaries are also accepted.
+
+    Args:
+        run_dir: Directory containing the resolved run config and checkpoint.
+        destination: Output artifact directory.
+        checkpoint: Absolute checkpoint path or path relative to ``run_dir``.
+        config: Resolved YAML config path, relative to ``run_dir`` by default.
+        map_location: Device used while reading the checkpoint.
+        overwrite: Allow writing into a non-empty destination directory.
+
+    Returns:
+        The artifact directory.
+
+    Raises:
+        ValueError: If the run has no system config or checkpoint weights.
+        TypeError: If the checkpoint is not a supported state mapping.
+    """
     run_dir = Path(run_dir)
     cfg = OmegaConf.load(run_dir / config)
     system_config = OmegaConf.select(cfg, "system")
@@ -161,7 +204,24 @@ def load_inference_artifact(
     map_location: DeviceLike = "cpu",
     strict: bool = True,
 ) -> nn.Module:
-    """Instantiate and load a versioned inference artifact."""
+    """Instantiate a system and load a versioned inference artifact.
+
+    Device fields in the saved system configuration are overridden with
+    ``map_location`` before Hydra instantiation. The returned module is moved
+    to that device and placed in evaluation mode.
+
+    Args:
+        artifact_dir: Directory containing ``artifact.yaml`` and ``weights.pt``.
+        map_location: Device on which to instantiate and load the system.
+        strict: Forwarded to :meth:`torch.nn.Module.load_state_dict`. Deliberately
+            excluded prefixes are restored from the fresh system first.
+
+    Returns:
+        The configured inference system in evaluation mode.
+
+    Raises:
+        ValueError: If the artifact format or version is unsupported.
+    """
     artifact_dir = Path(artifact_dir)
     manifest = OmegaConf.load(artifact_dir / MANIFEST_NAME)
     if manifest.get("format") != ARTIFACT_FORMAT:

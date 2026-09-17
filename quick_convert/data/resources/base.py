@@ -8,9 +8,14 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 class BaseResourceProvider:
-    """
-    An abstracton class for resource providers, which are responsible for providing access to various types of
-    resources (e.g. annotation files, precompute feature files, etc.) associated with samples in a dataset.
+    """Base interface for resolving one named resource from a sample.
+
+    Subclasses implement :meth:`__call__` and return a :class:`ResourceRef`.
+    Providers describe where or what a resource is; datasets control whether
+    the referenced value is materialized.
+
+    Args:
+        name: Name used to expose the resource on samples and batches.
     """
 
     def __init__(self, name: str):
@@ -30,6 +35,19 @@ RESOURCE_KINDS = frozenset(ResourceKind.__args__)
 
 @dataclass(frozen=True)
 class ResourceRef:
+    """Description of one named resource.
+
+    Exactly one or both of ``path`` and ``value`` may be present. A path-only
+    reference is lazy; a loaded reference retains its path and stores the value.
+
+    Args:
+        name: Stable name within a sample's resource collection.
+        kind: Loading and collation strategy.
+        path: Optional source path.
+        value: Optional materialized value.
+        max_length: Optional fixed padded length for tensor or token resources.
+    """
+
     name: str
     kind: ResourceKind
     path: Path | None = None
@@ -49,6 +67,13 @@ class ResourceRef:
 
 @dataclass(frozen=True)
 class ResourceCollection:
+    """Immutable name-indexed collection of :class:`ResourceRef` objects.
+
+    Resources support mapping-style access (``resources["content"]``) and
+    attribute access (``resources.content``). Construction and merging reject
+    duplicate names unless overwrite is explicitly requested.
+    """
+
     _items: dict[str, ResourceRef] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -83,10 +108,12 @@ class ResourceCollection:
         return self._items.items()
 
     def as_dict(self) -> dict[str, ResourceRef]:
+        """Return a shallow copy keyed by resource name."""
         return dict(self._items)
 
     @classmethod
     def from_refs(cls, refs: Iterable[ResourceRef]) -> "ResourceCollection":
+        """Build a collection and reject duplicate resource names."""
         items = {}
         for ref in refs:
             if ref.name in items:
@@ -99,6 +126,7 @@ class ResourceCollection:
         other: "ResourceCollection",
         overwrite: bool = False,
     ) -> "ResourceCollection":
+        """Return a new collection containing resources from both inputs."""
         items = self.as_dict()
 
         for name, ref in other.items():
@@ -234,6 +262,20 @@ def collate_resources(
     batch,
     squeeze_single_frame_tensors: bool = False,
 ) -> dict[str, Any]:
+    """Collate identically named resources across a sample batch.
+
+    Text values become lists. Tensor and token values become padded
+    :class:`TensorResourceBatch` objects containing ``values`` and valid
+    ``lengths``. Every sample must contain the same resource names.
+
+    Args:
+        batch: Samples whose ``resources`` collections should be collated.
+        squeeze_single_frame_tensors: Remove the time dimension when every
+            tensor resource has exactly one frame.
+
+    Returns:
+        A mapping from resource name to its collated value.
+    """
     resource_names = {name for item in batch for name in (item.resources.keys() if item.resources is not None else [])}
 
     collated = {}

@@ -63,6 +63,13 @@ class ContentFeatures:
 
 
 class ContentEncoder(nn.Module, ABC):
+    """Base interface for frame-level speech representation encoders.
+
+    Implementations accept files or padded waveforms and return
+    :class:`ContentFeatures` with exact valid frame lengths. ``values`` use
+    batch dimension 0 and time dimension 1.
+    """
+
     TIME_D: int = 1
     FEATURE_DIM: int | None = None
 

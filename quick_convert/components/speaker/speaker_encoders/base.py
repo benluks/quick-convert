@@ -13,6 +13,12 @@ from ....utils.audio import load_audio_input
 
 @dataclass
 class SpeakerEmbedding:
+    """One speaker embedding or a batch of speaker embeddings.
+
+    ``values`` has shape ``[D]`` or ``[B, D]`` and its final dimension must
+    equal ``embedding_dim``.
+    """
+
     values: torch.Tensor
     embedding_dim: int
     backend: str
@@ -28,6 +34,12 @@ class SpeakerEmbedding:
 
 
 class SpeakerEncoder(nn.Module, ABC):
+    """Base interface for file, waveform, and batched speaker encoders.
+
+    Implementations return :class:`SpeakerEmbedding` and own their inference
+    device. Calling :meth:`to` updates both the module and that device contract.
+    """
+
     FEATURE_DIM: int
     sample_rate: int
 

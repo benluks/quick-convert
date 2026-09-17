@@ -1,5 +1,7 @@
-"""
-resources allow you to pass arbitrary metadata or sidecar files associated with each sample in the dataset. This can include metadata (anotations), features, or any path.
+"""Named annotations and sidecar values attached to dataset samples.
+
+Providers resolve a :class:`ResourceRef` from sample metadata. A dataset then
+decides whether to keep the reference lazy or load its value during access.
 """
 
 from .annotations import CSVAnnotationProvider

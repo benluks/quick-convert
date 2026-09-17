@@ -16,6 +16,46 @@ from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 
 
 class BaseDataset(Dataset):
+    """Discover audio and attach lazily loaded named resources.
+
+    Exactly one of ``root``, ``paths``, or ``rows`` selects the dataset
+    source. Directory-backed datasets recursively discover supported audio
+    files. Path-backed datasets use only existing files, and row-backed
+    datasets preserve caller-supplied metadata.
+
+    Audio and sidecar values are loaded on access only when selected by
+    ``load``. Samples remain immutable; loading returns a new
+    :class:`~quick_convert.data.AudioSample`.
+
+    Args:
+        root: Root directory to scan. When ``splits`` is provided, each split
+            is interpreted as a child directory of this root.
+        splits: Optional split directory names.
+        file_format: One extension or an iterable of extensions, with or
+            without leading dots. ``None`` accepts every supported format.
+        paths: Explicit audio paths. Missing paths and directories are ignored.
+        rows: Existing metadata rows to expose through the dataset.
+        load: Values to materialize in :meth:`__getitem__`. Use ``False`` for
+            metadata only, a list such as ``["audio", "content"]`` for a
+            selection, or ``True``/``"all"`` for audio and every resource.
+        target_sr: Optional sample rate used when loading audio.
+        convert_to_mono: Downmix loaded audio to one channel.
+        utt_id_template: Template used to derive utterance IDs from ``path``.
+        get_utt_id_fn: Callable alternative to ``utt_id_template``.
+        pattern: Glob pattern applied during directory discovery.
+        exclude_patterns: Filename or full-path glob patterns to exclude.
+        resource_providers: Providers that attach named resources to samples.
+        sort_key: Template used to sort discovered rows. Set to ``None`` only
+            when supplying ``rows``, whose order is preserved.
+        max_length: Optional fixed waveform length used by collation. It must
+            not be shorter than any loaded waveform.
+
+    Raises:
+        ValueError: If the source selection or an audio format is invalid.
+        FileNotFoundError: If ``root`` or a requested split does not exist.
+        NotADirectoryError: If ``root`` or a requested split is not a directory.
+    """
+
     VALID_FORMATS = get_supported_formats()
 
     def __init__(
@@ -182,6 +222,7 @@ class BaseDataset(Dataset):
         return any(fnmatch(path.name, pattern) or fnmatch(str(path), pattern) for pattern in self.exclude_patterns)
 
     def get_utt_id(self, path: Path) -> str:
+        """Derive an utterance ID for ``path`` using the configured strategy."""
         if self.get_utt_id_fn is not None:
             return self.get_utt_id_fn(path)
 
@@ -195,11 +236,8 @@ class BaseDataset(Dataset):
                 f"No method for determining utt_id. Please provide either `utt_id_template` or `get_utt_id_fn` when initializing {type(self).__name__}."
             )
 
-    def load_sample(self, sample: AudioSample) -> dict[str, Any]:
-        """
-        If target_sr is set, loading will resample audio. I haven't implemented a way to override this.
-        Maybe it's better to leave the resampling concern to a different part of the pipeline. Time will tell.
-        """
+    def load_sample(self, sample: AudioSample) -> AudioSample:
+        """Return ``sample`` with audio loaded under this dataset's settings."""
         waveform, sample_rate = load_audio(sample.path, target_sr=self.target_sr, mono=self.convert_to_mono)
         return AudioSample(
             utt_id=sample.utt_id,
@@ -217,6 +255,7 @@ class BaseDataset(Dataset):
         }
 
     def collate_fn(self, batch: list[AudioSample]) -> MetadataBatch | AudioBatch:
+        """Collate samples, padding audio and sequential resources in time."""
         return AudioBatch.from_samples(batch, max_length=self.max_length)
 
     def make_dataloader(
@@ -228,6 +267,7 @@ class BaseDataset(Dataset):
         drop_last: bool = False,
         **kwargs,
     ) -> DataLoader:
+        """Build a PyTorch dataloader using this dataset's collation contract."""
         return DataLoader(
             self,
             batch_size=batch_size,

@@ -27,10 +27,25 @@ Public classes and functions should document:
 
 Docstrings should explain contracts that cannot be recovered from the type signature. They should not repeat implementation details or promise support for accidental internals.
 
+## Current coverage
+
+The first enforced tranche covers exports from:
+
+- `quick_convert.data`
+- `quick_convert.data.resources`
+- `quick_convert.inference`
+
+These modules form the basic path from loading inputs to saving or loading an
+inference system. Tests require every exported callable in this tranche to have
+a docstring. System exports and the content- and speaker-encoder base contracts
+are also documented, including their optional dependencies and download
+behavior. Concrete experimental implementations remain outside the stability
+promise.
+
 ## Rollout
 
-1. Inventory exported symbols and mark the intended public set.
-2. Add consistent docstrings module by module.
-3. Add docstring linting only after the initial backlog is addressed.
-4. Generate reference pages from the curated public set.
-5. Link generated reference from the hand-written task guides rather than replacing them.
+1. Extend enforced coverage to optional system and component exports without
+   making documentation builds install every backend.
+2. Add docstring linting after the initial backlog is addressed.
+3. Generate reference pages from the curated public set.
+4. Link generated reference from the hand-written task guides rather than replacing them.

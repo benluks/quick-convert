@@ -9,7 +9,30 @@ from ..base import BaseResourceProvider, ResourceRef
 
 
 class CSVAnnotationProvider(BaseResourceProvider):
-    """Resolve arbitrary text annotations from a shared delimited file."""
+    """Resolve text annotations from a shared delimited file.
+
+    Annotation files are parsed once per resolved path and cached by the
+    provider. The sample lookup key and annotation-file path may both be
+    derived from nested sample attributes.
+
+    Args:
+        name: Resource name exposed on the sample.
+        path_template: Template resolving directly to the annotation file.
+        annotation_path_key: Sample field containing a path relative to the
+            sample's audio directory when ``path_template`` is omitted.
+        item_key: Sample field used to look up an annotation row.
+        key_column: Zero-based column containing item keys.
+        value_column: Zero-based first column containing annotation values.
+        delimiter: CSV delimiter. ``None`` uses the :mod:`csv` default.
+        encoding: Text encoding used to open annotation files.
+        join_value_columns: Join every column from ``value_column`` onward with
+            spaces, as required by LibriSpeech transcript files.
+
+    Raises:
+        FileNotFoundError: If a resolved annotation file does not exist.
+        KeyError: If no annotation matches the sample key.
+        ValueError: If the path strategy, rows, or keys are invalid.
+    """
 
     def __init__(
         self,
