@@ -34,6 +34,9 @@ that fact explicit in the system wiring and validate it against the component
 contract. Public constructors must not silently absorb unknown configuration
 keys. Values fixed by an underlying model are capabilities, not constructor
 choices: expose them through class constants and read-only instance properties.
+Configurations can read such composition-time metadata with
+`${class_attr:${component._target_},CAPABILITY}` without turning it into a
+constructor argument.
 
 The preferred top-level task model key is `system`. Avoid parallel vocabulary such as `architecture.system`; it obscures the boundary between the inference object and its training wrapper.
 

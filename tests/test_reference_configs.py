@@ -8,6 +8,8 @@ from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
+from quick_convert.utils.resolvers import class_attribute
+
 
 CONFIG_DIR = Path(__file__).parents[1] / "quick_convert" / "configs"
 RUN_CONFIGS = sorted(path.stem for path in (CONFIG_DIR / "run").glob("*.yaml"))
@@ -21,6 +23,7 @@ def register_resolvers():
         "floor": lambda x, y: int(int(x) / int(y)),
         "bool": bool,
         "len": len,
+        "class_attr": class_attribute,
     }
     for name, resolver in resolvers.items():
         if not OmegaConf.has_resolver(name):

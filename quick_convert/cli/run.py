@@ -7,18 +7,11 @@ import hydra
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 
+from quick_convert.utils.resolvers import register_config_resolvers
+
 
 def _register_resolvers() -> None:
-    resolvers = {
-        "add": lambda x, y: int(x) + int(y),
-        "mul": lambda x, y: int(x) * int(y),
-        "floor": lambda x, y: int(int(x) / int(y)),
-        "bool": lambda value: bool(value),
-        "len": len,
-    }
-    for name, resolver in resolvers.items():
-        if not OmegaConf.has_resolver(name):
-            OmegaConf.register_new_resolver(name, resolver)
+    register_config_resolvers()
 
 
 _register_resolvers()
