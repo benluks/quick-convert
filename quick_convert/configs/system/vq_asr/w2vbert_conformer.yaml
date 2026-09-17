@@ -8,7 +8,9 @@ defaults:
 
 _target_: quick_convert.systems.asr.VQASRSystem
 quantizer:
-  input_dim: ${system.online_encoders.content.feature_dim}
+  # System wiring is explicit; the component config does not restate this
+  # encoder's constructor defaults as Hydra arguments.
+  input_dim: 1024
   n_codebooks: 1
   codebook_dim: 256
   codebook_size: 64

@@ -14,7 +14,6 @@ class ESPnetSpeakerEncoder(SpeakerEncoder):
         model_tag: str = "espnet/voxcelebs12_ecapa_wavlm_joint",
         device: str | torch.device | None = None,
         sample_rate: int = 16_000,
-        **kwargs,
     ) -> None:
         super().__init__(device=device)
         self.model_tag = model_tag

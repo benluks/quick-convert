@@ -1,3 +1,4 @@
+import inspect
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -6,6 +7,8 @@ import pytest
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
+
+from quick_convert.utils.resolvers import class_attribute
 
 
 CONFIG_DIR = Path(__file__).parents[1] / "quick_convert" / "configs"
@@ -20,6 +23,7 @@ def register_resolvers():
         "floor": lambda x, y: int(int(x) / int(y)),
         "bool": bool,
         "len": len,
+        "class_attr": class_attribute,
     }
     for name, resolver in resolvers.items():
         if not OmegaConf.has_resolver(name):
@@ -149,6 +153,86 @@ def test_vq_asr_config_exposes_an_inference_ready_system():
     assert config.trainer.val_dataloader_kwargs.batch_size == 32
     assert "quantizer" not in config.trainer.module
     assert "ctc_head" not in config.trainer.module
+    from quick_convert.components.ssl import W2VBertContentEncoder
+
+    assert config.system.quantizer.input_dim == W2VBertContentEncoder.FEATURE_DIM
+
+
+@pytest.mark.parametrize(
+    ("config_path", "target"),
+    [
+        ("components/ssl/w2vbert.yaml", "quick_convert.components.ssl.W2VBertContentEncoder"),
+        ("components/ssl/emo2vec.yaml", "quick_convert.components.ssl.EmotionEncoder"),
+        ("components/ssl/dac.yaml", "quick_convert.components.ssl.DACContentEncoder"),
+        ("components/ssl/pros2vec.yaml", "quick_convert.components.ssl.ProsodyEncoder"),
+        ("components/speaker_encoder/espnet.yaml", "quick_convert.components.speaker.ESPnetSpeakerEncoder"),
+        (
+            "components/speaker_encoder/pyannote_wespeaker_voxceleb_resnet34_LM.yaml",
+            "quick_convert.components.speaker.PyannoteWeSpeakerEncoder",
+        ),
+    ],
+)
+def test_public_component_configs_only_pass_declared_arguments(config_path, target):
+    from hydra.utils import get_class
+
+    config = OmegaConf.load(CONFIG_DIR / config_path)
+    signature = inspect.signature(get_class(target))
+
+    assert not any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in signature.parameters.values())
+    assert {key for key in config if not key.startswith("_")} <= set(signature.parameters)
+
+
+@pytest.mark.parametrize(
+    ("config_path", "target"),
+    [
+        ("components/ssl/emo2vec.yaml", "quick_convert.components.ssl.EmotionEncoder"),
+        ("components/ssl/dac.yaml", "quick_convert.components.ssl.DACContentEncoder"),
+        ("components/ssl/pros2vec.yaml", "quick_convert.components.ssl.ProsodyEncoder"),
+        ("components/speaker_encoder/espnet.yaml", "quick_convert.components.speaker.ESPnetSpeakerEncoder"),
+    ],
+)
+def test_composition_sample_rate_matches_constructor_default(config_path, target):
+    from hydra.utils import get_class
+
+    config = OmegaConf.load(CONFIG_DIR / config_path)
+    constructor_default = inspect.signature(get_class(target)).parameters["sample_rate"].default
+
+    assert config.sample_rate == constructor_default
+
+
+def test_w2vbert_exposes_sample_rate_as_a_fixed_capability():
+    from quick_convert.components.ssl import W2VBertContentEncoder
+
+    signature = inspect.signature(W2VBertContentEncoder)
+
+    assert "sample_rate" not in signature.parameters
+    assert W2VBertContentEncoder.SAMPLE_RATE == 16_000
+
+
+def test_w2vbert_precompute_rate_matches_encoder_capability():
+    from quick_convert.components.ssl import W2VBertContentEncoder
+
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
+        config = compose(
+            config_name="run/precompute_content_w2vbert_librispeech",
+            return_hydra_config=True,
+        )
+
+    assert config.dataset.target_sr == W2VBertContentEncoder.SAMPLE_RATE
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "quick_convert.components.decoders.flow_matching.estimators.residual_mlp.ResidualMLPEstimator",
+        "quick_convert.components.decoders.flow_matching.base.BASECFM",
+        "quick_convert.components.speaker.speaker_generators.cfm_speaker_generator.CFMSpeakerGenerator",
+    ],
+)
+def test_configured_component_targets_are_importable(target):
+    from hydra.utils import get_class
+
+    assert get_class(target) is not None
 
 
 def test_w2vbert_precompute_pipeline_instantiates_without_downloading_model(

@@ -19,7 +19,7 @@ dataset:
     - test-other
 
   load: true
-  target_sr: ${encoder.sample_rate}
+  target_sr: ${class_attr:${encoder._target_},SAMPLE_RATE}
 
 feature_extractor:
   encoder:

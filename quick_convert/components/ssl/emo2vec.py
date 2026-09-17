@@ -31,7 +31,6 @@ class EmotionEncoder(ContentEncoder):
         granularity: Literal["frame", "utterance"] = "frame",
         device: str | None = None,
         local_files_only: bool = False,
-        **kwargs,
     ) -> None:
         super().__init__(device=device)
         """Initialise the encoder and load the pretrained model.

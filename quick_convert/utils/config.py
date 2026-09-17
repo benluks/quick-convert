@@ -5,6 +5,8 @@ from typing import Any
 from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig, OmegaConf, open_dict
 
+from .resolvers import register_config_resolvers
+
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "configs"
 
@@ -14,6 +16,7 @@ def compose_component(
     name: str,
     overrides: Mapping[str, Any] | None = None,
 ) -> DictConfig:
+    register_config_resolvers()
     with initialize_config_dir(
         config_dir=str(_CONFIG_DIR),
         version_base=None,
