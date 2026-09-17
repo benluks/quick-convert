@@ -1,4 +1,4 @@
-_target_: quick_convert.components.flow_matching.estimators.residual_mlp.ResidualMLPEstimator
+_target_: quick_convert.components.decoders.flow_matching.estimators.residual_mlp.ResidualMLPEstimator
 
 input_dim: 256
 cond_dim: 512

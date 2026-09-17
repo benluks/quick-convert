@@ -44,7 +44,6 @@ class DACContentEncoder(ContentEncoder):
         sample_rate: int = 16000,
         trainable: bool = False,
         device: str | None = None,
-        **kwargs,
     ) -> None:
         super().__init__(device=device)
 

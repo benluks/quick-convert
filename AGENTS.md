@@ -9,6 +9,10 @@
 ## Architecture rules
 
 - Components are focused reusable building blocks.
+- Treat Python constructors as the source of truth for behavioral defaults;
+  YAML should express composition, environment values, and intentional
+  overrides rather than duplicate those defaults.
+- Do not use catch-all constructor arguments to hide stale config fields.
 - Systems expose complete inference behavior and must not depend on pipelines or training frameworks.
 - Training modules add losses, logging, and optimization around systems.
 - Pipelines orchestrate datasets, execution, persistence, and other workflow concerns.

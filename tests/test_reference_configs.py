@@ -1,3 +1,4 @@
+import inspect
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -149,6 +150,73 @@ def test_vq_asr_config_exposes_an_inference_ready_system():
     assert config.trainer.val_dataloader_kwargs.batch_size == 32
     assert "quantizer" not in config.trainer.module
     assert "ctc_head" not in config.trainer.module
+    from quick_convert.components.ssl import W2VBertContentEncoder
+
+    assert config.system.quantizer.input_dim == W2VBertContentEncoder.FEATURE_DIM
+
+
+@pytest.mark.parametrize(
+    ("config_path", "target"),
+    [
+        ("components/ssl/w2vbert.yaml", "quick_convert.components.ssl.W2VBertContentEncoder"),
+        ("components/ssl/emo2vec.yaml", "quick_convert.components.ssl.EmotionEncoder"),
+        ("components/ssl/dac.yaml", "quick_convert.components.ssl.DACContentEncoder"),
+        ("components/ssl/pros2vec.yaml", "quick_convert.components.ssl.ProsodyEncoder"),
+        ("components/speaker_encoder/espnet.yaml", "quick_convert.components.speaker.ESPnetSpeakerEncoder"),
+        (
+            "components/speaker_encoder/pyannote_wespeaker_voxceleb_resnet34_LM.yaml",
+            "quick_convert.components.speaker.PyannoteWeSpeakerEncoder",
+        ),
+    ],
+)
+def test_public_component_configs_only_pass_declared_arguments(config_path, target):
+    from hydra.utils import get_class
+
+    config = OmegaConf.load(CONFIG_DIR / config_path)
+    signature = inspect.signature(get_class(target))
+
+    assert not any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in signature.parameters.values())
+    assert {key for key in config if not key.startswith("_")} <= set(signature.parameters)
+
+
+@pytest.mark.parametrize(
+    ("config_path", "target"),
+    [
+        ("components/ssl/w2vbert.yaml", "quick_convert.components.ssl.W2VBertContentEncoder"),
+        ("components/ssl/emo2vec.yaml", "quick_convert.components.ssl.EmotionEncoder"),
+        ("components/ssl/dac.yaml", "quick_convert.components.ssl.DACContentEncoder"),
+        ("components/ssl/pros2vec.yaml", "quick_convert.components.ssl.ProsodyEncoder"),
+        ("components/speaker_encoder/espnet.yaml", "quick_convert.components.speaker.ESPnetSpeakerEncoder"),
+    ],
+)
+def test_composition_sample_rate_matches_constructor_default(config_path, target):
+    from hydra.utils import get_class
+
+    config = OmegaConf.load(CONFIG_DIR / config_path)
+    constructor_default = inspect.signature(get_class(target)).parameters["sample_rate"].default
+
+    assert config.sample_rate == constructor_default
+
+
+def test_w2vbert_rejects_an_unsupported_sample_rate_before_loading_model():
+    from quick_convert.components.ssl import W2VBertContentEncoder
+
+    with pytest.raises(ValueError, match="16 kHz"):
+        W2VBertContentEncoder(sample_rate=8_000)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "quick_convert.components.decoders.flow_matching.estimators.residual_mlp.ResidualMLPEstimator",
+        "quick_convert.components.decoders.flow_matching.base.BASECFM",
+        "quick_convert.components.speaker.speaker_generators.cfm_speaker_generator.CFMSpeakerGenerator",
+    ],
+)
+def test_configured_component_targets_are_importable(target):
+    from hydra.utils import get_class
+
+    assert get_class(target) is not None
 
 
 def test_w2vbert_precompute_pipeline_instantiates_without_downloading_model(

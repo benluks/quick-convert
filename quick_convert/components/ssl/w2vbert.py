@@ -24,11 +24,12 @@ class W2VBertContentEncoder(ContentEncoder):
         local_files_only: bool = False,
         downsample_factor: int = 0,
         max_length: int | None = None,
-        **kwargs,
     ) -> None:
         super().__init__(device=device)
+        if sample_rate != 16_000:
+            raise ValueError("W2V-BERT expects 16 kHz audio.")
         self.model_name = model_name
-        self.sample_rate = 16000
+        self.sample_rate = sample_rate
         self.layer = layer
         self.local_files_only = local_files_only
         self.downsample_factor = downsample_factor

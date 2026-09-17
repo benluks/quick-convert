@@ -26,6 +26,14 @@ Datasets discover samples and load audio. Resources attach named annotations or 
 
 Hydra configurations live under `quick_convert/configs/` and are installed with the package. A run config selects a pipeline and the systems, components, datasets, resources, and trainer needed for a workflow.
 
+Python constructors are the source of truth for ordinary behavioral defaults.
+Component YAML should contain composition-dependent values, environment values,
+and intentional overrides—not a second copy of every constructor default. When
+composition needs static capability metadata such as a feature dimension, keep
+that fact explicit in the system wiring and validate it against the component
+contract. Public constructors must not silently absorb unknown configuration
+keys.
+
 The preferred top-level task model key is `system`. Avoid parallel vocabulary such as `architecture.system`; it obscures the boundary between the inference object and its training wrapper.
 
 ## Support boundary
