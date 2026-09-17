@@ -18,6 +18,12 @@ from .base import SERSystem
 
 
 class OdysseySER(SERSystem):
+    """WavLM-based Odyssey speech-emotion representation adapter.
+
+    Requires the ``transformers`` extra. The Hugging Face model is downloaded
+    and loaded on first use with ``trust_remote_code=True``.
+    """
+
     def __init__(
         self,
         device: str = "cpu",

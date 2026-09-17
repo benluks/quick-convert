@@ -5,6 +5,12 @@ from .targets import ASRBNTarget
 
 
 class ASRBNAnonymizer(BaseAnonymizer[ASRBNTarget]):
+    """ASR bottleneck anonymizer loaded from the SpeechBrain SA Toolkit.
+
+    Construction downloads and initializes the configured model through
+    :func:`torch.hub.load`.
+    """
+
     def __init__(self):
         super().__init__()
         self.model = torch.hub.load(

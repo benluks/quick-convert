@@ -13,6 +13,13 @@ _WHISPER_SR = 16000
 
 
 class WhisperASR(ASRSystem):
+    """OpenAI Whisper transcription adapter.
+
+    The ``whisper`` extra is required. Model weights are loaded on the first
+    transcription call rather than during construction. MPS requests fall back
+    to CPU because this adapter does not support that backend.
+    """
+
     def __init__(
         self,
         device,

@@ -5,6 +5,14 @@ from .base import BaseResourceProvider, ResourceKind, ResourceRef
 
 
 class TemplateResourceProvider(BaseResourceProvider):
+    """Create in-memory resources by formatting sample metadata.
+
+    Args:
+        name: Resource name exposed on the sample.
+        template: Template understood by :class:`SamplePathFormatter`.
+        kind: Resource loading and collation strategy.
+    """
+
     def __init__(self, name: str, template: str, kind: ResourceKind = "text"):
         super().__init__(name)
         self.template = template
@@ -18,6 +26,17 @@ class TemplateResourceProvider(BaseResourceProvider):
 
 
 class PathResourceProvider(TemplateResourceProvider):
+    """Resolve a lazy file-backed resource from sample metadata.
+
+    Args:
+        name: Resource name exposed on the sample.
+        path_template: Template that resolves to the sidecar path.
+        kind: Resource loading and collation strategy.
+        max_length: Optional fixed padded length for tensor or token values.
+        must_exist: Raise :class:`FileNotFoundError` during resolution when the
+            sidecar does not exist.
+    """
+
     def __init__(
         self,
         name,

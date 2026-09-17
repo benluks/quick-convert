@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import re
 from pathlib import Path
 
@@ -7,6 +8,21 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 DOCS = ROOT / "docs"
 RUN_CONFIGS = ROOT / "quick_convert" / "configs" / "run"
+
+
+def test_initial_public_api_has_docstrings():
+    from quick_convert import data, inference
+    from quick_convert.data import resources
+
+    missing = []
+    for module in (data, resources, inference):
+        assert inspect.getdoc(module), f"Missing module docstring: {module.__name__}"
+        for name in module.__all__:
+            value = getattr(module, name)
+            if callable(value) and not inspect.getdoc(value):
+                missing.append(f"{module.__name__}.{name}")
+
+    assert not missing, f"Missing public API docstrings: {', '.join(missing)}"
 
 
 def _markdown_files():

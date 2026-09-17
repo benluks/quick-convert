@@ -1,3 +1,5 @@
+"""Public dataset, sample, and batch interfaces."""
+
 from __future__ import annotations
 
 from .base_dataset import BaseDataset

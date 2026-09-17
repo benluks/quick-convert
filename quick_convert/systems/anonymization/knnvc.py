@@ -7,6 +7,12 @@ from .targets import KNNVCTarget
 
 
 class KNNVCAnonymizer(BaseAnonymizer[KNNVCTarget]):
+    """kNN-VC anonymizer using reference speech as its matching set.
+
+    Construction downloads and initializes the pretrained kNN-VC model through
+    :func:`torch.hub.load`.
+    """
+
     def __init__(self):
         super().__init__()
         self.model = torch.hub.load("bshall/knn-vc", "knn_vc", prematched=True, trust_repo=True, pretrained=True)
