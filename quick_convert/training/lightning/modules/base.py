@@ -11,6 +11,7 @@ from typing import Protocol, Self, TypeVar
 import lightning as L
 import torch
 from hydra.utils import instantiate
+from lightning.fabric.utilities.apply_func import move_data_to_device
 from omegaconf import OmegaConf
 from torch import nn
 from torch.optim import Optimizer
@@ -193,6 +194,25 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
         requires access to the training dataset.
         """
         return
+
+    def transfer_batch_to_device(
+        self,
+        batch: AudioBatch,
+        device: torch.device,
+        dataloader_idx: int,
+    ) -> AudioBatch:
+        """Move model inputs to ``device`` while preserving CPU metadata.
+
+        ``AudioBatch.resource_refs`` contains immutable resource descriptions
+        used to reconstruct individual samples. Those references may include
+        paths and other CPU-only metadata, so Lightning must not recursively
+        traverse them during device transfer.
+        """
+        batch.waveforms = move_data_to_device(batch.waveforms, device)
+        batch.lengths = move_data_to_device(batch.lengths, device)
+        batch.sample_rates = move_data_to_device(batch.sample_rates, device)
+        batch.resources = move_data_to_device(batch.resources, device)
+        return batch
 
     @abc.abstractmethod
     def _shared_step(
