@@ -38,6 +38,7 @@ targets:
   quick_convert.components.ssl.DACContentEncoder: [dac]
   quick_convert.components.ssl.EmotionEncoder: [emotion2vec]
   quick_convert.components.ssl.ProsodyEncoder: [mpm]
+  quick_convert.components.ssl.S3TokenizerContentEncoder: [s3tokenizer]
   quick_convert.components.ssl.W2VBertContentEncoder: [transformers]
   quick_convert.components.ssl.WavLMContentEncoder: [transformers]
   quick_convert.pipelines.evaluation.metrics.JiwerWER: [wer]
