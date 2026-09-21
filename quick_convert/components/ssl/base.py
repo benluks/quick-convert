@@ -111,3 +111,27 @@ class ContentEncoder(nn.Module, ABC):
             return torch.cat((x, pad), dim=tdim)
 
         return x
+
+
+class DiscreteContentEncoder(ContentEncoder, ABC):
+    """Content encoder with an explicit discrete bottleneck.
+
+    Discrete encoders may expose continuous representations before their
+    quantizer as well as factorized and packed discrete representations.
+    ``representation`` names the bottleneck stage; ``layer`` remains the
+    encoder-layer selection mechanism used by other SSL encoders.
+    """
+
+    REPRESENTATIONS: tuple[str, ...] = ()
+
+    @property
+    def representations(self) -> tuple[str, ...]:
+        return self.REPRESENTATIONS
+
+    def validate_representation(self, representation: str) -> None:
+        if representation not in self.REPRESENTATIONS:
+            choices = ", ".join(self.REPRESENTATIONS)
+            raise ValueError(
+                f"Unknown representation {representation!r} for "
+                f"{self.__class__.__name__}; expected one of: {choices}."
+            )
