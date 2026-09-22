@@ -14,6 +14,7 @@ from .base import ContentEncoder, ContentFeatures
 class W2VBertContentEncoder(ContentEncoder):
     FEATURE_DIM = 1024
     SAMPLE_RATE = 16_000
+    FBANK_HOP_LENGTH = 160
     TIME_D = 1
 
     def __init__(
@@ -53,6 +54,11 @@ class W2VBertContentEncoder(ContentEncoder):
     def sample_rate(self) -> int:
         """Required input sample rate fixed by the pretrained model."""
         return self.SAMPLE_RATE
+
+    @property
+    def frame_hz(self) -> float:
+        """Output rate after 10 ms filterbanks are stacked with stride two."""
+        return self.sample_rate / (self.FBANK_HOP_LENGTH * self.processor.stride)
 
     def encode_file(self, path: PathLike) -> ContentFeatures:
         path = Path(path)
@@ -204,4 +210,5 @@ class W2VBertContentEncoder(ContentEncoder):
             backend="transformers",
             model_name=self.model_name,
             layer=self.layer,
+            frame_hz=self.frame_hz,
         )

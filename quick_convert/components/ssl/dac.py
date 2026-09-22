@@ -47,7 +47,7 @@ class DACContentEncoder(ContentEncoder):
     ) -> None:
         super().__init__(device=device)
 
-        self.sample_rate = sample_rate
+        self._sample_rate = sample_rate
         self.trainable = trainable
         self.model_name = f"dac::{pretrained}" if pretrained else "dac::scratch"
 
@@ -79,6 +79,14 @@ class DACContentEncoder(ContentEncoder):
         if not trainable:
             # Freeze: fixed function -> features can be precomputed offline.
             self.dac_encoder.eval().requires_grad_(False)
+
+    @property
+    def sample_rate(self) -> int:
+        return self._sample_rate
+
+    @property
+    def frame_hz(self) -> float:
+        return self.sample_rate / self.hop_length
 
     @classmethod
     def from_pretrained(cls, model_type: str = "16khz", *, trainable: bool = False, **kwargs) -> DACContentEncoder:
@@ -156,7 +164,7 @@ class DACContentEncoder(ContentEncoder):
             backend="dac",
             model_name=self.model_name,
             layer=None,
-            frame_hz=self.sample_rate / self.hop_length,  # 16000/320 = 50 Hz
+            frame_hz=self.frame_hz,
         )
 
     def output_lengths(self, input_lengths: torch.Tensor) -> torch.Tensor:

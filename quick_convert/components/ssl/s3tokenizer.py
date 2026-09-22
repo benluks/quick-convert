@@ -28,6 +28,7 @@ class S3TokenizerContentEncoder(DiscreteContentEncoder):
     """
 
     SAMPLE_RATE = 16_000
+    FRAME_HZ = 25.0
     FEATURE_DIM = 1280
     TIME_D = 1
     N_LAYERS = 12
@@ -72,6 +73,10 @@ class S3TokenizerContentEncoder(DiscreteContentEncoder):
     @property
     def sample_rate(self) -> int:
         return self.SAMPLE_RATE
+
+    @property
+    def frame_hz(self) -> float:
+        return self.FRAME_HZ
 
     @property
     def feature_dim(self) -> int:
@@ -194,7 +199,7 @@ class S3TokenizerContentEncoder(DiscreteContentEncoder):
             backend="s3tokenizer",
             model_name=self.model_name,
             layer=layer_metadata,
-            frame_hz=25.0,
+            frame_hz=self.frame_hz,
         )
 
     def _encode_with_layers(

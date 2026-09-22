@@ -85,7 +85,7 @@ def test_content_encoder_default_device_is_usable(monkeypatch):
 
 def test_prosody_encoder_reports_chunk_aware_output_lengths():
     encoder = ProsodyEncoder.__new__(ProsodyEncoder)
-    encoder.sample_rate = 22_050
+    encoder._sample_rate = 22_050
 
     window = encoder.sample_rate * encoder.WINDOW_SECONDS
     lengths = encoder.output_lengths(torch.tensor([1, 256, 257, window, window + 1]))
