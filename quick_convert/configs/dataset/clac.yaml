@@ -1,4 +1,4 @@
-_target_: quick_convert.data.clac.ClacDataset
+_target_: quick_convert.data.BaseDataset
 # Set this to the local CLAC dataset directory before composing this config.
 root: ${oc.env:QUICK_CONVERT_CLAC_ROOT}
 splits:
@@ -15,3 +15,4 @@ splits:
   - repeat_5_times_impossibility
   - smr
 file_format: wav
+utt_id_template: "{path.parent.stem}/{path.stem}"
