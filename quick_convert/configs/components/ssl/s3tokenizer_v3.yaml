@@ -1,0 +1,5 @@
+_target_: quick_convert.components.ssl.S3TokenizerContentEncoder
+device: ${device}
+model_name: speech_tokenizer_v3_25hz
+representation: encoder
+layer: -1
