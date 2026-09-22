@@ -4,9 +4,7 @@ from quick_convert.components.ssl.s3tokenizer import S3TokenizerContentEncoder
 
 
 def test_s3_ternary_factors_match_fsq_rounding():
-    values = torch.tensor(
-        [[[-1.0, -0.6, -0.49, 0.0, 0.49, 0.6, 0.99, 1.0]]]
-    )
+    values = torch.tensor([[[-1.0, -0.6, -0.49, 0.0, 0.49, 0.6, 0.99, 1.0]]])
 
     factors = S3TokenizerContentEncoder._ternary_factors(values)
 
