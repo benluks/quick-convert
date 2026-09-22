@@ -32,7 +32,7 @@ class ProsodyEncoder(ContentEncoder):
     ) -> None:
         super().__init__(device=device)
         self.model_name = model_name
-        self.sample_rate = sample_rate
+        self._sample_rate = sample_rate
         self.layer = layer
 
         from masked_prosody_model import MaskedProsodyModel
@@ -40,6 +40,14 @@ class ProsodyEncoder(ContentEncoder):
         self.model = MaskedProsodyModel.from_pretrained(model_name).to(self.device)
         self.model.eval()
         self.FEATURE_DIM = int(self.model.args.filter_size)
+
+    @property
+    def sample_rate(self) -> int:
+        return self._sample_rate
+
+    @property
+    def frame_hz(self) -> float:
+        return self.sample_rate / (self.HOP_LENGTH * self.POOL_FACTOR)
 
     def encode_file(self, path: str | Path) -> ContentFeatures:
         """Load an audio file, downmix it, and encode its valid samples."""
@@ -98,7 +106,7 @@ class ProsodyEncoder(ContentEncoder):
             backend="masked-prosody-model",
             model_name=self.model_name,
             layer=self.layer,
-            frame_hz=self.sample_rate / (self.HOP_LENGTH * self.POOL_FACTOR),
+            frame_hz=self.frame_hz,
         )
 
     def output_lengths(self, input_lengths: torch.Tensor) -> torch.Tensor:

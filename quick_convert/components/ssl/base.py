@@ -3,11 +3,16 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
 
 from quick_convert.utils.device import configure_device
+
+
+if TYPE_CHECKING:
+    from quick_convert.data.types import AudioBatch
 
 
 @dataclass
@@ -81,6 +86,23 @@ class ContentEncoder(nn.Module, ABC):
     def feature_dim(self) -> int:
         return self.FEATURE_DIM
 
+    @property
+    @abstractmethod
+    def sample_rate(self) -> int:
+        """Required waveform sample rate in samples per second."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def frame_hz(self) -> float | None:
+        """Output-frame spacing in frames per second, if frame based."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def forward(self, batch: AudioBatch, **kwargs) -> ContentFeatures:
+        """Encode a loaded audio batch."""
+        raise NotImplementedError
+
     @abstractmethod
     def encode_file(self, path: str | Path) -> ContentFeatures:
         raise NotImplementedError
@@ -88,10 +110,9 @@ class ContentEncoder(nn.Module, ABC):
     @abstractmethod
     def encode_waveforms(
         self,
-        wavs: torch.FloatTensor,
+        waveforms: torch.FloatTensor,
         lengths: torch.LongTensor | None = None,
-        # input sample rates of wavs
-        sample_rates: torch.LongTensor | None = None,
+        sample_rate: int | None = None,
     ) -> ContentFeatures:
         raise NotImplementedError
 

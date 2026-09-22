@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from os import PathLike
 from pathlib import Path
 
@@ -31,7 +32,7 @@ class WavLMContentEncoder(ContentEncoder):
         super().__init__(device=device)
 
         self.model_name = model_name
-        self.sample_rate = sample_rate
+        self._sample_rate = sample_rate
         self.layer = layer
         self.local_files_only = local_files_only
         self.downsample_factor = downsample_factor
@@ -51,6 +52,14 @@ class WavLMContentEncoder(ContentEncoder):
             **kwargs,
         ).to(self.device)
         self.model.eval()
+
+    @property
+    def sample_rate(self) -> int:
+        return self._sample_rate
+
+    @property
+    def frame_hz(self) -> float:
+        return self.sample_rate / math.prod(self.model.config.conv_stride)
 
     def encode_file(self, path: PathLike) -> ContentFeatures:
         path = Path(path)
@@ -225,6 +234,7 @@ class WavLMContentEncoder(ContentEncoder):
             backend="transformers",
             model_name=self.model_name,
             layer=self.layer,
+            frame_hz=self.frame_hz,
         )
 
     def output_lengths(

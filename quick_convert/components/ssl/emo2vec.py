@@ -17,6 +17,7 @@ from .base import ContentEncoder, ContentFeatures
 
 class EmotionEncoder(ContentEncoder):
     FEATURE_DIM = 1024
+    FRAME_HZ = 50.0
     """Content encoder backed by emotion2vec (iic/emotion2vec_plus_large).
 
     Extracts frame-level emotional representations from raw waveforms using
@@ -44,7 +45,7 @@ class EmotionEncoder(ContentEncoder):
             local_files_only: If ``True``, forbid downloading model weights.
         """
         self.model_name = model_name
-        self.sample_rate = sample_rate
+        self._sample_rate = sample_rate
         self.local_files_only = local_files_only
         self.granularity = granularity
         self.layer = layer
@@ -54,6 +55,14 @@ class EmotionEncoder(ContentEncoder):
         self.model = AutoModel(model=model_name, device=str(self.device))
         # technically unneessary, funasr does this under the hood
         self.model.model.eval()
+
+    @property
+    def sample_rate(self) -> int:
+        return self._sample_rate
+
+    @property
+    def frame_hz(self) -> float | None:
+        return self.FRAME_HZ if self.granularity == "frame" else None
 
     def encode_file(self, path: str | Path) -> ContentFeatures:
         """Load an audio file from *path* and return its encoded features."""
@@ -134,4 +143,5 @@ class EmotionEncoder(ContentEncoder):
             backend="funasr",
             model_name=self.model_name,
             layer=self.layer,
+            frame_hz=self.frame_hz,
         )
