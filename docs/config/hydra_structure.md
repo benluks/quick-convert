@@ -82,10 +82,11 @@ Important:
 ### 3. Dataset Config
 
 ```yaml
-_target_: quick_convert.data.clac.ClacDataset
+_target_: quick_convert.data.BaseDataset
 root: ${oc.env:QUICK_CONVERT_CLAC_ROOT}
 splits: ...
 file_format: wav
+utt_id_template: "{path.parent.stem}/{path.stem}"
 ```
 
 Defines how to **instantiate the dataset**.
@@ -129,7 +130,7 @@ pipeline:
   anonymizer:
     _target_: KNNVCAnonymizer
   dataset:
-    _target_: ClacDataset
+    _target_: BaseDataset
     ...
   target_speaker: "1069"
   out_dir: ...
