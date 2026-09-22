@@ -6,6 +6,7 @@ __all__ = [
     "CosyVoiceGenerationOutput",
     "CosyVoiceHiFTDecoder",
     "CosyVoiceSpectrogramGenerator",
+    "KnnVCHifiGanDecoder",
 ]
 
 
@@ -14,4 +15,8 @@ def __getattr__(name: str):
         from .hift_generator import CosyVoiceHiFTDecoder
 
         return CosyVoiceHiFTDecoder
+    if name == "KnnVCHifiGanDecoder":
+        from .knnvc_hifigan import KnnVCHifiGanDecoder
+
+        return KnnVCHifiGanDecoder
     raise AttributeError(name)
