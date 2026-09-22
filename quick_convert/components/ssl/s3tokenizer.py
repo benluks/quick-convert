@@ -46,10 +46,7 @@ class S3TokenizerContentEncoder(DiscreteContentEncoder):
         super().__init__(device=device)
         self.validate_representation(representation)
         if model_name != "speech_tokenizer_v3_25hz":
-            raise ValueError(
-                "S3TokenizerContentEncoder currently supports only "
-                "'speech_tokenizer_v3_25hz'."
-            )
+            raise ValueError("S3TokenizerContentEncoder currently supports only 'speech_tokenizer_v3_25hz'.")
         if representation == "encoder" and layer != -1 and not 0 <= layer < self.N_LAYERS:
             raise ValueError(f"layer must be -1 or an integer in [0, {self.N_LAYERS - 1}].")
 
@@ -99,10 +96,7 @@ class S3TokenizerContentEncoder(DiscreteContentEncoder):
 
     def forward(self, batch: AudioBatch, **kwargs) -> ContentFeatures:
         if getattr(batch, "waveforms", None) is None:
-            raise RuntimeError(
-                f"{self.__class__.__name__} requires loaded audio. "
-                "Set load=true in the dataset config."
-            )
+            raise RuntimeError(f"{self.__class__.__name__} requires loaded audio. Set load=true in the dataset config.")
         if not (batch.sample_rates == self.sample_rate).all():
             raise RuntimeError(
                 f"Expected {self.sample_rate} Hz audio, got {batch.sample_rates}. "
@@ -124,9 +118,7 @@ class S3TokenizerContentEncoder(DiscreteContentEncoder):
         max_length: int | None = None,
     ) -> ContentFeatures:
         if waveforms.ndim != 2:
-            raise ValueError(
-                f"Expected waveforms with shape (batch, time), got {tuple(waveforms.shape)}"
-            )
+            raise ValueError(f"Expected waveforms with shape (batch, time), got {tuple(waveforms.shape)}")
 
         input_sample_rate = sample_rate or self.sample_rate
         if input_sample_rate != self.sample_rate:
@@ -154,10 +146,7 @@ class S3TokenizerContentEncoder(DiscreteContentEncoder):
             mel_lengths.append(mel.shape[-1])
 
         max_mel_length = max(mel_lengths)
-        padded_mels = [
-            torch.nn.functional.pad(mel, (0, max_mel_length - mel.shape[-1]))
-            for mel in mels
-        ]
+        padded_mels = [torch.nn.functional.pad(mel, (0, max_mel_length - mel.shape[-1])) for mel in mels]
         mel_batch = torch.stack(padded_mels)
         mel_lengths_tensor = torch.tensor(mel_lengths, dtype=torch.long, device=self.device)
 
@@ -218,10 +207,7 @@ class S3TokenizerContentEncoder(DiscreteContentEncoder):
         def capture_layer(_module, _inputs, output):
             layers.append(output)
 
-        handles = [
-            block.register_forward_hook(capture_layer)
-            for block in self.model.encoder.blocks
-        ]
+        handles = [block.register_forward_hook(capture_layer) for block in self.model.encoder.blocks]
         try:
             hidden, output_lengths = self.model.encoder(mel, mel_lengths)
         finally:
@@ -229,9 +215,7 @@ class S3TokenizerContentEncoder(DiscreteContentEncoder):
                 handle.remove()
 
         if len(layers) != self.N_LAYERS:
-            raise RuntimeError(
-                f"Expected {self.N_LAYERS} S3 encoder layers, captured {len(layers)}."
-            )
+            raise RuntimeError(f"Expected {self.N_LAYERS} S3 encoder layers, captured {len(layers)}.")
         if layers[-1].data_ptr() != hidden.data_ptr() and not torch.equal(layers[-1], hidden):
             raise RuntimeError("Captured final S3 layer does not match encoder output.")
         return hidden, output_lengths, layers
