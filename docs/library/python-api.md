@@ -59,6 +59,25 @@ encoder = instantiate(config)
 
 This uses the config tree installed inside the package. Model-specific optional dependencies and downloads still apply.
 
+### Resolve a content encoder by name
+
+Applications that let users choose a content encoder can accept either a
+built-in alias or a full dotted class path:
+
+```python
+from quick_convert.components.ssl import resolve_content_encoder
+
+encoder_class = resolve_content_encoder("s3tokenizer")
+encoder = encoder_class(device="cpu", layer=11)
+
+custom_class = resolve_content_encoder("my_package.encoders.CustomContentEncoder")
+```
+
+Built-in aliases include `dac`, `emotion2vec`, `pros2vec`, `s3tokenizer`,
+`w2vbert`, and `wavlm`. Dotted-path classes must implement the
+`ContentEncoder` contract. Resolution imports the class but does not construct
+it or load its model weights.
+
 ## Load an inference artifact
 
 ```python
