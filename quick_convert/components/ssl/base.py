@@ -132,6 +132,5 @@ class DiscreteContentEncoder(ContentEncoder, ABC):
         if representation not in self.REPRESENTATIONS:
             choices = ", ".join(self.REPRESENTATIONS)
             raise ValueError(
-                f"Unknown representation {representation!r} for "
-                f"{self.__class__.__name__}; expected one of: {choices}."
+                f"Unknown representation {representation!r} for {self.__class__.__name__}; expected one of: {choices}."
             )
