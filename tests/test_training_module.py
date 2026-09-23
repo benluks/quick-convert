@@ -13,6 +13,14 @@ from quick_convert.training.lightning.modules import base as base_module
 from quick_convert.training.lightning.modules.base import BaseTrainingModule
 
 
+class MinimalTrainingModule(BaseTrainingModule):
+    def __init__(self) -> None:
+        super().__init__(optimization=object())
+
+    def _shared_step(self, batch: AudioBatch, stage: str):
+        raise NotImplementedError
+
+
 def test_batch_transfer_moves_model_inputs_without_traversing_resource_refs(monkeypatch) -> None:
     resource_refs = [
         ResourceCollection.from_refs(
@@ -57,3 +65,10 @@ def test_batch_transfer_moves_model_inputs_without_traversing_resource_refs(monk
     assert transferred[2] is batch.sample_rates
     assert transferred[3] is batch.resources
     assert batch.resource_refs is resource_refs
+
+
+def test_gradient_norm_logging_is_optional_for_subclasses() -> None:
+    module = MinimalTrainingModule()
+
+    assert module.grad_norm_modules == {}
+    module.on_before_optimizer_step(object())
