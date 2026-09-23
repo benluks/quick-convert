@@ -290,13 +290,22 @@ def test_w2vbert_precompute_pipeline_instantiates_without_downloading_model(
     assert pipeline.dataset.target_sr == 16_000
 
 
-def test_clac_root_comes_from_environment(monkeypatch, tmp_path):
+def test_clac_uses_base_dataset_with_split_qualified_ids(monkeypatch, tmp_path):
     monkeypatch.setenv("QUICK_CONVERT_CLAC_ROOT", str(tmp_path))
 
     with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
         config = compose(config_name="dataset/clac")
 
+    for split in config.dataset.splits:
+        (tmp_path / split).mkdir()
+    (tmp_path / "picnic" / "1234.wav").touch()
+
+    dataset = instantiate(config.dataset)
+
     assert config.dataset.root == str(tmp_path)
+    assert config.dataset._target_ == "quick_convert.data.BaseDataset"
+    assert config.dataset.utt_id_template == "{path.parent.stem}/{path.stem}"
+    assert [row.utt_id for row in dataset.rows] == ["picnic/1234"]
 
 
 @pytest.mark.parametrize(
