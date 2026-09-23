@@ -260,6 +260,16 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
             total_steps=self.trainer.estimated_stepping_batches,
         )
 
+    @property
+    def grad_norm_modules(self) -> Mapping[str, nn.Module]:
+        """Modules included in automatic gradient-norm logging.
+
+        Subclasses may override this mapping to opt into per-module logging.
+        The empty default keeps gradient logging optional for subclasses that
+        do not declare any groups.
+        """
+        return {}
+
     def log_grad_norms(
         self,
         modules: Mapping[str, nn.Module] | None = None,
@@ -267,7 +277,11 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
         norm_type: float = 2.0,
         prefix: str = "grad_norm",
     ) -> None:
-        modules = modules or self.grad_norm_modules
+        if modules is None:
+            modules = self.grad_norm_modules
+
+        if not modules:
+            return
 
         metrics: dict[str, torch.Tensor] = {}
 
