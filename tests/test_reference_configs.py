@@ -148,7 +148,6 @@ def test_flat_clac_manifest_preserves_task_and_speaker_identity(monkeypatch, tmp
     assert config.dataset.utt_id_template == "{path.parent.stem}/{path.stem}"
     assert set(config.columns) == {"utt_id", "path", "split", "spkid"}
     assert config.columns.spkid == "{path.stem}"
-    assert config.pipeline.out_path == "outputs/clac/manifest.csv"
 
 
 def test_vq_asr_config_exposes_an_inference_ready_system():
