@@ -77,6 +77,7 @@ class VQASRTrainingModule(
             )
 
         self.save_hyperparameters(
+            logger=False,
             ignore=[
                 "quantizer",
                 "ctc_head",
