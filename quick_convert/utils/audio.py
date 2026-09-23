@@ -15,8 +15,9 @@ def load_audio(
     audio_path: PathLike, target_sr: int | None = None, mono: bool = False, device="cpu"
 ) -> tuple[torch.Tensor, int]:
     x, sr = torchaudio.load(str(audio_path))
-    if target_sr:
+    if target_sr and sr != target_sr:
         x = T.Resample(sr, target_sr)(x)
+        sr = target_sr
     if mono and x.shape[-2] == 2:
         x = x.mean(dim=-2, keepdim=True)
     return x.to(device=device), sr
