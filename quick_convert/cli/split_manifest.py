@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 
 def parse_args() -> argparse.Namespace:
@@ -57,12 +58,10 @@ def main() -> None:
         seed=args.seed,
     )
 
-    train_path = pd.io.common.stringify_path(args.train_output)
-    valid_path = pd.io.common.stringify_path(args.valid_output)
-    from pathlib import Path
-
-    Path(train_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(valid_path).parent.mkdir(parents=True, exist_ok=True)
+    train_path = Path(args.train_output)
+    valid_path = Path(args.valid_output)
+    train_path.parent.mkdir(parents=True, exist_ok=True)
+    valid_path.parent.mkdir(parents=True, exist_ok=True)
     train.to_csv(train_path, index=False)
     valid.to_csv(valid_path, index=False)
 
