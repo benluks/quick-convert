@@ -85,7 +85,7 @@ class VQASRTrainingModule(
                 "post_quantization_network",
                 "online_encoders",
                 "optimization",
-            ]
+            ],
         )
 
         self.online_encoders.requires_grad_(False)
