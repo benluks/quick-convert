@@ -72,11 +72,6 @@ def split_manifest_group_disjoint(
     The number of validation groups is rounded from valid_fraction and
     clamped so that both partitions contain at least one group.
     """
-    try:
-        import pandas as pd
-    except ImportError as error:
-        raise ImportError("Manifest splitting requires the manifests extra.") from error
-
     _validate_split_inputs(manifest, group_col, valid_fraction)
 
     groups = manifest[group_col].drop_duplicates()
