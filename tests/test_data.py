@@ -104,7 +104,6 @@ def test_audio_batch_from_paths_keeps_materialized_provider_values(monkeypatch, 
     assert batch[0].resources["speaker"].value == "speaker"
 
 
-
 def test_load_audio_reports_target_sample_rate_after_resampling(monkeypatch):
     monkeypatch.setattr(
         audio_utils.torchaudio,
