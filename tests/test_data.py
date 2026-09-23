@@ -4,6 +4,7 @@ import torch
 
 from quick_convert.data import AudioBatch, AudioSample, BaseDataset, MetadataSample
 from quick_convert.data.resources import ResourceCollection, ResourceRef, TemplateResourceProvider
+from quick_convert.utils import audio as audio_utils
 
 
 def test_dataset_can_be_constructed_from_paths(tmp_path):
@@ -101,3 +102,25 @@ def test_audio_batch_from_paths_keeps_materialized_provider_values(monkeypatch, 
 
     assert batch.resources["speaker"] == ["speaker"]
     assert batch[0].resources["speaker"].value == "speaker"
+
+
+def test_load_audio_reports_target_sample_rate_after_resampling(monkeypatch):
+    monkeypatch.setattr(
+        audio_utils.torchaudio,
+        "load",
+        lambda path: (torch.ones(1, 48_000), 48_000),
+    )
+
+    class FakeResample:
+        def __init__(self, source_rate, target_rate):
+            assert (source_rate, target_rate) == (48_000, 16_000)
+
+        def __call__(self, waveform):
+            return waveform[:, ::3]
+
+    monkeypatch.setattr(audio_utils.T, "Resample", FakeResample)
+
+    waveform, sample_rate = audio_utils.load_audio("sample.wav", target_sr=16_000)
+
+    assert waveform.shape == (1, 16_000)
+    assert sample_rate == 16_000
