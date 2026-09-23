@@ -1,0 +1,20 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: build_manifest
+  - /dataset: clac
+  - _self_
+
+columns:
+  utt_id: "{sample.utt_id}"
+  path: "{sample.path}"
+  split: "{sample.split}"
+  spkid: "{path.stem}"
+
+pipeline:
+  overwrite: true
+
+suffix: ""
+dataset:
+  sort_key: "{row.utt_id}"

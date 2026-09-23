@@ -1,23 +1,30 @@
-"""Split each speaker's manifest rows between training and validation."""
+"""Split manifest rows within groups or hold out complete groups."""
 
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Split each manifest group between training and validation.",
+        description="Split a manifest between training and validation.",
     )
     parser.add_argument("--input", required=True, help="Input manifest CSV")
     parser.add_argument("--train-output", required=True, help="Output training manifest CSV")
     parser.add_argument("--valid-output", required=True, help="Output validation manifest CSV")
     parser.add_argument("--group-col", default="spkid", help="Column used for grouping (default: spkid)")
     parser.add_argument(
+        "--strategy",
+        choices=["within-group", "group-disjoint"],
+        default="within-group",
+        help=("Split rows within every group, or assign complete groups to one partition (default: within-group)."),
+    )
+    parser.add_argument(
         "--valid-fraction",
         type=float,
         default=0.1,
-        help="Fraction of each group's rows assigned to validation (default: 0.1)",
+        help="Validation fraction of rows or groups, depending on strategy (default: 0.1)",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
     return parser.parse_args()
@@ -27,20 +34,33 @@ def main() -> None:
     try:
         import pandas as pd
     except ImportError as error:
-        raise ImportError("Manifest splitting requires the `manifests` extra.") from error
+        raise ImportError("Manifest splitting requires the manifests extra.") from error
 
-    from quick_convert.data.splits import split_manifest_within_groups
+    from quick_convert.data.splits import (
+        split_manifest_group_disjoint,
+        split_manifest_within_groups,
+    )
 
     args = parse_args()
     manifest = pd.read_csv(args.input)
-    train, valid = split_manifest_within_groups(
+
+    split_fn = {
+        "within-group": split_manifest_within_groups,
+        "group-disjoint": split_manifest_group_disjoint,
+    }[args.strategy]
+    train, valid = split_fn(
         manifest,
         group_col=args.group_col,
         valid_fraction=args.valid_fraction,
         seed=args.seed,
     )
-    train.to_csv(args.train_output, index=False)
-    valid.to_csv(args.valid_output, index=False)
+
+    train_path = Path(args.train_output)
+    valid_path = Path(args.valid_output)
+    train_path.parent.mkdir(parents=True, exist_ok=True)
+    valid_path.parent.mkdir(parents=True, exist_ok=True)
+    train.to_csv(train_path, index=False)
+    valid.to_csv(valid_path, index=False)
 
 
 if __name__ == "__main__":

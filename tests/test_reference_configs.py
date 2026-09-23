@@ -135,6 +135,21 @@ def test_flat_manifest_contains_vq_asr_resources():
     assert set(config.columns) == {"utt_id", "path", "split", "transcript", "spkid"}
 
 
+def test_flat_clac_manifest_preserves_task_and_speaker_identity(monkeypatch, tmp_path):
+    monkeypatch.setenv("QUICK_CONVERT_CLAC_ROOT", str(tmp_path))
+
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
+        config = compose(
+            config_name="run/build_flat_manifest_clac",
+            return_hydra_config=True,
+        )
+
+    assert config.dataset._target_ == "quick_convert.data.BaseDataset"
+    assert config.dataset.utt_id_template == "{path.parent.stem}/{path.stem}"
+    assert set(config.columns) == {"utt_id", "path", "split", "spkid"}
+    assert config.columns.spkid == "{path.stem}"
+
+
 def test_vq_asr_config_exposes_an_inference_ready_system():
     with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
         config = compose(
