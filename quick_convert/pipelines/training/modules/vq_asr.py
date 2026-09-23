@@ -83,6 +83,8 @@ class VQASRTrainingModule(
                 "ctc_head",
                 "layer_fusion",
                 "post_quantization_network",
+                "online_encoders",
+                "optimization",
             ]
         )
 
