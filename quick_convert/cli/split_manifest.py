@@ -18,10 +18,7 @@ def parse_args() -> argparse.Namespace:
         "--strategy",
         choices=["within-group", "group-disjoint"],
         default="within-group",
-        help=(
-            "Split rows within every group, or assign complete groups to one partition "
-            "(default: within-group)."
-        ),
+        help=("Split rows within every group, or assign complete groups to one partition (default: within-group)."),
     )
     parser.add_argument(
         "--valid-fraction",
