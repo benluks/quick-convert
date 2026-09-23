@@ -6,6 +6,8 @@ from os import PathLike
 from pathlib import Path
 from typing import Any
 
+from lightning.pytorch.loggers import WandbLogger
+
 from quick_convert.data.base_dataset import BaseDataset
 from quick_convert.pipelines.training.base_trainer import BaseTrainer
 
@@ -44,6 +46,13 @@ class TrainingPipeline:
         config_path = self.out_path / "config.yaml"
         config_path.write_text(config)
         print(f"Full config written to {config_path}")
+
+    def log_config(self, config: dict[str, Any]) -> None:
+        """Record the composed Hydra config before Lightning starts fitting."""
+        for logger in self.trainer.pl_trainer.loggers:
+            if isinstance(logger, WandbLogger):
+                logger.log_hyperparams(config)
+                logger.experiment.save(str((self.out_path / "config.yaml").resolve()), policy="now")
 
     def run(self) -> Any:
         return self.trainer.train(

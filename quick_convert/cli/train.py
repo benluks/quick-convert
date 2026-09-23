@@ -23,9 +23,10 @@ OmegaConf.register_new_resolver(
     config_name="run/train_bpe_tokenizer_librispeech",
 )
 def main(cfg: DictConfig) -> None:
-
+    resolved_config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     pipeline = instantiate(cfg.pipeline)
     pipeline.write_config(OmegaConf.to_yaml(cfg, resolve=True))
+    pipeline.log_config(resolved_config)
     pipeline.run()
 
 
