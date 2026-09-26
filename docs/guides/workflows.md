@@ -33,3 +33,8 @@ Inspect the run YAML before launching an expensive job. A composed configuration
 
 The [VQ-ASR quickstart](../quickstart.md) covers tokenizer training, token ID
 precomputation, manifest preparation, training, and inference export in order.
+
+## Speaker verification
+
+See [automatic speaker verification](asv.md) for enrollment/test manifests,
+public speaker encoders, cosine scoring, and EER reporting.
