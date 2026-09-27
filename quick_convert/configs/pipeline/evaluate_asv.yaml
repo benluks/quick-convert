@@ -1,0 +1,5 @@
+_target_: quick_convert.pipelines.evaluation.protocols.asv.ASVEvaluator
+enroll_dataset: ${enroll_dataset}
+test_dataset: ${test_dataset}
+speaker_encoder: ${speaker_encoder}
+out_dir: ${out_root}/evaluation/asv

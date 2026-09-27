@@ -1,0 +1,27 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /pipeline: evaluate_asv
+  - /dataset@enroll_dataset: manifest
+  - /dataset@test_dataset: manifest
+  - _self_
+
+speaker_encoder:
+  _target_: quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusSpeakerEncoder
+  device: ${device}
+
+dataset_path: ${out_root}/librispeech_test
+asv_data: &asv_data
+  load: [audio, spkid]
+  target_sr: 16000
+  resources:
+    spkid:
+      column: spkid
+      kind: text
+
+enroll_dataset:
+  <<: *asv_data
+  manifest_path: ${dataset_path}/enrolls.csv
+test_dataset:
+  <<: *asv_data
+  manifest_path: ${dataset_path}/trials.csv
