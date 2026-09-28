@@ -38,3 +38,19 @@ precomputation, manifest preparation, training, and inference export in order.
 
 See [automatic speaker verification](asv.md) for enrollment/test manifests,
 public speaker encoders, cosine scoring, and EER reporting.
+
+### W&B training configuration
+
+Training through `uv run train ...`, `quick-convert train_...`, or
+`python -m quick_convert.cli.train` records the full resolved Hydra configuration
+in W&B when the Lightning trainer has a W&B logger. This happens after the local
+`config.yaml` is written and before fitting. The file is also uploaded as
+`config.yaml` in the run's files. Interpolations are resolved to their effective
+values, so settings are available for run comparison and filtering.
+
+Only rank zero logs this configuration in distributed training. Backends without
+configuration logging and runs without W&B still save their local configuration.
+VQ-ASR keeps instantiated systems, encoders, and optimization objects out of its
+checkpoint hyperparameters and disables automatic hyperparameter logging; the
+resolved Hydra config supplies the W&B settings instead. Avoid putting secrets
+in configuration fields, since the full resolved configuration is logged.

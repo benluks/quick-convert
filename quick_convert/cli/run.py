@@ -31,6 +31,10 @@ def execute_pipeline(cfg: DictConfig) -> Any:
     if callable(write_config):
         write_config(rendered_config)
 
+    log_config = getattr(pipeline, "log_config", None)
+    if callable(log_config):
+        log_config(OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True))
+
     run_kwargs = cfg.get("run", {})
     if not isinstance(run_kwargs, Mapping):
         raise TypeError("The optional top-level `run` config must be a mapping.")

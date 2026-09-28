@@ -116,6 +116,18 @@ class LightningTrainer(BaseTrainer):
 
         return self.log_dir
 
+    def log_config(self, config: dict, config_path: Path) -> None:
+        """Log resolved Hydra settings and their file to W&B on rank zero."""
+        from lightning.pytorch.loggers import WandbLogger
+
+        if not self.pl_trainer.is_global_zero:
+            return
+        for logger in self.pl_trainer.loggers:
+            if isinstance(logger, WandbLogger):
+                logger.log_hyperparams(config)
+                path = config_path.resolve()
+                logger.experiment.save(str(path), base_path=str(path.parent), policy="now")
+
     def build(self, train_dataset, out_dir=None) -> None:
         """Compatibility alias for the former backend lifecycle."""
         self.prepare(train_dataset, out_dir)

@@ -47,6 +47,12 @@ class TrainingPipeline:
         config_path.write_text(config)
         print(f"Full config written to {config_path}")
 
+    def log_config(self, config: dict[str, Any]) -> None:
+        """Delegate resolved run metadata to the prepared training backend."""
+        if self.out_path is None:
+            raise RuntimeError("Prepare the training pipeline before logging its config.")
+        self.trainer.log_config(config, self.out_path / "config.yaml")
+
     def run(self) -> Any:
         self.prepare()
         return self.trainer.train(

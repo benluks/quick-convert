@@ -51,6 +51,10 @@ class BaseTrainer(ABC):
         """
         raise NotImplementedError
 
+    def log_config(self, config: dict[str, Any], config_path: Path) -> None:
+        """Optionally record resolved configuration with a backend's run logger."""
+        return None
+
     def resolve_output_dir(
         self,
         out_dir: str | Path | None = None,
