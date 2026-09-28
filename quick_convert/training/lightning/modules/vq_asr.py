@@ -87,13 +87,16 @@ class VQASRTrainingModule(
         self.system = system
 
         self.save_hyperparameters(
+            logger=False,
             ignore=[
                 "quantizer",
                 "ctc_head",
                 "layer_fusion",
                 "post_quantization_network",
                 "system",
-            ]
+                "online_encoders",
+                "optimization",
+            ],
         )
 
         if tokenizer_model_path is not None:

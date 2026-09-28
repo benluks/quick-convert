@@ -170,3 +170,10 @@ def test_online_encoders_remain_excluded_from_checkpoints_by_default():
 
     assert "system.quantizer.scale" in checkpoint["state_dict"]
     assert not any(key.startswith("system.online_encoders.") for key in checkpoint["state_dict"])
+
+
+def test_hyperparameters_exclude_instantiated_objects_and_automatic_logging():
+    module = make_module(online_encoders={"content": FakeOnlineEncoder()})
+    assert not module._log_hyperparams
+    assert not {"system", "optimization", "online_encoders", "quantizer", "ctc_head"} & module.hparams.keys()
+    assert module.hparams["ctc_loss_weight"] == 1.0
