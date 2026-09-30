@@ -16,6 +16,10 @@ extras:
     probes: [pandas]
   mpm:
     probes: [masked_prosody_model]
+  pase:
+    probes: [pase, torchvision]
+  spear:
+    probes: [transformers]
   pyannote:
     probes: [pyannote.audio]
   sentencepiece:
@@ -37,6 +41,8 @@ targets:
   quick_convert.components.speaker.PyannoteWeSpeakerEncoder: [pyannote]
   quick_convert.components.ssl.DACContentEncoder: [dac]
   quick_convert.components.ssl.EmotionEncoder: [emotion2vec]
+  quick_convert.components.ssl.PASEContentEncoder: [pase]
+  quick_convert.components.ssl.SPEARContentEncoder: [spear]
   quick_convert.components.ssl.ProsodyEncoder: [mpm]
   quick_convert.components.ssl.S3TokenizerContentEncoder: [s3tokenizer]
   quick_convert.components.ssl.W2VBertContentEncoder: [transformers]

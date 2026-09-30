@@ -10,6 +10,9 @@ CONTENT_ENCODER_ALIASES = MappingProxyType(
     {
         "dac": "quick_convert.components.ssl.DACContentEncoder",
         "emotion2vec": "quick_convert.components.ssl.EmotionEncoder",
+        "pase": "quick_convert.components.ssl.PASEContentEncoder",
+        "paseplus": "quick_convert.components.ssl.PASEContentEncoder",
+        "spear": "quick_convert.components.ssl.SPEARContentEncoder",
         "pros2vec": "quick_convert.components.ssl.ProsodyEncoder",
         "s3tokenizer": "quick_convert.components.ssl.S3TokenizerContentEncoder",
         "w2vbert": "quick_convert.components.ssl.W2VBertContentEncoder",

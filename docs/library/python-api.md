@@ -73,7 +73,7 @@ encoder = encoder_class(device="cpu", layer=11)
 custom_class = resolve_content_encoder("my_package.encoders.CustomContentEncoder")
 ```
 
-Built-in aliases include `dac`, `emotion2vec`, `pros2vec`, `s3tokenizer`,
+Built-in aliases include `dac`, `emotion2vec`, `pase`, `paseplus`, `spear`, `pros2vec`, `s3tokenizer`,
 `w2vbert`, and `wavlm`. Dotted-path classes must implement the
 `ContentEncoder` contract. Resolution imports the class but does not construct
 it or load its model weights.
