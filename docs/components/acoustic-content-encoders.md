@@ -76,6 +76,50 @@ select intermediate layers: only `layer=-1` is accepted. For local weights,
 pass a local model directory as `model_name`; `local_files_only=True` is rejected
 because this adapter cannot enforce it through FunASR.
 
+## VoiceFM-Whisper
+
+Install `uv sync --extra voicefm`. The [official VoiceFM repository](https://github.com/oelemento/VoiceFM-public)
+contains code only; clinically trained weights are distributed separately.
+Obtain a VoiceFM-Whisper checkpoint from the authors or train one first.
+This adapter requires a local checkpoint and never substitutes base Whisper weights.
+
+```python
+encoder = resolve_content_encoder("voicefm")(checkpoint_path="voicefm_best_model.pt", layer=None, device="cuda")
+features = encoder.encode_file("speech.wav")
+```
+
+The adapter exposes the clinically fine-tuned **Whisper encoder before pooling**:
+1280-dimensional frames at 50 Hz for Whisper large-v2, or all 32 transformer
+layers with `layer=None`. `N_LAYERS` lets ssl-probe infer the weighted-sum size.
+`layer=-1` selects the final state; `layer=0` selects the input embedding.
+These are not the paper's normalized, pooled 256-dimensional clinical embeddings:
+the task embedding and projection head are not applied to individual frames.
+The HuBERT and HeAR variants are outside this adapter.
+
+Supported checkpoint forms are an upstream training checkpoint with
+`model_state_dict` keys beginning `audio_encoder.encoder.`, an audio-encoder
+state dictionary with `encoder.` keys, or a bare Whisper encoder state dictionary.
+A `state_dict` wrapper is also accepted. All encoder weights must be present and
+match the configured architecture; incomplete or mismatched checkpoints fail
+strictly. Clinical and projection weights are excluded from frame extraction.
+Only the Whisper config and frontend are fetched from `model_name`, rather than
+loading a full base encoder/decoder checkpoint. For offline extraction, cache
+those assets or use a local model config/frontend directory with
+`local_files_only=True`.
+
+The input timebase is preserved: no silence trimming or peak normalization is
+performed. Set such preprocessing at the dataset level if desired. Whisper pads
+each utterance to its 30-second context; returned values are cropped to the
+longest valid frame extent with individual lengths computed from the frontend
+mask and convolution geometry. Its attention still includes the padded context,
+as in the upstream encoder. Inputs exceeding 30 seconds are rejected rather
+than silently truncated; split long recordings before extraction.
+
+Hydra component: `components/ssl=voicefm`, with required `checkpoint_path`.
+Verification covers checkpoint round trips and length/layer contracts; published
+clinical VoiceFM weights have not been exercised because they are not available
+in the code release.
+
 ## CARE: integration prerequisite
 
 The [official CARE repository](https://github.com/iiscleap/CARE) contains training
