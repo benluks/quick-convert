@@ -15,7 +15,7 @@ from quick_convert.components.ssl import (
 
 
 class FakeSPEAR(nn.Module):
-    config = SimpleNamespace(encoder_dim="4,4", output_downsampling_factor=1)
+    config = SimpleNamespace(encoder_dim="4,4", num_encoder_layers="1,1", output_downsampling_factor=1)
 
     def forward(self, audio, lengths):
         values = torch.zeros(audio.shape[0], 5, 4, device=audio.device)
@@ -44,6 +44,7 @@ def test_spear_retains_all_layers_and_backend_lengths(spear_factory):
     assert output.lengths.tolist() == [5, 3]
     assert output.feature_dim == encoder.feature_dim == 4
     assert output.frame_hz == 50
+    assert encoder.N_LAYERS == output.values.shape[2]
     assert torch.equal(audio, original)
     assert spear_factory[0][1] == {"local_files_only": True, "revision": "pinned", "trust_remote_code": True}
 

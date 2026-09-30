@@ -43,10 +43,16 @@ class SPEARContentEncoder(ContentEncoder):
             .to(self.device)
             .eval()
         )
+        self._num_layers = sum(int(value) for value in self.model.config.num_encoder_layers.split(","))
         dimensions = self.model.config.encoder_dim
         self._feature_dim = max(int(value) for value in dimensions.split(","))
         if int(self.model.config.output_downsampling_factor) != 1:
             raise ValueError("This adapter requires SPEAR v2 checkpoints with output_downsampling_factor=1.")
+
+    @property
+    def N_LAYERS(self) -> int:
+        """Checkpoint layer count, exposed for downstream weighted-sum fusion."""
+        return self._num_layers
 
     @property
     def sample_rate(self) -> int:

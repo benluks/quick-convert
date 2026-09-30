@@ -21,7 +21,8 @@ print(features.values.shape, features.lengths, features.frame_hz)
 
 `layer=-1` (default) selects the final hidden state; `layer=0` selects the
 first Zipformer layer. `layer=None` preserves all aligned intermediate states
-for weighted-sum probes. The all-layer mode requires states with equal feature
+for weighted-sum probes. `N_LAYERS` reports the actual checkpoint layer count
+so ssl-probe can infer the fusion size automatically. The all-layer mode requires states with equal feature
 dimensions; it does not interpolate heterogeneous states or pad feature channels.
 The adapter supports v2 checkpoints with `output_downsampling_factor=1` and
 reads feature dimensions from their configuration. It rejects older checkpoints
