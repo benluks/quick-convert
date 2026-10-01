@@ -128,13 +128,16 @@ def test_emotion2vec_defaults_lengths_preserves_input_and_returns_features(monke
         encoder.encode_waveforms(audio, sample_rate=8000)
 
 
-@pytest.mark.parametrize("kwargs", [
+@pytest.mark.parametrize(
+    "kwargs",
+    [
         {"layer": -2},
         {"layer": True},
         {"layer": None, "granularity": "utterance"},
         {"local_files_only": True},
         {"sample_rate": 8000},
-    ])
+    ],
+)
 def test_emotion2vec_rejects_unsupported_options(kwargs):
     with pytest.raises(ValueError):
         EmotionEncoder(device="cpu", **kwargs)
