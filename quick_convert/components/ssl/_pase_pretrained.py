@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 
+
 PASE_REVISION = "2a41e63e54fa8673efd12c16cdcdd5ad4f0f125e"
 PASEPLUS_CHECKPOINT_ID = "1xwlZMGnEt9bGKCVcqDeNrruLFQW5zUEW"
 PASEPLUS_CONFIG_URL = f"https://raw.githubusercontent.com/santi-pdp/pase/{PASE_REVISION}/cfg/frontend/PASE+.cfg"
