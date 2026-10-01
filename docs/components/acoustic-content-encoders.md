@@ -50,7 +50,14 @@ features = encoder.encode_file("speech.wav")
 
 PASE+ produces 256-dimensional features at 100 Hz for its published configuration.
 `pase` and `paseplus` resolve to the same adapter; the config/checkpoint determines
-the actual model. Only the final frontend representation is exposed.
+the actual model. The default `layer=-1` returns the final frontend representation.
+With `layer=None`, dense-sum frontends expose their pretrained projected skip
+stages followed by that final aggregate output; nonnegative indices select a
+stage. The published PASE+ config gives seven skip stages plus one final output,
+all 256-dimensional at 100 Hz. Alignment reuses upstream crop/mean downsampling;
+no randomly initialized projections are introduced. These are projected CNN
+contributions plus an aggregate, not eight sequential transformer states.
+Frontends without compatible dense-sum skips reject intermediate extraction.
 Waveforms are encoded separately before padding because its recurrent frontend
 and temporal normalization depend on each utterance's true extent.
 
@@ -71,8 +78,15 @@ This encoder already exists: `resolve_content_encoder("emotion2vec")` or
 
 The default `iic/emotion2vec_plus_large` uses 16 kHz audio and returns final-layer
 frame embeddings at approximately 50 Hz. `granularity="utterance"` returns one
-pooled vector and `frame_hz=None`. FunASR's public extraction interface does not
-select intermediate layers: only `layer=-1` is accepted. For local weights,
+pooled vector and `frame_hz=None`. Use `layer=None` to return all shared transformer
+block states for weighted-sum probing, or a nonnegative index to select a block.
+The adapter calls the underlying model with masking disabled, preserves its
+per-utterance waveform normalization, removes auxiliary tokens, and captures
+residual block states rather than pretraining-target tensors. The last returned
+state includes the final model normalization and matches the final frame output.
+The audio frontend blocks are excluded. `N_LAYERS` reports the checkpoint-specific
+shared transformer depth. Intermediate extraction requires frame granularity.
+For local weights,
 pass a local model directory as `model_name`; `local_files_only=True` is rejected
 because this adapter cannot enforce it through FunASR.
 
@@ -132,3 +146,17 @@ Using an ordinary WavLM checkpoint under a CARE alias would not reproduce CARE.
 
 HeAR and TRILLsson are also outside this addition: their released pooled interfaces
 are not interchangeable with frame-level speech encoders.
+
+## Weighted-sum examples
+
+```python
+emotion = resolve_content_encoder("emotion2vec")(layer=None, device="cuda")
+pase = resolve_content_encoder("paseplus")(
+    config_path="PASE+.cfg", checkpoint_path="FE_e199.ckpt", layer=None, device="cuda"
+)
+# Both return (batch, frames, layers, features), with encoder.N_LAYERS.
+```
+
+Layer-wise backend access is checked by fast contract tests. Published emotion2vec
+and PASE+ checkpoint inference remains an additional model smoke test, particularly
+for PASE+'s legacy QRNN/CuPy setup.
