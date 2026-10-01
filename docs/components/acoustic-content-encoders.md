@@ -75,6 +75,16 @@ Hydra component: `components/ssl=paseplus`; supply `config_path` and
 
 This encoder already exists: `resolve_content_encoder("emotion2vec")` or
 `components/ssl=emo2vec`. Install `uv sync --extra emotion2vec`.
+The extra constrains Transformers to `>=4.50.1,<5`, preventing resolution to
+legacy versions whose tokenizers require a source build on Python 3.11.
+To install the latest GitHub code into an existing environment, use:
+
+```bash
+uv pip install --python .venv/bin/python --upgrade \
+  'quick-convert[emotion2vec] @ git+https://github.com/benluks/quick-convert.git@main'
+```
+
+Merging a pull request updates GitHub; package-index releases update separately.
 
 The default `iic/emotion2vec_plus_large` uses 16 kHz audio and returns final-layer
 frame embeddings at approximately 50 Hz. `granularity="utterance"` returns one

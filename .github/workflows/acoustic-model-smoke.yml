@@ -3,6 +3,7 @@ name: Acoustic model smoke
 on:
   pull_request:
     paths:
+      - "pyproject.toml"
       - "quick_convert/components/ssl/emo2vec.py"
       - "tests/test_emotion2vec_model.py"
       - ".github/workflows/acoustic-model-smoke.yml"
@@ -21,8 +22,10 @@ jobs:
           python-version: "3.11"
           enable-cache: true
       - name: Install emotion2vec environment
-        run: uv sync --group dev --extra emotion2vec
+        run: |
+          uv venv
+          uv pip install '.[emotion2vec]' pytest
       - name: Test pretrained layers and fusion
         env:
           QC_ACOUSTIC_MODEL_TESTS: "1"
-        run: uv run --no-sync pytest -q tests/test_emotion2vec_model.py
+        run: .venv/bin/python -m pytest -q tests/test_emotion2vec_model.py
