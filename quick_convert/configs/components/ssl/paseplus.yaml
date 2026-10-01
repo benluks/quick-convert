@@ -1,0 +1,4 @@
+_target_: quick_convert.components.ssl.PASEContentEncoder
+config_path: ???
+checkpoint_path: ???
+device: ${device}

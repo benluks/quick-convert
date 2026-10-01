@@ -1,0 +1,2 @@
+_target_: quick_convert.components.ssl.SPEARContentEncoder
+device: ${device}

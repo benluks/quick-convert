@@ -23,7 +23,7 @@ jobs:
       - name: Install development environment
         run: uv sync --group dev
       - name: Check formatting
-        run: uv run --no-sync ruff format --check .
+        run: uv run --no-sync ruff format --check --diff .
       - name: Lint
         run: uv run --no-sync ruff check --select B,E4,E7,E9,F,I,UP .
       - name: Run fast tests

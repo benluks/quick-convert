@@ -13,6 +13,9 @@ Components should expose explicit tensor and length contracts. They may compose 
 
 ## Content encoders
 
+See [acoustic and paralinguistic encoders](acoustic-content-encoders.md) for
+SPEAR, PASE+, VoiceFM, emotion2vec, setup examples, and the CARE checkpoint prerequisite.
+
 Every `ContentEncoder` declares its required waveform `sample_rate`, its
 `frame_hz` when the representation has a regular frame timebase, and a batch
 entry point `forward(AudioBatch) -> ContentFeatures`. Returned
