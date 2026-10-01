@@ -5,6 +5,9 @@ on:
     paths:
       - "pyproject.toml"
       - "quick_convert/components/ssl/emo2vec.py"
+      - "quick_convert/components/ssl/pase.py"
+      - "quick_convert/components/ssl/_pase_pretrained.py"
+      - "tests/test_pase_pretrained.py"
       - "tests/test_emotion2vec_model.py"
       - ".github/workflows/acoustic-model-smoke.yml"
 
@@ -29,3 +32,21 @@ jobs:
         env:
           QC_ACOUSTIC_MODEL_TESTS: "1"
         run: .venv/bin/python -m pytest -q tests/test_emotion2vec_model.py
+
+  pase-download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - name: Install download test environment
+        run: |
+          uv sync --group dev
+          uv pip install 'gdown>=5.2,<6' 'filelock>=3'
+      - name: Download official PASE+ assets and test offline reuse
+        env:
+          QC_PASE_DOWNLOAD_TEST: "1"
+        run: .venv/bin/python -m pytest -q tests/test_pase_pretrained.py
