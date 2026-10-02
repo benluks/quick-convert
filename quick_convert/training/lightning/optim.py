@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -16,6 +17,20 @@ from torch.optim.lr_scheduler import (
 
 
 Parameter = torch.nn.Parameter
+
+
+class ClampedCosineAnnealingLR(torch.optim.lr_scheduler.CosineAnnealingLR):
+    """Cosine decay that stays at eta_min after T_max scheduler steps."""
+
+    def get_lr(self) -> list[float]:
+        if self.last_epoch >= self.T_max:
+            return [self.eta_min for _ in self.base_lrs]
+        return super().get_lr()
+
+    def _get_closed_form_lr(self) -> list[float]:
+        if self.last_epoch >= self.T_max:
+            return [self.eta_min for _ in self.base_lrs]
+        return super()._get_closed_form_lr()
 
 
 class OptimizerFactory(Protocol):
@@ -159,7 +174,12 @@ class Optimization:
         )
 
         if total_steps is not None:
-            if total_steps <= 0:
+            if (
+                isinstance(total_steps, bool)
+                or not math.isfinite(total_steps)
+                or total_steps <= 0
+                or int(total_steps) != total_steps
+            ):
                 raise ValueError(f"total_steps must be positive, got {total_steps}.")
 
             optimizer.total_steps = total_steps
@@ -190,9 +210,29 @@ class Optimization:
         scheduler: LRScheduler | None = None
 
         if self.lr_scheduler is not None:
-            scheduler = self.lr_scheduler(
+            scheduler_factory = self.lr_scheduler
+            scheduler_kwargs = dict(self.lr_scheduler_kwargs)
+            if scheduler_kwargs.get("T_max") == "auto":
+                if scheduler_factory is not torch.optim.lr_scheduler.CosineAnnealingLR:
+                    raise ValueError("T_max='auto' requires torch.optim.lr_scheduler.CosineAnnealingLR.")
+                if self.interval != "step" or self.frequency != 1:
+                    raise ValueError("T_max='auto' requires interval='step' and frequency=1.")
+                total_steps = getattr(optimizer, "total_steps", None)
+                if total_steps is None:
+                    raise ValueError("T_max='auto' requires a finite total_steps training budget.")
+                warmup_steps = 0
+                if self.warmup is not None:
+                    if not isinstance(self.warmup, LinearWarmup):
+                        raise ValueError("T_max='auto' supports LinearWarmup or no warmup.")
+                    warmup_steps = self.warmup.resolve_steps(total_steps)
+                decay_steps = int(total_steps) - warmup_steps
+                if decay_steps <= 0:
+                    raise ValueError("Warmup must leave at least one step for cosine decay.")
+                scheduler_kwargs["T_max"] = decay_steps
+                scheduler_factory = ClampedCosineAnnealingLR
+            scheduler = scheduler_factory(
                 optimizer,
-                **self.lr_scheduler_kwargs,
+                **scheduler_kwargs,
             )
 
         if self.warmup is not None:

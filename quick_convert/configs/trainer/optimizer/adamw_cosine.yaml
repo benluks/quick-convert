@@ -14,7 +14,7 @@ lr_scheduler:
   path: torch.optim.lr_scheduler.CosineAnnealingLR
 
 lr_scheduler_kwargs:
-  T_max: 95000
+  T_max: auto
   eta_min: 1.0e-6
 
 warmup:
