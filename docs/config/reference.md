@@ -44,6 +44,32 @@ uv run train vq_asr_librispeech \
 
 Quote shell-sensitive lists and strings. Use `HYDRA_FULL_ERROR=1` when debugging a composition or instantiation failure.
 
+## Learning-rate duration
+
+The `adamw_cosine` optimizer preset uses `T_max: auto`. Training supplies
+Lightning's estimated optimizer-step budget, accounting for accumulation and
+the configured training limits. Automatic cosine decay uses the remaining
+steps after warmup and stays at `eta_min` after its duration ends.
+
+```yaml
+trainer:
+  module:
+    optimization:
+      warmup:
+        steps: 0.05
+      lr_scheduler_kwargs:
+        T_max: auto
+        eta_min: 1e-6
+```
+
+An integer warmup duration means an absolute number of steps; a floating-point
+duration in `(0, 1]` means a fraction of total optimizer steps. Automatic cosine
+requires a finite positive training budget, step-based scheduling with frequency
+one, and enough steps remaining after warmup. Numeric `T_max` overrides retain
+PyTorch's existing cosine behavior. Resume restores the saved scheduler duration;
+extending the run does not automatically stretch an existing checkpoint's schedule.
+
+
 ## Adding a run
 
 1. Reuse existing config groups where possible.
