@@ -1,11 +1,13 @@
 from pathlib import Path
 
+import pytest
 import torch
 from torch import nn
 
 from quick_convert.components.decoders import CosyVoiceGenerationOutput
 from quick_convert.components.layers.rvq import RVQLosses, RVQOutput
 from quick_convert.components.mixins.resource import ResolvedResource
+from quick_convert.components.ssl.base import ContentFeatures
 from quick_convert.data import AudioBatch, GeneratedAudio
 from quick_convert.systems.reconstruction import SSLReconstructionResult, SSLReconstructionSystem
 
@@ -64,6 +66,32 @@ class FakeContentEncoder(nn.Module):
             values=torch.ones(len(batch), 3, 4),
             lengths=torch.full((len(batch),), 3),
         )
+
+
+class TrainableContentEncoder(nn.Module):
+    sample_rate = 16_000
+    device = torch.device("cpu")
+
+    def __init__(self, wrapped=False):
+        super().__init__()
+        self.wrapped = wrapped
+        self.scale = nn.Parameter(torch.tensor(1.0))
+
+    def forward(self, batch):
+        values = self.scale * torch.ones(len(batch), 3, 4)
+        lengths = torch.full((len(batch),), 3)
+        if self.wrapped:
+            return ContentFeatures(
+                values=values,
+                lengths=lengths,
+                feature_dim=4,
+                representation_type="continuous",
+                temporal_granularity="frame",
+                backend="test",
+                model_name="tiny",
+                layer=None,
+            )
+        return ResolvedResource(values=values, lengths=lengths)
 
 
 class FakeSpeakerEncoder(nn.Module):
@@ -131,3 +159,69 @@ def test_ssl_reconstruction_accepts_a_plain_waveform_tensor():
     assert result.generation.audio is None
     assert result.features.shape == (1, 3, 4)
     assert result.lengths.tolist() == [3]
+
+
+def make_audio_batch():
+    return AudioBatch(
+        utt_ids=["a"],
+        paths=[Path("a.wav")],
+        splits=[None],
+        resources={},
+        waveforms=torch.ones(1, 160),
+        lengths=torch.tensor([160]),
+        sample_rates=torch.tensor([16_000]),
+    )
+
+
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_online_encoder_is_frozen_and_detached_by_default(wrapped):
+    encoder = TrainableContentEncoder(wrapped=wrapped)
+    system = SSLReconstructionSystem(
+        decoder=FakeDecoder(),
+        online_encoders={"content": encoder},
+    )
+
+    resource = system.get_resource(make_audio_batch(), "content")
+
+    assert not encoder.scale.requires_grad
+    assert not resource.values.requires_grad
+
+
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_trainable_online_encoder_preserves_gradients_and_updates(wrapped):
+    encoder = TrainableContentEncoder(wrapped=wrapped)
+    system = SSLReconstructionSystem(
+        decoder=FakeDecoder(),
+        online_encoders={"content": encoder},
+        trainable_online_encoders=("content",),
+    )
+    optimizer = torch.optim.SGD(system.parameters(), lr=0.1)
+    before = encoder.scale.detach().clone()
+
+    resource = system.get_resource(make_audio_batch(), "content")
+    loss = resource.values.square().mean()
+    loss.backward()
+
+    assert encoder.scale.requires_grad
+    assert encoder.scale.grad is not None
+    assert encoder.scale.grad.norm() > 0
+
+    optimizer.step()
+
+    assert not torch.equal(before, encoder.scale.detach())
+
+
+def test_precomputed_resources_remain_detached_with_trainable_online_encoder():
+    encoder = TrainableContentEncoder()
+    system = SSLReconstructionSystem(
+        decoder=FakeDecoder(),
+        online_encoders={"content": encoder},
+        trainable_online_encoders=("content",),
+    )
+    batch = make_audio_batch()
+    source = torch.ones(1, 3, 4, requires_grad=True)
+    batch.resources["content"] = ResolvedResource(source, torch.tensor([3]))
+
+    resource = system.get_resource(batch, "content")
+
+    assert not resource.values.requires_grad

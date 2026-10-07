@@ -55,6 +55,7 @@ class VQASRSystem(OnlineResourceMixin, nn.Module):
         layer_fusion: LayerWeightedSum | None = None,
         post_quantization_network: nn.Module | None = None,
         online_encoders: dict[str, ContentEncoder] | None = None,
+        trainable_online_encoders: tuple[str, ...] = (),
         use_latents: bool = True,
     ) -> None:
         super().__init__()
@@ -63,11 +64,8 @@ class VQASRSystem(OnlineResourceMixin, nn.Module):
         self.ctc_head = ctc_head
         self.layer_fusion = layer_fusion or nn.Identity()
         self.post_quantization_network = post_quantization_network
-        self.online_encoders = nn.ModuleDict(online_encoders or {})
+        self.configure_online_encoders(online_encoders, trainable_online_encoders)
         self.use_latents = use_latents
-
-        self.online_encoders.requires_grad_(False)
-        self.online_encoders.eval()
 
         n_codebooks = getattr(quantizer, "n_codebooks", None)
         if n_codebooks is not None and n_codebooks != 1:

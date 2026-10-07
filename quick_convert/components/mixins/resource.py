@@ -17,6 +17,25 @@ class ResolvedResource:
 
 class OnlineResourceMixin:
     online_encoders: nn.ModuleDict
+    trainable_online_encoders: frozenset[str] = frozenset()
+
+    def configure_online_encoders(
+        self,
+        online_encoders: dict[str, nn.Module] | None,
+        trainable_online_encoders: tuple[str, ...] = (),
+    ) -> None:
+        """Register online encoders and explicitly select which may train."""
+        self.online_encoders = nn.ModuleDict(online_encoders or {})
+        unknown = set(trainable_online_encoders) - set(self.online_encoders)
+        if unknown:
+            raise ValueError(f"Unknown trainable online encoders: {sorted(unknown)}.")
+
+        self.trainable_online_encoders = frozenset(trainable_online_encoders)
+        for name, encoder in self.online_encoders.items():
+            trainable = name in self.trainable_online_encoders
+            encoder.requires_grad_(trainable)
+            if not trainable:
+                encoder.eval()
 
     def get_resource(
         self,
@@ -35,31 +54,35 @@ class OnlineResourceMixin:
         encoder = self.online_encoders[name] if name in self.online_encoders else None
 
         if encoder is not None:
-            with torch.inference_mode():
+            trainable = name in self.trainable_online_encoders
+            if trainable:
                 resource = encoder(batch)
+            else:
+                with torch.inference_mode():
+                    resource = encoder(batch)
 
-            return self._normalize_resource(resource)
+            return self._normalize_resource(resource, detach=not trainable)
 
         raise RuntimeError(
             f"No resource named {name!r} was found in the batch and no online encoder with that name exists."
         )
 
     @staticmethod
-    def _normalize_resource(resource: Any) -> ResolvedResource:
+    def _normalize_resource(resource: Any, *, detach: bool = True) -> ResolvedResource:
         if isinstance(resource, ResolvedResource):
             return ResolvedResource(
-                values=OnlineResourceMixin._detach(resource.values),
+                values=OnlineResourceMixin._maybe_detach(resource.values, detach),
                 lengths=resource.lengths,
             )
 
         # Tensors expose a callable ``values`` method for sparse operations;
         # they are already the resource value, not a resource wrapper.
         if isinstance(resource, torch.Tensor):
-            return ResolvedResource(values=resource.detach(), lengths=None)
+            return ResolvedResource(values=OnlineResourceMixin._maybe_detach(resource, detach), lengths=None)
 
         if hasattr(resource, "values"):
             return ResolvedResource(
-                values=OnlineResourceMixin._detach(resource.values),
+                values=OnlineResourceMixin._maybe_detach(resource.values, detach),
                 lengths=getattr(resource, "lengths", None),
             )
 
@@ -70,15 +93,15 @@ class OnlineResourceMixin:
             values, lengths = resource
 
             return ResolvedResource(
-                values=OnlineResourceMixin._detach(values),
+                values=OnlineResourceMixin._maybe_detach(values, detach),
                 lengths=lengths,
             )
 
         return ResolvedResource(
-            values=OnlineResourceMixin._detach(resource),
+            values=OnlineResourceMixin._maybe_detach(resource, detach),
             lengths=None,
         )
 
     @staticmethod
-    def _detach(value: Any) -> Any:
-        return value.detach() if isinstance(value, torch.Tensor) else value
+    def _maybe_detach(value: Any, detach: bool) -> Any:
+        return value.detach() if detach and isinstance(value, torch.Tensor) else value
