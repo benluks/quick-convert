@@ -1,11 +1,13 @@
 from pathlib import Path
 
+import pytest
 import torch
 from torch import nn
 
 from quick_convert.components.decoders import CosyVoiceGenerationOutput
 from quick_convert.components.layers.rvq import RVQLosses, RVQOutput
 from quick_convert.components.mixins.resource import ResolvedResource
+from quick_convert.components.ssl.base import ContentFeatures
 from quick_convert.data import AudioBatch, GeneratedAudio
 from quick_convert.systems.reconstruction import SSLReconstructionResult, SSLReconstructionSystem
 
@@ -70,15 +72,26 @@ class TrainableContentEncoder(nn.Module):
     sample_rate = 16_000
     device = torch.device("cpu")
 
-    def __init__(self):
+    def __init__(self, wrapped=False):
         super().__init__()
+        self.wrapped = wrapped
         self.scale = nn.Parameter(torch.tensor(1.0))
 
     def forward(self, batch):
-        return ResolvedResource(
-            values=self.scale * torch.ones(len(batch), 3, 4),
-            lengths=torch.full((len(batch),), 3),
-        )
+        values = self.scale * torch.ones(len(batch), 3, 4)
+        lengths = torch.full((len(batch),), 3)
+        if self.wrapped:
+            return ContentFeatures(
+                values=values,
+                lengths=lengths,
+                feature_dim=4,
+                representation_type="continuous",
+                temporal_granularity="frame",
+                backend="test",
+                model_name="tiny",
+                layer=None,
+            )
+        return ResolvedResource(values=values, lengths=lengths)
 
 
 class FakeSpeakerEncoder(nn.Module):
@@ -160,8 +173,9 @@ def make_audio_batch():
     )
 
 
-def test_online_encoder_is_frozen_and_detached_by_default():
-    encoder = TrainableContentEncoder()
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_online_encoder_is_frozen_and_detached_by_default(wrapped):
+    encoder = TrainableContentEncoder(wrapped=wrapped)
     system = SSLReconstructionSystem(
         decoder=FakeDecoder(),
         online_encoders={"content": encoder},
@@ -173,8 +187,9 @@ def test_online_encoder_is_frozen_and_detached_by_default():
     assert not resource.values.requires_grad
 
 
-def test_trainable_online_encoder_preserves_gradients_and_updates():
-    encoder = TrainableContentEncoder()
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_trainable_online_encoder_preserves_gradients_and_updates(wrapped):
+    encoder = TrainableContentEncoder(wrapped=wrapped)
     system = SSLReconstructionSystem(
         decoder=FakeDecoder(),
         online_encoders={"content": encoder},

@@ -37,7 +37,6 @@ class OnlineResourceMixin:
             if not trainable:
                 encoder.eval()
 
-
     def get_resource(
         self,
         batch: AudioBatch,
@@ -83,7 +82,7 @@ class OnlineResourceMixin:
 
         if hasattr(resource, "values"):
             return ResolvedResource(
-                values=OnlineResourceMixin._detach(resource.values),
+                values=OnlineResourceMixin._maybe_detach(resource.values, detach),
                 lengths=getattr(resource, "lengths", None),
             )
 

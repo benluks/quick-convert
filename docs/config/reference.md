@@ -80,3 +80,21 @@ extending the run does not automatically stretch an existing checkpoint's schedu
 6. Confirm the run is present in an installed wheel and in `quick-convert --help`.
 
 See [Hydra structure](hydra_structure.md) for a guided composition example.
+
+## Trainable online encoders
+
+SSL reconstruction and VQ-ASR systems freeze online encoders by default. Select
+roles explicitly to allow downstream losses to update them:
+
+```yaml
+system:
+  trainable_online_encoders: [content]
+```
+
+For an existing reconstruction run, use the Hydra override
+`'+system.trainable_online_encoders=[content]'`. WavLM and W2V-BERT support
+autograd through their online forwards. Other backends must also support
+autograd; selecting a role cannot bypass a backend's internal inference context.
+Precomputed batch resources take precedence and remain detached, so omit cached
+content resources when fine-tuning the online content encoder. Encoder parameters
+are registered on the system and included by the training module's optimizer.
