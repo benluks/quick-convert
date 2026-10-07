@@ -2,6 +2,8 @@
 
 import argparse
 import hashlib
+from dataclasses import replace
+from pathlib import Path
 
 import torch
 from torch import nn
@@ -61,11 +63,14 @@ def check_step(system, batch, *, trainable):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("audio", help="Short audio clip (roughly 1–3 seconds).")
+    parser.add_argument("audio", nargs="?", help="Optional audio file; defaults to synthetic audio.")
+    parser.add_argument("--seconds", type=float, default=1.0, help="Maximum audio duration (default: 1 second).")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--model-name", default="microsoft/wavlm-large")
     parser.add_argument("--local-files-only", action="store_true")
     args = parser.parse_args()
+    if not 0.1 <= args.seconds <= 10:
+        parser.error("--seconds must be between 0.1 and 10.")
     torch.manual_seed(115)
     encoder = WavLMContentEncoder(
         model_name=args.model_name,
@@ -73,7 +78,20 @@ def main():
         device=args.device,
         local_files_only=args.local_files_only,
     )
-    sample = AudioSample.from_path(args.audio).load_audio(target_sr=encoder.sample_rate, mono=True, device="cpu")
+    max_samples = int(args.seconds * encoder.sample_rate)
+    if args.audio:
+        sample = AudioSample.from_path(args.audio).load_audio(target_sr=encoder.sample_rate, mono=True, device="cpu")
+        sample = replace(sample, waveform=sample.waveform[..., :max_samples])
+    else:
+        time = torch.arange(max_samples) / encoder.sample_rate
+        waveform = 0.1 * torch.sin(2 * torch.pi * 150 * time) + 0.01 * torch.randn(max_samples)
+        sample = AudioSample(
+            utt_id="synthetic",
+            path=Path("synthetic.wav"),
+            waveform=waveform.unsqueeze(0),
+            sample_rate=encoder.sample_rate,
+        )
+    print(f"Input: {args.audio or 'synthetic tone + noise'}, {sample.waveform.shape[-1] / encoder.sample_rate:.2f}s")
     batch = AudioBatch.from_samples([sample])
     # Only get_resource is exercised; no reconstruction decoder is needed.
     system = SSLReconstructionSystem(decoder=nn.Identity(), online_encoders={"content": encoder})

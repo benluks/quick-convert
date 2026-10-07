@@ -57,13 +57,18 @@ in configuration fields, since the full resolved configuration is logged.
 
 ## Pretrained encoder gradient smoke test
 
-From a repository checkout, run a short audio clip through pretrained WavLM
-and the system's online resource path:
+From a repository checkout, run pretrained WavLM through the system's online
+resource path. No audio file is required:
 
 ```bash
 uv run --extra transformers python scripts/check_wavlm_gradients.py \
-    /path/to/short.wav --device cuda
+    --device cuda
 ```
+
+By default it generates one second of a tone plus noise. Optionally pass an
+audio path; the waveform is trimmed to the first second after resampling.
+`--seconds 2` changes the duration (allowed range: 0.1–10 seconds). Synthetic audio
+is sufficient for this gradient check; it does not measure speech performance.
 
 The script uses the last hidden layer and a tiny regression head with a synthetic
 MSE target. It prints `PASS frozen` and `PASS trainable` after checking finite,
