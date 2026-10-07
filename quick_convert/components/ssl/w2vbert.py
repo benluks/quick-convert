@@ -101,7 +101,6 @@ class W2VBertContentEncoder(ContentEncoder):
         )
         return content
 
-    @torch.inference_mode()
     def encode_waveforms(
         self,
         waveforms: torch.Tensor,
