@@ -37,16 +37,14 @@ class SSLReconstructionSystem(OnlineResourceMixin, nn.Module):
         feature_transform: nn.Module | None = None,
         *,
         online_encoders: dict[str, nn.Module] | None = None,
+        trainable_online_encoders: tuple[str, ...] = (),
         encoder: BaseResidualVectorQuantizer | None = None,
     ) -> None:
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
         self.feature_transform = feature_transform or nn.Identity()
-        self.online_encoders = nn.ModuleDict(online_encoders or {})
-
-        self.online_encoders.requires_grad_(False)
-        self.online_encoders.eval()
+        self.configure_online_encoders(online_encoders, trainable_online_encoders)
 
     @staticmethod
     def _output_lengths(module: nn.Module, lengths: torch.Tensor, role: str) -> torch.Tensor:
