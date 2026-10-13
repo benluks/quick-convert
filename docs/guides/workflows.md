@@ -79,3 +79,9 @@ Use `--device cpu` without a GPU, `--model-name /path/to/model` for a local mode
 or `--local-files-only` to require cached weights. The default downloads
 `microsoft/wavlm-large`; full backward needs substantially more memory than inference.
 This checks gradient plumbing, not jitter prediction or preservation of SSL utility.
+
+### Fit reusable transformations
+
+Use `fit_speaker_index_librispeech` to persist a label mapping, or precompute
+openSMILE sidecars and run `fit_prosody_librispeech` for acoustic statistics.
+See the [fitting guide](fitting.md) for resource contracts and saved-state reuse.

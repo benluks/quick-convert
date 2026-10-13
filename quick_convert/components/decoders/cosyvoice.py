@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Literal
 
 import torch
 import torch.nn.functional as F
 from torch import nn
 
+from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
 from quick_convert.data import GeneratedAudio
 from quick_convert.utils.device import DeviceLike, configure_device
 from quick_convert.utils.masking import make_padding_mask, trim_to_min
@@ -33,8 +35,6 @@ class CosyVoiceGenerationOutput:
 
 
 class CosyVoiceSpectrogramGenerator(nn.Module):
-    VOCODER_SR = 24_000
-
     def __init__(
         self,
         flow: CausalMaskedDiffWithXvec | CausalMaskedDiffWithDiT,
@@ -48,67 +48,163 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         vocoder: CosyVoiceHiFTDecoder | None = None,
         vocoder_repo_id: str = "FunAudioLLM/Fun-CosyVoice3-0.5B-2512",
         vocoder_filename: str = "hift.pt",
+        vocoder_config_filename: str = "cosyvoice3.yaml",
+        vocoder_revision: str | None = None,
+        mel_config: MelSpectrogramConfig | None = None,
     ):
         super().__init__()
 
-        from ...external.matcha.utils.audio import mel_spectrogram
-
         self.device = configure_device(device)
         self.flow = flow
-        self.mel_extractor = mel_spectrogram
         self.cond_strategy = cond_strategy
         self.vocoder = vocoder
         self.vocoder_repo_id = vocoder_repo_id
         self.vocoder_filename = vocoder_filename
+        self.vocoder_config_filename = vocoder_config_filename
+        self.vocoder_revision = vocoder_revision
+        self.mel_dim = mel_dim
+        if mel_dim != flow.output_size:
+            raise ValueError("mel_dim must match the flow output size.")
+        self.register_buffer("_mel_metadata", torch.empty(0, dtype=torch.uint8))
+        self._resolved_mel_metadata = None
+        if mel_config is not None:
+            self._set_mel_metadata({"mel_config": asdict(mel_config)})
         self.input_projection = None
         if flow.vocab_size is None and feature_dim != flow.input_size:
             self.input_projection = nn.Linear(feature_dim, flow.input_size, device=self.device)
+
+    def initialize_checkpoint_vocoder(self, config: dict | None = None) -> None:
+        """Construct HiFT for strict checkpoint restoration without downloading weights."""
+        from .hift_generator import CosyVoiceHiFTConfig, CosyVoiceHiFTDecoder, F0PredictorConfig
+
+        config = config or {}
+        self.vocoder = (
+            CosyVoiceHiFTDecoder(
+                config=CosyVoiceHiFTConfig(**config.get("config", {})),
+                f0_config=F0PredictorConfig(**config.get("f0_config", {})),
+                device=self.device,
+                mel_config=MelSpectrogramConfig(**config["mel_config"]) if config.get("mel_config") else None,
+            )
+            .eval()
+            .requires_grad_(False)
+        )
 
     def _get_vocoder(self) -> CosyVoiceHiFTDecoder:
         if self.vocoder is None:
             from .hift_generator import CosyVoiceHiFTDecoder
 
-            self.vocoder = CosyVoiceHiFTDecoder.from_pretrained(
-                repo_id=self.vocoder_repo_id,
-                filename=self.vocoder_filename,
+            metadata = self._metadata()
+            if "config" not in metadata:
+                pretrained = CosyVoiceHiFTDecoder.pretrained_config(
+                    self.vocoder_repo_id,
+                    self.vocoder_config_filename,
+                    self.vocoder_revision,
+                )
+                if MelSpectrogramConfig(**pretrained["mel_config"]) != self.mel_config:
+                    raise ValueError("Configured mel specification differs from the pretrained vocoder specification.")
+                pretrained["source"] = {"repo_id": self.vocoder_repo_id, "filename": self.vocoder_filename}
+                self._set_mel_metadata(pretrained)
+                metadata = pretrained
+            source = metadata.get("source", {})
+            vocoder = CosyVoiceHiFTDecoder.from_pretrained(
+                repo_id=source.get("repo_id", self.vocoder_repo_id),
+                filename=source.get("filename", self.vocoder_filename),
+                config_filename=self.vocoder_config_filename,
+                revision=self.vocoder_revision,
+                metadata=metadata,
                 device=self.device,
             )
+            if vocoder.mel_config != self.mel_config:
+                raise ValueError("Configured mel specification differs from the pretrained vocoder specification.")
+            self.vocoder = vocoder
         return self.vocoder
 
-    @staticmethod
-    def mel_output_lengths(sample_lengths: torch.Tensor, sampling_rate: int) -> torch.Tensor:
-        """Calculate exact Matcha mel-frame lengths from waveform lengths.
-
-        Matcha uses a hop rate of 50 Hz and reflect-pads each side by
-        ``(n_fft - hop_size) // 2`` before an STFT with ``center=False``.
-        At the supported 16 kHz rate this reduces to
-        ``floor(samples / hop_size)``; the unsimplified formula below remains
-        exact when the padding difference is odd at another sample rate.
-        """
+    def mel_output_lengths(self, sample_lengths: torch.Tensor, sampling_rate: int) -> torch.Tensor:
+        """Return frame counts after resampling to the resolved mel specification."""
         if sampling_rate <= 0:
-            raise ValueError(f"sampling_rate must be positive, got {sampling_rate}.")
+            raise ValueError("sampling_rate must be positive.")
+        spec = self.mel_config
+        resampled = torch.div(
+            sample_lengths * spec.sample_rate + sampling_rate - 1,
+            sampling_rate,
+            rounding_mode="floor",
+        )
+        return spec.output_lengths(resampled)
 
-        n_fft = int(sampling_rate / 12.5)
-        hop_size = int(sampling_rate / 50)
-        pad = (n_fft - hop_size) // 2
-        return torch.div(sample_lengths + 2 * pad - n_fft, hop_size, rounding_mode="floor") + 1
+    def _set_mel_metadata(self, metadata: dict) -> None:
+        spec = MelSpectrogramConfig(**metadata["mel_config"])
+        if spec.num_mels != self.mel_dim:
+            raise ValueError("Mel specification must match the flow output size.")
+        if self.vocoder is not None:
+            vocoder_spec = getattr(self.vocoder, "mel_config", None)
+            if vocoder_spec is not None and vocoder_spec != spec:
+                raise ValueError("Mel specification differs from the custom vocoder specification.")
+            if (spec.sample_rate, spec.hop_size) != (self.vocoder.sample_rate, self.vocoder.samples_per_frame):
+                raise ValueError("Mel specification must match the vocoder rate and hop.")
+        self._resolved_mel_metadata = metadata
+        self._mel_metadata = torch.tensor(
+            list(json.dumps(metadata).encode()),
+            dtype=torch.uint8,
+            device=self._mel_metadata.device,
+        )
+
+    def _metadata(self) -> dict:
+        if self._resolved_mel_metadata is None:
+            if self._mel_metadata.numel():
+                self._set_mel_metadata(json.loads(bytes(self._mel_metadata.cpu().tolist())))
+            elif self.vocoder is not None:
+                spec = getattr(self.vocoder, "mel_config", None)
+                if spec is None:
+                    raise ValueError("A custom vocoder requires an explicit mel_config.")
+                self._set_mel_metadata({"mel_config": asdict(spec)})
+            else:
+                from .hift_generator import CosyVoiceHiFTDecoder
+
+                metadata = CosyVoiceHiFTDecoder.pretrained_config(
+                    self.vocoder_repo_id,
+                    self.vocoder_config_filename,
+                    self.vocoder_revision,
+                )
+                metadata["source"] = {"repo_id": self.vocoder_repo_id, "filename": self.vocoder_filename}
+                self._set_mel_metadata(metadata)
+        return self._resolved_mel_metadata
+
+    @property
+    def mel_config(self) -> MelSpectrogramConfig:
+        """Resolved input feature contract, loaded independently of vocoder weights."""
+        return MelSpectrogramConfig(**self._metadata()["mel_config"])
+
+    def _save_to_state_dict(self, destination, prefix, keep_vars):
+        metadata = self._metadata()
+        if self.vocoder is not None and "config" not in metadata:
+            checkpoint_config = getattr(self.vocoder, "checkpoint_config", None)
+            if callable(checkpoint_config):
+                self._set_mel_metadata({**checkpoint_config(), **metadata})
+        super()._save_to_state_dict(destination, prefix, keep_vars)
+
+    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
+        key = prefix + "_mel_metadata"
+        if key in state_dict:
+            saved = state_dict[key]
+            if saved.numel():
+                metadata = json.loads(bytes(saved.cpu().tolist()))
+                if self.vocoder is None and any(name.startswith(prefix + "vocoder.") for name in state_dict):
+                    if "config" not in metadata:
+                        raise ValueError("Saved vocoder weights require architecture metadata or a composed vocoder.")
+                    self.initialize_checkpoint_vocoder(metadata)
+                if self._resolved_mel_metadata is not None and self.mel_config != MelSpectrogramConfig(
+                    **metadata["mel_config"]
+                ):
+                    raise ValueError("Checkpoint mel specification differs from the configured specification.")
+                self._set_mel_metadata(metadata)
+            self._mel_metadata = torch.empty_like(saved, device=self._mel_metadata.device)
+            self._resolved_mel_metadata = None
+        else:
+            raise ValueError("Checkpoint has no mel specification; legacy mel targets require explicit migration.")
+        super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
 
     def _compute_mels(self, wav: torch.Tensor, lengths: torch.Tensor, sampling_rate: int, max_len=None):
-        n_fft = int(sampling_rate / 12.5)
-        hop_size = int(sampling_rate / 50)
-
-        mel = self.mel_extractor(
-            y=wav,
-            n_fft=n_fft,
-            num_mels=80,
-            sampling_rate=sampling_rate,
-            hop_size=hop_size,
-            win_size=n_fft,
-            fmin=0,
-            fmax=8000,
-            center=False,
-        )
-        mel_lengths = self.mel_output_lengths(lengths, sampling_rate)
+        mel, mel_lengths = self.mel_config.extract(wav, lengths, int(sampling_rate))
         if max_len is not None and max_len > mel.shape[-1]:
             mel = F.pad(mel, (0, max_len - mel.shape[-1]))
         return mel, mel_lengths
@@ -132,8 +228,13 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         Thin wrapper around donor compute_loss.
         """
 
+        input_rate = getattr(self.flow, "input_frame_rate", None)
+        ratio = getattr(self.flow, "token_mel_ratio", None)
+        if input_rate is not None and ratio is not None:
+            if abs(input_rate * ratio - self.mel_config.sample_rate / self.mel_config.hop_size) > 1e-6:
+                raise ValueError("Flow output frame rate differs from the mel specification.")
         target_mel, target_mel_lengths = self._compute_mels(
-            target_wav, wav_lens, sampling_rate.item(), max_len=features.shape[1]
+            target_wav, wav_lens, int(sampling_rate), max_len=features.shape[1]
         )
 
         # W2V-BERT and Matcha both produce 50 Hz features, but their exact

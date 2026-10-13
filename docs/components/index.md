@@ -30,3 +30,5 @@ field; consumers that require sample-exact boundaries should keep those
 distinctions explicit.
 
 Complete inference behavior belongs in [systems](../design_philosophy.md#systems); orchestration belongs in [pipelines](../design_philosophy.md#pipelines). Vendored implementations under `quick_convert.external` are private dependencies reached through first-party adapters.
+
+See the [CosyVoice mel and vocoder contract](cosyvoice.md) for reconstruction features and checkpoint compatibility.

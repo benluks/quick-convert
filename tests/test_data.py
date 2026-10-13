@@ -124,3 +124,33 @@ def test_load_audio_reports_target_sample_rate_after_resampling(monkeypatch):
 
     assert waveform.shape == (1, 16_000)
     assert sample_rate == 16_000
+
+
+def test_batch_resource_references_share_collated_storage_without_mutating_samples():
+    originals = [torch.arange(6.0).reshape(1, 2, 3), torch.arange(3.0).reshape(1, 1, 3)]
+    samples = [
+        AudioSample(
+            utt_id=str(index),
+            path=None,
+            resources=ResourceCollection.from_refs(
+                [
+                    ResourceRef(name="content", kind="torch_tensor", value=value),
+                    ResourceRef(name="tokens", kind="token_ids", value=torch.tensor([1, 2])),
+                    ResourceRef(name="speaker", kind="text", value=str(index)),
+                ]
+            ),
+        )
+        for index, value in enumerate(originals)
+    ]
+    batch = AudioBatch.from_samples(samples)
+    for index, original in enumerate(originals):
+        recovered = batch[index].resources
+        assert recovered["content"].value.shape == original.shape
+        assert torch.equal(recovered["content"].value, original)
+        for name in ("content", "tokens"):
+            assert (
+                recovered[name].value.untyped_storage().data_ptr()
+                == batch.resources[name].values.untyped_storage().data_ptr()
+            )
+        assert recovered["speaker"].value == str(index)
+        assert samples[index].resources["content"].value is original

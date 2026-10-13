@@ -98,3 +98,16 @@ autograd; selecting a role cannot bypass a backend's internal inference context.
 Precomputed batch resources take precedence and remain detached, so omit cached
 content resources when fine-tuning the online content encoder. Encoder parameters
 are registered on the system and included by the training module's optimizer.
+
+### Fitted transformations and checkpoint resume
+
+`FitPipeline(dataset, transform, out_path, resources=None)` fits and persists plain
+state. `resources` selects loaded named values in order; omitting it passes samples.
+`Indexer` accepts `state_path` to restore a fixed label mapping.
+See the [fitting guide](../guides/fitting.md) for canonical run configurations.
+
+`trainer.ckpt_path` resumes a training checkpoint and restores the saved W&B run
+identity when logger configuration has no explicit run ID. Legacy
+`trainer_kwargs.ckpt_path` remains accepted; configuring both raises an error.
+
+Disabling training logging selects a no-op media logger, including qualitative validation logging.

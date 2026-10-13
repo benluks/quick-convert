@@ -12,11 +12,16 @@ class Indexer:
     Useful for speaker ids, languages, labels, etc.
     """
 
-    def __init__(self, template: str, sort: bool = True):
+    def __init__(self, template: str, sort: bool = True, state_path=None):
         self.template = template
         self.sort = sort
         self.value_to_idx: dict[Any, int] = {}
         self.idx_to_value: dict[int, Any] = {}
+        self.state_path = state_path
+        if state_path is not None:
+            from quick_convert.components.fitting import load_fitted_state
+
+            load_fitted_state(self, state_path)
 
     def resolve(self, row):
         return TemplateFormatter.format_str(
@@ -39,6 +44,28 @@ class Indexer:
 
     def encode(self, value: Any) -> int:
         return self.value_to_idx[value]
+
+    def transform(self, row) -> int:
+        """Apply the fitted index to a row, using the same selection as fitting."""
+        return self.encode(self.resolve(row))
+
+    def state_dict(self):
+        """Plain mapping state usable by fitting workflows and checkpoints."""
+        return {
+            "version": 1,
+            "config": {"template": self.template, "sort": self.sort},
+            "value_to_idx": dict(self.value_to_idx),
+        }
+
+    def load_state_dict(self, state):
+        if state["version"] != 1 or state["config"] != {"template": self.template, "sort": self.sort}:
+            raise ValueError("Indexer state does not match the configured index.")
+        mapping = dict(state["value_to_idx"])
+        if sorted(mapping.values()) != list(range(len(mapping))):
+            raise ValueError("Indexer labels must form a contiguous integer mapping.")
+        self.value_to_idx = mapping
+        self.idx_to_value = {index: value for value, index in mapping.items()}
+        return self
 
     def encode_many(self, values: Iterable[Any]) -> list[int]:
         return [self.encode(value) for value in values]

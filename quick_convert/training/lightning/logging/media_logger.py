@@ -505,7 +505,10 @@ class NullMediaLogger(MediaLogger):
         pass
 
 
-def make_media_logger(logger: Logger) -> MediaLogger:
+def make_media_logger(logger: Logger | None) -> MediaLogger:
+    if logger is None:
+        return NullMediaLogger()
+
     if isinstance(logger, WandbLogger):
         return WandbMediaLogger(logger)
 

@@ -150,13 +150,26 @@ class AudioBatch(MetadataBatch):
                 shorter than any waveform in the batch.
         """
         has_audio = all(s.waveform is not None for s in samples)
+        resources = collate_resources(samples)
+        resource_refs = []
+        for index, sample in enumerate(samples):
+            refs = []
+            for ref in sample.resources:
+                if isinstance(ref.value, torch.Tensor) and ref.kind in {"torch_tensor", "token_ids"}:
+                    # Reconstruct from the batch storage rather than retaining
+                    # one extra shared-memory storage per sample/resource.
+                    value = resources[ref.name][index]
+                    if value.dtype == ref.value.dtype:
+                        ref = replace(ref, value=value.reshape(ref.value.shape))
+                refs.append(ref)
+            resource_refs.append(ResourceCollection.from_refs(refs))
 
         common_kwargs = {
             "utt_ids": [s.utt_id for s in samples],
             "paths": [s.path for s in samples],
             "splits": [s.split for s in samples],
-            "resources": collate_resources(samples),
-            "resource_refs": [s.resources for s in samples],
+            "resources": resources,
+            "resource_refs": resource_refs,
         }
 
         if not has_audio:

@@ -7,6 +7,7 @@ defaults:
 _target_: quick_convert.training.lightning.trainer.LightningTrainer
 
 module: ???
+ckpt_path: null
 cudnn_benchmark: false
 
 train_dataloader_kwargs:
@@ -56,6 +57,7 @@ trainer_kwargs:
       logging_interval: step
   logger:
     _target_: lightning.pytorch.loggers.WandbLogger
+    _partial_: true
     save_dir: ${out_root}
     project: ${project_name}
     name: ${exp_name}

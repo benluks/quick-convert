@@ -6,6 +6,7 @@ import torch
 from quick_convert.data import BaseDataset
 
 from ..base import BaseTrainer
+from .logging.resume import LoggerRunCheckpoint, resolve_loggers
 
 
 class LightningTrainer(BaseTrainer):
@@ -19,6 +20,7 @@ class LightningTrainer(BaseTrainer):
         cudnn_benchmark: dict | None = None,
         ddp: dict | None = None,
         precision: dict | None = None,
+        ckpt_path: str | None = None,
     ):
         super().__init__()
         self.module = module
@@ -29,6 +31,7 @@ class LightningTrainer(BaseTrainer):
         self.cudnn_benchmark = cudnn_benchmark
         self.ddp_cfg = ddp or {"enabled": False}
         self.precision = precision
+        self.ckpt_path = ckpt_path
 
     def _trainer_kwargs_with_ddp(self, kwargs: dict | None = None) -> dict:
         """Merge DDP defaults into trainer kwargs when requested."""
@@ -95,15 +98,24 @@ class LightningTrainer(BaseTrainer):
         trainer_kwargs = self._trainer_kwargs_with_ddp(self.trainer_kwargs)
 
         # `ckpt_path` is a Trainer.fit() argument, not a Trainer() constructor
-        # argument, so pull it out before building the Trainer. Pass
-        # `+pipeline.train_kwargs.ckpt_path=last` (or an explicit .ckpt path) to
+        # argument. Prefer `trainer.ckpt_path=/path/to/last.ckpt` to
         # resume a timed-out / crashed run from its last checkpoint; Lightning
         # restores model + optimizer + LR scheduler + global_step + epoch.
-        self.ckpt_path = trainer_kwargs.pop("ckpt_path", None)
+        legacy_ckpt_path = trainer_kwargs.pop("ckpt_path", None)
+        if self.ckpt_path is not None and legacy_ckpt_path is not None:
+            raise ValueError("Set ckpt_path on the trainer, not also inside trainer_kwargs.")
+        if legacy_ckpt_path is not None:
+            self.ckpt_path = legacy_ckpt_path
 
         if self.precision is not None:
             trainer_kwargs.setdefault("precision", self.precision)
 
+        if "logger" in trainer_kwargs:
+            trainer_kwargs["logger"] = resolve_loggers(trainer_kwargs["logger"], self.ckpt_path)
+        callbacks = list(trainer_kwargs.get("callbacks") or [])
+        if not any(isinstance(callback, LoggerRunCheckpoint) for callback in callbacks):
+            callbacks.append(LoggerRunCheckpoint())
+        trainer_kwargs["callbacks"] = callbacks
         self.pl_trainer = L.Trainer(default_root_dir=output_dir, **trainer_kwargs)
         # self.log_dir = self.pl_trainer.log_dir
         for logger in self.pl_trainer.loggers:

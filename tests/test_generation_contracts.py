@@ -6,6 +6,7 @@ import torch
 from torch import nn
 
 from quick_convert.components.decoders.cosyvoice import CosyVoiceSpectrogramGenerator
+from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
 from quick_convert.data import GeneratedAudio
 
 
@@ -22,6 +23,7 @@ class FakeFlow(nn.Module):
 class FakeVocoder(nn.Module):
     samples_per_frame = 4
     sample_rate = 24_000
+    mel_config = MelSpectrogramConfig(24_000, 16, 4, 16, 80, 0, None)
 
     def forward(self, mel):
         return torch.zeros(mel.shape[0], 1, mel.shape[-1] * self.samples_per_frame)
@@ -34,6 +36,11 @@ def make_decoder():
     decoder.flow = FakeFlow()
     decoder.vocoder = FakeVocoder()
     decoder.input_projection = None
+    decoder.mel_dim = 80
+    decoder.vocoder_config_filename = "cosyvoice3.yaml"
+    decoder.vocoder_revision = None
+    decoder.register_buffer("_mel_metadata", torch.empty(0, dtype=torch.uint8))
+    decoder._resolved_mel_metadata = None
     return decoder
 
 
@@ -57,22 +64,25 @@ def test_generated_audio_rejects_lengths_beyond_padded_tensor():
         )
 
 
-def test_cosyvoice_reports_exact_matcha_mel_lengths():
-    sample_lengths = torch.tensor([320, 639, 640, 16_000])
-
-    mel_lengths = CosyVoiceSpectrogramGenerator.mel_output_lengths(sample_lengths, sampling_rate=16_000)
-
-    assert mel_lengths.tolist() == [1, 1, 2, 50]
-
-    odd_padding_lengths = CosyVoiceSpectrogramGenerator.mel_output_lengths(
-        torch.tensor([441, 442]), sampling_rate=22_050
+def test_cosyvoice_reports_resampled_mel_lengths():
+    decoder = make_decoder()
+    decoder.vocoder = None
+    decoder._set_mel_metadata(
+        {
+            "mel_config": {
+                "sample_rate": 24000,
+                "n_fft": 1920,
+                "hop_size": 480,
+                "win_size": 1920,
+                "num_mels": 80,
+                "fmin": 0,
+                "fmax": None,
+            }
+        }
     )
-    assert odd_padding_lengths.tolist() == [0, 1]
-
-
-def test_cosyvoice_mel_lengths_reject_invalid_sample_rate():
+    assert decoder.mel_output_lengths(torch.tensor([320, 639, 640, 16000]), 16000).tolist() == [1, 1, 2, 50]
     with pytest.raises(ValueError, match="sampling_rate must be positive"):
-        CosyVoiceSpectrogramGenerator.mel_output_lengths(torch.tensor([320]), sampling_rate=0)
+        decoder.mel_output_lengths(torch.tensor([320]), 0)
 
 
 def test_cosyvoice_generation_preserves_input_lengths_and_reports_outputs():
@@ -110,12 +120,19 @@ def test_cosyvoice_construction_does_not_load_vocoder(monkeypatch):
 
 def test_cosyvoice_default_vocoder_loads_once(monkeypatch):
     decoder = make_decoder()
+    decoder._metadata()
     decoder.vocoder = None
     decoder.vocoder_repo_id = "repo"
     decoder.vocoder_filename = "hift.pt"
     calls = []
 
     class Loader:
+        @classmethod
+        def pretrained_config(cls, *args):
+            from dataclasses import asdict
+
+            return {"config": {}, "mel_config": asdict(FakeVocoder.mel_config), "revision": "test"}
+
         @classmethod
         def from_pretrained(cls, **kwargs):
             calls.append(kwargs)

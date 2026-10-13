@@ -1,0 +1,18 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /pipeline: precompute_features
+  - /dataset: librispeech
+  - _self_
+
+feature_extractor:
+  _target_: quick_convert.components.feature_extractors.prosody.OpenSmileProsodyExtractor
+
+dataset:
+  splits: [train-clean-100, train-clean-360, train-other-500, dev-clean, dev-other]
+  load: true
+
+pipeline:
+  out_dir: ${out_root}/precomputed/librispeech/prosody
+  batch_size: 1
+  num_workers: 0

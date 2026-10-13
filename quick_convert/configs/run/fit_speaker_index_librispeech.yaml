@@ -1,0 +1,27 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /dataset: manifest
+  - _self_
+
+hydra:
+  run:
+    dir: ${out_root}/precomputed/librispeech/speaker_index/fit
+
+dataset:
+  manifest_path: ${out_root}/librispeech/speaker_split/train.csv
+  resources:
+    spkid:
+      column: spkid
+      kind: text
+  load: [spkid]
+
+transform:
+  _target_: quick_convert.data.indexing.Indexer
+  template: '{sample.resources.spkid.value}'
+
+pipeline:
+  _target_: quick_convert.pipelines.fit.FitPipeline
+  dataset: ${dataset}
+  transform: ${transform}
+  out_path: ${out_root}/precomputed/librispeech/speaker_index/state.pt

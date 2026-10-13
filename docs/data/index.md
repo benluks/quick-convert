@@ -39,3 +39,5 @@ The CLAC manifest uses split-qualified utterance IDs such as `picnic/1234`, reta
 elicitation task in the `split` column, and stores `1234` as `spkid`.
 
 Datasets and providers are ordinary Python objects, so pipelines are optional orchestration rather than a requirement.
+
+Reusable transformations can be fitted and persisted with the [fitting workflow](../guides/fitting.md).

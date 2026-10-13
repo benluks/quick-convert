@@ -14,6 +14,7 @@ from quick_convert.training.lightning.logging.media_logger import (
     NullMediaLogger,
     ReconstructedAudio,
     TensorBoardMediaLogger,
+    make_media_logger,
 )
 
 
@@ -67,3 +68,9 @@ def test_tensorboard_logs_reconstructed_media_and_text():
         ),
         ("text", "asr", "hello", {"global_step": 7}),
     ]
+
+
+def test_disabled_logger_accepts_training_media():
+    logger = make_media_logger(None)
+    assert isinstance(logger, NullMediaLogger)
+    logger.log_bar("layer_weights", torch.ones(24), "layer", "weight", step=0)

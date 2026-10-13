@@ -1,0 +1,33 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /dataset: manifest
+  - _self_
+
+prosody_root: ${out_root}/precomputed/librispeech/prosody
+hydra:
+  run:
+    dir: ${prosody_root}/fit
+
+dataset:
+  manifest_path: ${out_root}/librispeech/speaker_split/train.csv
+  resources:
+    spkid:
+      column: spkid
+      kind: text
+  resource_providers:
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      name: prosody
+      kind: torch_tensor
+      path_template: ${prosody_root}/{sample.split}/{sample.utt_id}.pt
+  load: [prosody, spkid]
+
+transform:
+  _target_: quick_convert.components.prosody.ProsodyTransform
+
+pipeline:
+  _target_: quick_convert.pipelines.fit.FitPipeline
+  dataset: ${dataset}
+  transform: ${transform}
+  resources: [prosody, spkid]
+  out_path: ${prosody_root}/stats.pt
