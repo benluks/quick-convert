@@ -3,6 +3,10 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+
+
+pytest.importorskip("lightning")
+
 from lightning.pytorch.loggers import WandbLogger
 
 from quick_convert.training.lightning.logging.resume import LoggerRunCheckpoint, resolve_loggers
