@@ -68,7 +68,7 @@ pyannote = ["pyannote-audio>=3.4.0"]
 transformers = ["transformers"]
 voicefm = ["transformers>=4.36,<5"]
 spear = ["transformers>=4.50.1,<5"]
-pase = ["PASE @ git+https://github.com/santi-pdp/pase.git@2a41e63e54fa8673efd12c16cdcdd5ad4f0f125e", "torchvision==0.21.0"]
+pase = ["PASE @ git+https://github.com/santi-pdp/pase.git@2a41e63e54fa8673efd12c16cdcdd5ad4f0f125e", "torchvision==0.21.0", "gdown>=5.2,<6", "filelock>=3"]
 w2vbert = ["transformers"] # Compatibility alias for existing environments.
 s3tokenizer = ["s3tokenizer>=0.3.0"]
 dac = ["descript-audio-codec"]

@@ -36,16 +36,32 @@ an existing decoder.
 
 ## PASE / PASE+
 
-Install `uv sync --extra pase`, and obtain the frontend configuration and encoder
-checkpoint from the [official PASE repository](https://github.com/santi-pdp/pase).
-For the published PASE+ model these are `cfg/frontend/PASE+.cfg` and `FE_e199.ckpt`.
-The adapter requires local paths and never substitutes random weights for a
-missing checkpoint. It accepts plain state dictionaries or a `state_dict` wrapper,
-with strict loading.
+Install `uv sync --extra pase`. With no paths supplied, the adapter downloads the
+official [PASE+ checkpoint](https://drive.google.com/file/d/1xwlZMGnEt9bGKCVcqDeNrruLFQW5zUEW/view)
+(`FE_e199.ckpt`) and matching `cfg/frontend/PASE+.cfg` from the
+[official repository](https://github.com/santi-pdp/pase), pinned to revision
+`2a41e63e54fa8673efd12c16cdcdd5ad4f0f125e`.
+Google Drive confirmation handling uses gdown. Downloads are locked across
+processes, validated, and moved into the cache only when complete.
 
 ```python
-encoder = resolve_content_encoder("paseplus")(config_path="PASE+.cfg", checkpoint_path="FE_e199.ckpt", device="cuda")
+encoder = resolve_content_encoder("paseplus")(layer=None, device="cuda")
 features = encoder.encode_file("speech.wav")
+```
+
+The default cache is under `torch.hub.get_dir()/quick_convert/paseplus/`,
+respecting `TORCH_HOME`. Use `cache_dir="/path/to/cache"` to relocate it.
+Set `local_files_only=True` to require cached files without network access.
+To use custom weights, supply both `config_path` and `checkpoint_path`; these
+paths are used directly and never downloaded or silently replaced.
+The adapter accepts plain state dictionaries or a `state_dict` wrapper,
+with strict loading.
+
+For ssl-probe, once Quick Convert with this change is installed:
+
+```bash
+SWEEP_ENCODER=paseplus INFERENCE_FRAME_BUDGET=300 \
+scripts/run_librispeech_weighted_sum_sweep.sh
 ```
 
 PASE+ produces 256-dimensional features at 100 Hz for its published configuration.
@@ -68,8 +84,8 @@ follow the upstream setup for your CUDA version. Do not change `rnn_type` to byp
 that requirement with the published checkpoint: that changes the architecture.
 This backend has not been verified with the published checkpoint in CI.
 
-Hydra component: `components/ssl=paseplus`; supply `config_path` and
-`checkpoint_path`, both intentionally required.
+Hydra component: `components/ssl=paseplus`; the default downloads pretrained PASE+.
+Both `pase` and `paseplus` aliases use these defaults.
 
 ## emotion2vec
 

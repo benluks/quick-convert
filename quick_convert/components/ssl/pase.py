@@ -8,12 +8,13 @@ import torch
 import torchaudio
 from torch.nn.utils.rnn import pad_sequence
 
+from ._pase_pretrained import resolve_paseplus_assets
 from ._waveforms import validate_waveforms
 from .base import ContentEncoder, ContentFeatures
 
 
 class PASEContentEncoder(ContentEncoder):
-    """Official PASE/PASE+ frontend using a local config and pretrained checkpoint.
+    """Official PASE/PASE+ frontend with cached pretrained PASE+ defaults.
 
     Encodes each unpadded waveform separately: the recurrent frontend and
     temporal normalization must not see another item's padding. All-layer mode
@@ -24,24 +25,33 @@ class PASEContentEncoder(ContentEncoder):
 
     def __init__(
         self,
-        config_path: str | Path,
-        checkpoint_path: str | Path,
+        config_path: str | Path | None = None,
+        checkpoint_path: str | Path | None = None,
         device: str | None = None,
         layer: int | None = -1,
+        cache_dir: str | Path | None = None,
+        local_files_only: bool = False,
     ) -> None:
         super().__init__(device)
         if layer is not None and (not isinstance(layer, int) or isinstance(layer, bool) or layer < -1):
             raise ValueError(
                 "Use layer=-1 for final features, layer=None for all stages, or a nonnegative stage index."
             )
+        if (config_path is None) != (checkpoint_path is None):
+            raise ValueError("Supply both config_path and checkpoint_path, or omit both for pretrained PASE+.")
+        from pase.models.frontend import wf_builder
+
+        if config_path is None:
+            config_path, checkpoint_path = resolve_paseplus_assets(cache_dir, local_files_only=local_files_only)
+        for path in (config_path, checkpoint_path):
+            if not Path(path).is_file():
+                raise FileNotFoundError(f"PASE file does not exist: {path}")
         self.layer = layer
         self.model_name = str(checkpoint_path)
         with Path(config_path).open() as file:
             config = json.load(file)
         self._sample_rate = int(config.get("sr", 16000))
         self._frame_hz = self._sample_rate / math.prod(config.get("strides", [1, 10, 2, 1, 2, 1, 2, 2]))
-        from pase.models.frontend import wf_builder
-
         self.model = wf_builder(config)
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
         state = checkpoint.get("state_dict", checkpoint)
