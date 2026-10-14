@@ -2,6 +2,8 @@
 # Keep package versions in pyproject.toml; this file maps semantic capabilities
 # to import probes and composed object-graph targets.
 extras:
+  voiceprivacy-asv:
+    probes: [speechbrain]
   opensmile:
     probes: [opensmile]
   asr:
@@ -38,6 +40,7 @@ extras:
     probes: [whisper]
 
 targets:
+  quick_convert.components.speaker.VoicePrivacyECAPAEncoder: [voiceprivacy-asv]
   quick_convert.components.feature_extractors.prosody.OpenSmileProsodyExtractor: [opensmile]
   quick_convert.components.decoders.CosyVoiceSpectrogramGenerator: [cosyvoice]
   quick_convert.components.feature_extractors.TokenizerFeatureExtractor: [sentencepiece]

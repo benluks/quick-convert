@@ -11,6 +11,9 @@ include = ["quick_convert*"]
 [tool.setuptools.package-data]
 quick_convert = [
     "configs/**/*.yaml",
+    "external/voiceprivacy_asv/LICENSE",
+    "external/voiceprivacy_asv/LICENSE-WavLM",
+    "external/voiceprivacy_asv/README.md",
     "external/cosyvoice/tokenizer/assets/*.tiktoken",
     "external/matcha/VERSION",
     "external/matcha/hifigan/LICENSE",
@@ -62,6 +65,7 @@ dev = [
 ]
 
 [project.optional-dependencies]
+voiceprivacy-asv = ["speechbrain>=1.0.3,<2"]
 manifests = ["pandas>=1.5.3"]
 web = ["flask>=3.1.3", "pandas>=1.5.3"]
 pyannote = ["pyannote-audio>=3.4.0"]

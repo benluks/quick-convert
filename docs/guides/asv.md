@@ -68,3 +68,51 @@ manifest/audio revision. Change it whenever any of those change and use a fresh
 output directory. A mismatched key raises an error rather than reusing a cache.
 Reusing a key after changing inputs can produce stale results. Only load cache
 files you control.
+
+## VoicePrivacy 2026 pretrained attacker
+
+Install the optional backend and extract the official checkpoint archive:
+
+```bash
+uv sync --extra voiceprivacy-asv
+curl -L --fail -o asv_ssl.zip https://duke.app.box.com/shared/static/wo07rwi5xcgam1v6qlzfnzb536rqug14
+unzip asv_ssl.zip
+export VOICEPRIVACY_ASV_DIR=/absolute/path/to/asv_ssl
+uv run quick-convert eval_asv_voiceprivacy_ecapa \
+  enroll_dataset.manifest_path=/data/enroll.csv \
+  test_dataset.manifest_path=/data/test.csv \
+  pipeline.out_dir=outputs/evaluation/asv/voiceprivacy
+```
+
+Set the directory to the extracted folder containing `embedding_model.ckpt`
+and `WavLM-Large.pt` (check the archive's directory layout). Alternatively,
+set `speaker_encoder.ecapa_checkpoint` and `speaker_encoder.wavlm_checkpoint`
+explicitly. Load only trusted checkpoints: the original WavLM format requires
+Python pickle loading.
+
+```python
+from quick_convert.components.speaker import VoicePrivacyECAPAEncoder
+
+encoder = VoicePrivacyECAPAEncoder(
+    ecapa_checkpoint="exp/asv_ssl/embedding_model.ckpt",
+    wavlm_checkpoint="exp/asv_ssl/WavLM-Large.pt",
+    device="cuda",
+)
+embedding = encoder.encode_file("speech.wav")  # SpeakerEmbedding, values [192]
+```
+
+The adapter remains frozen in evaluation mode. It combines 24 WavLM-Large
+layers with the official ECAPA filterbank branch and returns L2-normalized
+192-dimensional embeddings. It uses peak normalization and exact edge-zero
+trimming for filterbanks, sentence mean normalization, and WavLM's checkpoint
+waveform normalization. Batch items are processed individually at their true
+length, avoiding padding-dependent embeddings. Finite non-silent mono audio
+at 16 kHz, with at least 400 samples in its nonzero span, is required; file
+loading performs resampling and downmixing.
+
+This selects the attacker only. The default QC all-pairs trials and discrete
+EER remain as described above; selecting this model does not reproduce the
+full VoicePrivacy protocol. Fine-tuning is not provided by this frozen adapter.
+The vendored implementation is pinned to upstream commit
+`d5c7f4393db3e09247f58a56ca4d340fcf1ed850`; its ECAPA code carries the upstream
+GPL-3.0-or-later license, with Microsoft MIT notices on WavLM sources.
