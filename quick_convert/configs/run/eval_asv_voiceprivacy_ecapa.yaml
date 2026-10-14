@@ -1,0 +1,5 @@
+# @package _global_
+defaults:
+  - eval_asv_librispeech
+  - /components/speaker_encoder@speaker_encoder: voiceprivacy_ecapa
+  - _self_

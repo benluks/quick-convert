@@ -4,6 +4,7 @@ from .speaker_encoders import (
     PyannoteWeSpeakerEncoder,
     SpeakerEmbedding,
     SpeakerEncoder,
+    VoicePrivacyECAPAEncoder,
 )
 
 
@@ -13,4 +14,5 @@ __all__ = [
     "PyannoteWeSpeakerEncoder",
     "SpeakerEmbedding",
     "SpeakerEncoder",
+    "VoicePrivacyECAPAEncoder",
 ]

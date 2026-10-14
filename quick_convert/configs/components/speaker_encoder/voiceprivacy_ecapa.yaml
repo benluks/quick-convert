@@ -1,0 +1,4 @@
+_target_: quick_convert.components.speaker.VoicePrivacyECAPAEncoder
+ecapa_checkpoint: ${oc.env:VOICEPRIVACY_ASV_DIR}/embedding_model.ckpt
+wavlm_checkpoint: ${oc.env:VOICEPRIVACY_ASV_DIR}/WavLM-Large.pt
+device: ${device}
