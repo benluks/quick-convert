@@ -93,3 +93,9 @@ detector sweeps over supported datasets without saving SSL embeddings.
 
 The same guide covers `analyze_trajectories_librispeech`: bounded online SSL
 trajectory matching across utterances with duration-matched random controls.
+
+## Categorical frame-duration probes
+
+See [continuous SSL composition and categorical duration](duration-probe.md) for
+`probe_duration_librispeech` (online extraction plus fitting) and
+`probe_duration_cached` (refit without audio or encoder inference).
