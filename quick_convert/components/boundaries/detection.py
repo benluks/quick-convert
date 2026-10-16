@@ -72,7 +72,7 @@ def segment_measurements(
         raise ValueError("Boundaries must be unique, ordered and strictly internal")
     edges = [0, *points, num_frames]
     records = []
-    for i, (start, end) in enumerate(zip(edges[:-1], edges[1:])):
+    for i, (start, end) in enumerate(zip(edges[:-1], edges[1:], strict=True)):
         is_edge = i == 0 or i == len(edges) - 2
         if not include_edges and is_edge:
             continue

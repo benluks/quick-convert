@@ -6,15 +6,15 @@ from quick_convert.utils.streaming_statistics import RunningMoments
 
 
 def test_change_metrics():
-    x = torch.tensor([[1.0, 0.], [0.0, 1.], [0.0, 2.]])
-    torch.testing.assert_close(change_signal(x, "l2"), torch.tensor([2**0.5, 1.]))
-    torch.testing.assert_close(change_signal(x, "cosine"), torch.tensor([1.0, 0.]))
+    x = torch.tensor([[1.0, 0.0], [0.0, 1.0], [0.0, 2.0]])
+    torch.testing.assert_close(change_signal(x, "l2"), torch.tensor([2**0.5, 1.0]))
+    torch.testing.assert_close(change_signal(x, "cosine"), torch.tensor([1.0, 0.0]))
     with pytest.raises(ValueError):
         change_signal(x, "invalid")
 
 
 def test_peak_distance_and_frame_positions():
-    signal = torch.tensor([0.0, 4.0, 0.0, 3.0, 0.0, 7.0, 0.])
+    signal = torch.tensor([0.0, 4.0, 0.0, 3.0, 0.0, 7.0, 0.0])
     assert detect_boundaries(signal, threshold=2).tolist() == [2, 4, 6]
     assert detect_boundaries(signal, threshold=2, min_distance_frames=3).tolist() == [2, 6]
     assert detect_boundaries(signal, threshold=8).numel() == 0

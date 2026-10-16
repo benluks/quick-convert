@@ -28,7 +28,7 @@ class RunningMoments:
         other.m2 = ((x - other.mean) ** 2).sum().item()
         self.merge(other)
 
-    def merge(self, other: "RunningMoments"):
+    def merge(self, other: RunningMoments):
         if other.count == 0:
             return
         total = self.count + other.count
