@@ -6,6 +6,8 @@ No encoder, dataset or decoder dependency: the caller supplies one unpadded
 
 from __future__ import annotations
 
+import math
+
 import torch
 import torch.nn.functional as F
 
@@ -43,12 +45,21 @@ def detect_boundaries(
         raise ValueError("threshold must be finite")
     if changes.numel() == 0:
         return torch.empty(0, dtype=torch.long, device=changes.device)
-    left = torch.cat((changes[:1], changes[:-1]))
-    right = torch.cat((changes[1:], changes[-1:]))
-    candidates = torch.nonzero((changes >= threshold) & (changes >= left) & (changes > right), as_tuple=True)[0]
-    # Include a peak at the last sample if it exceeds its left neighbor.
-    if changes.numel() > 1 and changes[-1] >= threshold and changes[-1] > changes[-2]:
-        candidates = torch.cat((candidates, torch.tensor([changes.numel() - 1], device=changes.device)))
+    # Collapse flat runs before peak finding: the first frame of a maximal
+    # plateau wins, including plateaus touching either endpoint. A completely
+    # flat signal contains no transition peaks.
+    starts = torch.cat(
+        (
+            torch.zeros(1, dtype=torch.long, device=changes.device),
+            torch.nonzero(changes[1:] != changes[:-1], as_tuple=True)[0] + 1,
+        )
+    )
+    heights = changes[starts]
+    if len(starts) == 1:
+        return torch.empty(0, dtype=torch.long, device=changes.device)
+    left = torch.cat((heights.new_tensor([-math.inf]), heights[:-1]))
+    right = torch.cat((heights[1:], heights.new_tensor([-math.inf])))
+    candidates = starts[(heights >= threshold) & (heights > left) & (heights > right)]
     ranked = sorted(candidates.tolist(), key=lambda i: (-float(changes[i]), i))
     accepted: list[int] = []
     for index in ranked:
@@ -65,8 +76,10 @@ def segment_measurements(
     include_edges: bool = True,
 ) -> list[dict]:
     """Measure consecutive segments; explicitly flag recording-edge segments."""
-    if num_frames < 2 or frame_hop_seconds <= 0:
+    if num_frames < 2 or not math.isfinite(frame_hop_seconds) or frame_hop_seconds <= 0:
         raise ValueError("num_frames must be >= 2 and frame_hop_seconds positive")
+    if boundaries.ndim != 1 or boundaries.is_floating_point() or boundaries.dtype == torch.bool:
+        raise ValueError("Boundaries must be a 1D integer tensor")
     points = [int(x) for x in boundaries.tolist()]
     if points != sorted(set(points)) or any(x <= 0 or x >= num_frames for x in points):
         raise ValueError("Boundaries must be unique, ordered and strictly internal")

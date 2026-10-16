@@ -85,3 +85,8 @@ This checks gradient plumbing, not jitter prediction or preservation of SSL util
 Use `fit_speaker_index_librispeech` to persist a label mapping, or precompute
 openSMILE sidecars and run `fit_prosody_librispeech` for acoustic statistics.
 See the [fitting guide](fitting.md) for resource contracts and saved-state reuse.
+
+## SSL boundary statistics
+
+See [online boundary analysis](boundary-analysis.md) for online encoder-layer and
+detector sweeps over supported datasets without saving SSL embeddings.

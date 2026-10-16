@@ -52,3 +52,43 @@ class RunningMoments:
             "std": self.std,
             "variance": self.variance,
         }
+
+
+class PrioritySample:
+    """Exact extrema and uniform frame sampling via bounded random priorities."""
+
+    def __init__(self, capacity, generator):
+        self.capacity, self.generator = capacity, generator
+        self.values = torch.empty(0, dtype=torch.float64)
+        self.priorities = torch.empty(0, dtype=torch.float64)
+        self.minimum, self.maximum = float("inf"), -float("inf")
+        self.count = 0
+
+    def update(self, values):
+        if not values.numel():
+            return
+        self.minimum = min(self.minimum, values.min().item())
+        self.maximum = max(self.maximum, values.max().item())
+        self.count += values.numel()
+        if not self.capacity:
+            return
+        for chunk in values.split(65536):
+            priorities = torch.rand(len(chunk), generator=self.generator, dtype=torch.float64)
+            if len(self.values) == self.capacity:
+                candidates = priorities < self.priorities.max()
+                chunk, priorities = chunk[candidates], priorities[candidates]
+                if not len(chunk):
+                    continue
+            values = torch.cat((self.values, chunk))
+            priorities = torch.cat((self.priorities, priorities))
+            if len(values) > self.capacity:
+                indices = priorities.topk(self.capacity, largest=False).indices
+                values, priorities = values[indices], priorities[indices]
+            self.values, self.priorities = values, priorities
+
+    def edges(self, strategy, count):
+        if strategy == "quantile":
+            edges = torch.quantile(self.values, torch.arange(1, count, dtype=torch.float64) / count)
+        else:
+            edges = torch.linspace(self.minimum, self.maximum, count + 1, dtype=torch.float64)[1:-1]
+        return torch.unique_consecutive(edges)

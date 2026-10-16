@@ -1,0 +1,24 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /dataset: librispeech
+  - _self_
+
+# All transformer layers in one pass. Output axis 0 is transformer block 1,
+# matching this encoder's layer=None contract (the frontend state is omitted).
+encoder:
+  _target_: quick_convert.components.ssl.WavLMContentEncoder
+  layer: null
+  device: ${device}
+
+dataset:
+  root: ${data_root}/librispeech/LibriSpeech
+  splits: [dev-clean]
+  load: true
+  target_sr: 16000
+
+pipeline:
+  _target_: quick_convert.pipelines.boundary_analysis.BoundaryAnalysisPipeline
+  dataset: ${dataset}
+  encoder: ${encoder}
+  out_dir: ${out_root}/boundary_analysis/${now:%Y%m%d_%H%M%S}
