@@ -34,6 +34,8 @@ RELATIONSHIPS = {
     "following_strength": "right_strength",
     "internal_movement": "mean_internal_l2",
     "next_duration": "next_duration_ms",
+    "total_path_length": "path_length_l2",
+    "endpoint_displacement": "net_displacement_l2",
 }
 
 
@@ -67,6 +69,86 @@ class _Pairs:
         return max(-1.0, min(1.0, self.cross / denominator)) if denominator else None
 
 
+BUDGET_MEASURES = ("duration_ms", "mean_internal_l2", "path_length_l2", "net_displacement_l2")
+DURATION_EDGES_MS = (0, 80, 160, 320, 640, 1280, math.inf)
+
+
+class _MovementBudget:
+    """Movement versus duration bins and within-utterance log scaling."""
+
+    def __init__(self):
+        self.overall = {name: RunningMoments() for name in BUDGET_MEASURES}
+        self.bins = [{name: RunningMoments() for name in BUDGET_MEASURES} for _ in range(len(DURATION_EDGES_MS) - 1)]
+        self.quartiles = [{name: RunningMoments() for name in BUDGET_MEASURES} for _ in range(4)]
+        self.scaling = {
+            name: dict(pairs=_Pairs(), speakers={}, utterances=0, eligible=0)
+            for name in ("path_length_l2", "net_displacement_l2")
+        }
+        self.one_frame = 0
+
+    def update(self, rows, speaker):
+        values = {name: torch.tensor([row[name] for row in rows], dtype=torch.float64) for name in BUDGET_MEASURES}
+        transitions = torch.tensor([row["end_frame"] - row["start_frame"] - 1 for row in rows], dtype=torch.float64)
+        self.one_frame += int((transitions == 0).sum())
+        for name, moments in self.overall.items():
+            moments.update(values[name])
+        if not len(rows):
+            return
+        ranks = average_ranks(values["duration_ms"]) / len(rows)
+        for index, bin in enumerate(self.bins):
+            lower, upper = DURATION_EDGES_MS[index : index + 2]
+            # Timestamps can differ from exact hop multiples at machine precision.
+            duration_ms = values["duration_ms"].round(decimals=6)
+            mask = (duration_ms >= lower) & (duration_ms < upper)
+            for name, moments in bin.items():
+                moments.update(values[name][mask])
+        for index, bin in enumerate(self.quartiles):
+            mask = (ranks > index / 4) & (ranks <= (index + 1) / 4)
+            for name, moments in bin.items():
+                moments.update(values[name][mask])
+        for name, state in self.scaling.items():
+            valid = (transitions > 0) & (values[name] > 0)
+            x, y = transitions[valid].log(), values[name][valid].log()
+            state["eligible"] += len(x)
+            if len(x) < 2 or x.max() == x.min():
+                continue
+            x, y = x - x.mean(), y - y.mean()
+            state["pairs"].update(x, y)
+            state["utterances"] += 1
+            if speaker is not None:
+                state["speakers"].setdefault(speaker, _Pairs()).update(x, y)
+
+    def report(self, summarize, interval, generator):
+        scaling = {}
+        for name, state in self.scaling.items():
+            pairs = state["pairs"]
+            scaling[name] = dict(
+                within_utterance_log_slope=pairs.cross / pairs.x.m2 if pairs.x.m2 > 0 else None,
+                speaker_bootstrap_95_interval=interval(state["speakers"], generator, slope=True),
+                pairs=pairs.x.count,
+                utterances=state["utterances"],
+                eligible_positive_pairs=state["eligible"],
+            )
+        return dict(
+            measures={name: summarize(moments) for name, moments in self.overall.items()},
+            one_frame_segments=self.one_frame,
+            duration_bins=[
+                dict(
+                    lower_ms=DURATION_EDGES_MS[index],
+                    upper_ms=DURATION_EDGES_MS[index + 1] if math.isfinite(DURATION_EDGES_MS[index + 1]) else None,
+                    measures={name: summarize(moments) for name, moments in bin.items()},
+                )
+                for index, bin in enumerate(self.bins)
+            ],
+            within_utterance_duration_quartiles=[
+                dict(quartile=index + 1, measures={name: summarize(moments) for name, moments in bin.items()})
+                for index, bin in enumerate(self.quartiles)
+            ],
+            log_scaling=scaling,
+            interpretation="Within-utterance log movement = beta * log(number of internal transitions) + intercept. Beta near 0 is consistent with constant total movement; beta near 1 with constant mean movement per transition. Intermediate values indicate sublinear growth. Positive movement only; one-frame, zero-movement and duration-constant utterance subsets cannot identify the slope and are excluded. This is descriptive across unmatched segments, not evidence of shared trajectories or temporal stretchability.",
+        )
+
+
 class SummarizeBoundariesPipeline:
     """Read contiguous segmentation records and write small aggregate reports.
 
@@ -88,7 +170,10 @@ class SummarizeBoundariesPipeline:
         if not self.segments_path.is_file():
             raise FileNotFoundError(self.segments_path)
         self.out_dir.mkdir(parents=True, exist_ok=True)
-        if any((self.out_dir / name).exists() for name in ("analysis.json", "analysis.csv", "analysis.md")):
+        if any(
+            (self.out_dir / name).exists()
+            for name in ("analysis.json", "analysis.csv", "analysis.md", "movement_budget.csv")
+        ):
             raise FileExistsError(f"Analysis already exists in {self.out_dir}; choose a new out_dir")
 
     def write_config(self, rendered_config):
@@ -123,11 +208,16 @@ class SummarizeBoundariesPipeline:
                             raise ValueError(f"Invalid finite measurement: {name}")
                     if row["duration_ms"] is None or row["duration_ms"] <= 0:
                         raise ValueError("duration_ms must be positive")
+                    for name in ("mean_internal_l2", "path_length_l2", "net_displacement_l2"):
+                        if row[name] is None or row[name] < 0:
+                            raise ValueError(f"{name} must be nonnegative")
+                    if row["end_frame"] <= row["start_frame"]:
+                        raise ValueError("Segment must contain at least one frame")
                     yield row
                 except (ValueError, TypeError) as error:
                     raise ValueError(f"Invalid segment record at line {number}: {error}") from error
 
-    def _interval(self, speakers, generator):
+    def _interval(self, speakers, generator, *, slope=False):
         # Within-utterance ranks are centered before accumulation: the sums
         # below can therefore be resampled across speakers without recentering.
         if not self.speaker_regex or len(speakers) < 2 or not self.bootstrap_samples:
@@ -135,7 +225,7 @@ class SummarizeBoundariesPipeline:
         stats = torch.tensor([[s.cross, s.x.m2, s.y.m2] for s in speakers.values()], dtype=torch.float64)
         indices = torch.randint(len(stats), (self.bootstrap_samples, len(stats)), generator=generator)
         sums = stats[indices].sum(1)
-        denominators = (sums[:, 1] * sums[:, 2]).sqrt()
+        denominators = sums[:, 1] if slope else (sums[:, 1] * sums[:, 2]).sqrt()
         valid = denominators > 0
         if not valid.any():
             return None
@@ -169,6 +259,7 @@ class SummarizeBoundariesPipeline:
                     speakers={},
                     durations=RunningMoments(),
                     edges=0,
+                    movement_budget=_MovementBudget(),
                     relationships={
                         name: dict(raw=_Pairs(), within=_Pairs(), speakers={}, utterances=0) for name in RELATIONSHIPS
                     },
@@ -191,6 +282,7 @@ class SummarizeBoundariesPipeline:
             group["edges"] += len(rows) - len(interior)
             duration = torch.tensor([r["duration_ms"] for r in interior], dtype=torch.float64)
             group["durations"].update(duration)
+            group["movement_budget"].update(interior, speaker)
             if speaker is not None:
                 state = group["speakers"].setdefault(speaker, dict(utterances=0, duration=RunningMoments()))
                 state["utterances"] += 1
@@ -257,6 +349,7 @@ class SummarizeBoundariesPipeline:
                 )
                 for name, state in group["relationships"].items()
             }
+            item["movement_budget"] = group["movement_budget"].report(summary, self._interval, generator)
             item["strength_quartiles"] = {
                 side: [dict(quartile=i + 1, duration_ms=summary(m)) for i, m in enumerate(bins)]
                 for side, bins in group["bins"].items()
@@ -267,7 +360,7 @@ class SummarizeBoundariesPipeline:
             }
             results.append(item)
         report = dict(
-            version=1,
+            version=2,
             source=str(self.segments_path),
             rows=row_count,
             unique_utterances=len(utterances),
@@ -318,6 +411,41 @@ class SummarizeBoundariesPipeline:
                 lines.append(
                     f"| {item['layer_index']} | {item['threshold']} | {item['min_distance_ms']} | {name} | {fmt(relation['within_utterance_rank_correlation'])} | {', '.join(map(fmt, interval)) if interval else 'n/a'} |"
                 )
+        lines += [
+            "",
+            "## Movement budget",
+            "",
+            "Slopes use centered within-utterance log movement versus log internal-transition count. Beta 0: constant total movement; beta 1: constant average movement. These comparisons do not match trajectory identity.",
+            "",
+            "| Layer axis index | Cutoff | Spacing (ms) | Movement | Log slope | Speaker bootstrap 95% interval |",
+            "|---|---|---|---|---|---|",
+        ]
+        budget_rows = []
+        for item in results:
+            for name, state in item["movement_budget"]["log_scaling"].items():
+                ci = state["speaker_bootstrap_95_interval"]
+                lines.append(
+                    f"| {item['layer_index']} | {item['threshold']} | {item['min_distance_ms']} | {name} | {fmt(state['within_utterance_log_slope'])} | {', '.join(map(fmt, ci)) if ci else 'n/a'} |"
+                )
+            for kind, bins in (
+                ("absolute_duration", item["movement_budget"]["duration_bins"]),
+                ("within_utterance_quartile", item["movement_budget"]["within_utterance_duration_quartiles"]),
+            ):
+                for index, bin in enumerate(bins):
+                    row = {
+                        **{field: item[field] for field in SETTING_FIELDS},
+                        "bin_type": kind,
+                        "bin_index": index + 1,
+                        "lower_ms": bin.get("lower_ms"),
+                        "upper_ms": bin.get("upper_ms"),
+                    }
+                    for name, moments in bin["measures"].items():
+                        row.update({f"{name}_{stat}": value for stat, value in moments.items()})
+                    budget_rows.append(row)
+        with (self.out_dir / "movement_budget.csv").open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(budget_rows[0]))
+            writer.writeheader()
+            writer.writerows(budget_rows)
         (self.out_dir / "analysis.md").write_text("\n".join(lines) + "\n")
         print(f"Wrote analysis.json, analysis.csv and analysis.md to {self.out_dir}")
         return report

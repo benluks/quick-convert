@@ -164,3 +164,53 @@ These are descriptive relationships conditioned on the boundary detector.
 In particular, the detector itself can induce an association between duration
 and internal movement. The report does not compare layers or establish whether
 a segment can be stretched naturally.
+
+### Movement-budget analysis
+
+The same post-processing command now also measures duration versus
+`path_length_l2` and `net_displacement_l2`. To reanalyze an existing run without
+overwriting an earlier report:
+
+```bash
+uv run quick-convert summarize_boundaries \
+  input_dir=outputs/boundary_analysis/YOUR_RUN \
+  pipeline.out_dir=outputs/boundary_analysis/YOUR_RUN/movement_analysis
+```
+
+Upload `movement_analysis/analysis.json`. Report schema version 2 adds a
+`movement_budget` section per detector setting, containing:
+
+- Mean and population standard deviation of total path length, endpoint
+  displacement and mean internal movement.
+- The same measurements in fixed duration ranges `[0,80)`, `[80,160)`,
+  `[160,320)`, `[320,640)`, `[640,1280)`, `[1280,infinity)` ms. Machine-precision
+  timestamp errors are rounded to six decimal places in milliseconds for bin
+  assignment only.
+- Within-utterance duration quartiles, reducing confounding from differences
+  in typical duration between recordings. Ties can produce unequal bins.
+- A within-utterance log-log slope for each total movement measure versus the
+  number of internal frame transitions, with speaker-bootstrap intervals and
+  inclusion counts. `movement_budget.csv` contains flat bin summaries; the
+  JSON and Markdown include the slope estimates.
+
+The scaling model is
+`log(movement) = utterance_intercept + beta * log(internal_transitions)`.
+Both log variables are centered within each utterance before regression. A
+slope near 0 is consistent with a fixed total movement budget; a slope near 1
+indicates approximately constant average movement per transition. Intermediate
+slopes indicate that total movement grows, but more slowly than segment length.
+Use the interval and binned summaries rather than interpreting a small duration
+correlation as proof that movement is constant. The fitted model is descriptive,
+not a test of equivalence to zero.
+
+Internal transitions equal `end_frame - start_frame - 1`; one-frame segments
+have no internal transitions. Log fits exclude zero movement, one-frame segments
+and utterance subsets without variation in transition count. Counts for these
+exclusions are reported. Zero-movement segments remain in ordinary summaries
+and duration correlations. Bounding jumps remain excluded from all internal
+movement measures.
+
+These estimates compare segments that have not been matched by SSL trajectory
+identity. Even a fixed total movement budget would not establish that a longer
+segment is a time-stretched version of a shorter one; that requires the planned
+cross-utterance trajectory-matching experiment and detector controls.
