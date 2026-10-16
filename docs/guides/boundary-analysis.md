@@ -319,3 +319,75 @@ sampling density. Similarity means proximity under this declared descriptor,
 not proven linguistic identity. A large nearest-match duration ratio supports
 further investigation; it does not demonstrate plausible rhythm modification
 or natural resynthesis.
+
+### Inspect actual retrieved pairs
+
+After trajectory analysis, generate a small, self-contained HTML inspection
+report. This re-encodes only the source utterances referenced by selected
+matches and their saved random partners, not the full split:
+
+```bash
+uv run --extra transformers quick-convert inspect_trajectories \
+  input_dir=outputs/trajectory_analysis/YOUR_RUN device=cuda
+```
+
+`input_dir` must contain `trajectory_analysis.json` and
+`trajectory_matches.jsonl`. The default encoder is native WavLM layer 6,
+matching the trajectory experiment above. For other experiments, override
+`encoder._target_`, `encoder.layer` and other encoder settings consistently.
+The command checks encoder metadata against the original run and verifies that
+recomputed real-pair scores agree within 0.001. It fails before writing reports
+if these checks fail, rather than displaying comparisons from another model
+or source audio. Small device/precision differences are tolerated; investigate
+larger differences before changing `+pipeline.score_tolerance`.
+
+Open `YOUR_RUN/inspection/inspection.html` in a browser. The file embeds:
+
+- Original pair durations, saved/recomputed cosine scores, and distance between
+  the mean descriptor vectors (a separate diagnostic for static SSL proximity).
+- Native-frame cosine-distance matrices, with display subsampling capped at
+  128 frames per side. This cap changes only the displayed matrix, not scores.
+- The full normalized-time distance matrix and pointwise distance profile on
+  the original run's descriptor grid (16 points by default).
+- Known 1.5x and 2x feature-stretched copies of the query as numerical references.
+  These interpolate already-extracted SSL embeddings, **not audio waveforms**.
+- The saved random partner's distance profile when available.
+- Embedded source audio clips with 150 ms context on each side; original
+  segment timestamps are printed above the plots. Listening is optional and
+  does not supply labels or alignments to the SSL matching method.
+
+All panels use an absolute cosine-distance scale of **0 to 2**: pale means
+close, purple means far. A pale diagonal band indicates closer vectors at
+corresponding relative times. The dashed diagonal is only an equal-relative-time
+reference, not a fitted alignment. Pointwise profiles help reveal whether a
+moderate average hides a large mismatch in part of the trajectory. Hover over
+heatmap cells to see numerical distances. This report performs no PCA or
+external linguistic/acoustic alignment.
+
+Selection defaults to detected, ordinary nearest-neighbor matches: three
+score-rank strata crossed with duration ratios below/above 1.5x, up to two pairs
+per cell (at most 12). This deliberately covers the score range; it is not a
+representative or independent sample. Some cells may be empty. Change
+`+pipeline.pairs_per_stratum=1`, `+pipeline.score_bins=4`,
+`+pipeline.duration_ratio_split=2.0`, or `+pipeline.condition=dtw_refined` as needed.
+Shuffled-time records cannot be inspected as real ordered trajectories.
+
+`inspection.json` stores the same numerical diagnostics and selected match
+metadata without feature tensors or embedded audio. Upload **`inspection.html`**
+to discuss the visual comparisons, or `inspection.json` for numerical review.
+The HTML has no remote assets, JavaScript, or server requirement; copying the
+single file preserves plots and audio. Set `+pipeline.include_audio=false` to
+omit audio and reduce file size. Existing inspection reports are refused;
+choose `pipeline.out_dir=/another/new/directory` to rerun.
+
+The complete source utterance is encoded before slicing saved frame intervals,
+so SSL context matches the original experiment. Only requested segment tensors
+are retained in RAM until rendering; no raw embeddings are saved. If audio has
+moved, use both `+pipeline.path_prefix_from=/old/root` and
+`+pipeline.path_prefix_to=/new/root` for a component-aware path-prefix replacement.
+
+A synthetic stretched copy should have a very small distance: it checks the
+metric and interpolation numerics. This is an ideal self-reference, **not** a
+threshold for accepting naturally occurring pairs. Closeness under the chosen
+metric, even together with duration variation, does not by itself establish
+that two segments realize identical content or can be stretched naturally.
