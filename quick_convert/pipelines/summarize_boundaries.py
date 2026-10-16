@@ -12,7 +12,7 @@ from pathlib import Path
 import torch
 from tqdm import tqdm
 
-from quick_convert.utils.streaming_statistics import RunningMoments
+from quick_convert.utils.streaming_statistics import RunningCovariance, RunningMoments, average_ranks
 
 
 SETTING_FIELDS = (
@@ -39,36 +39,6 @@ RELATIONSHIPS = {
 }
 
 
-def average_ranks(values):
-    """One-based ranks with average ties, computed only within one utterance."""
-    _, inverse, counts = torch.unique(values, sorted=True, return_inverse=True, return_counts=True)
-    ranks = counts.cumsum(0).double() - (counts.double() - 1) / 2
-    return ranks[inverse]
-
-
-class _Pairs:
-    """Stable merge of paired moments, with optional within-utterance ranking."""
-
-    def __init__(self):
-        self.x, self.y = RunningMoments(), RunningMoments()
-        self.cross = 0.0
-
-    def update(self, x, y):
-        if not len(x):
-            return
-        dx, dy = x - x.mean(), y - y.mean()
-        old, n = self.x.count, len(x)
-        self.cross += float((dx * dy).sum()) + (float(x.mean()) - self.x.mean) * (
-            float(y.mean()) - self.y.mean
-        ) * old * n / (old + n)
-        self.x.update(x)
-        self.y.update(y)
-
-    def correlation(self):
-        denominator = math.sqrt(max(self.x.m2, 0) * max(self.y.m2, 0))
-        return max(-1.0, min(1.0, self.cross / denominator)) if denominator else None
-
-
 BUDGET_MEASURES = ("duration_ms", "mean_internal_l2", "path_length_l2", "net_displacement_l2")
 DURATION_EDGES_MS = (0, 80, 160, 320, 640, 1280, math.inf)
 
@@ -81,7 +51,7 @@ class _MovementBudget:
         self.bins = [{name: RunningMoments() for name in BUDGET_MEASURES} for _ in range(len(DURATION_EDGES_MS) - 1)]
         self.quartiles = [{name: RunningMoments() for name in BUDGET_MEASURES} for _ in range(4)]
         self.scaling = {
-            name: dict(pairs=_Pairs(), speakers={}, utterances=0, eligible=0)
+            name: dict(pairs=RunningCovariance(), speakers={}, utterances=0, eligible=0)
             for name in ("path_length_l2", "net_displacement_l2")
         }
         self.one_frame = 0
@@ -116,7 +86,7 @@ class _MovementBudget:
             state["pairs"].update(x, y)
             state["utterances"] += 1
             if speaker is not None:
-                state["speakers"].setdefault(speaker, _Pairs()).update(x, y)
+                state["speakers"].setdefault(speaker, RunningCovariance()).update(x, y)
 
     def report(self, summarize, interval, generator):
         scaling = {}
@@ -261,7 +231,8 @@ class SummarizeBoundariesPipeline:
                     edges=0,
                     movement_budget=_MovementBudget(),
                     relationships={
-                        name: dict(raw=_Pairs(), within=_Pairs(), speakers={}, utterances=0) for name in RELATIONSHIPS
+                        name: dict(raw=RunningCovariance(), within=RunningCovariance(), speakers={}, utterances=0)
+                        for name in RELATIONSHIPS
                     },
                     bins={side: [RunningMoments() for _ in range(4)] for side in ("left_strength", "right_strength")},
                 )
@@ -309,7 +280,7 @@ class SummarizeBoundariesPipeline:
                     relation["within"].update(rx, ry)
                     relation["utterances"] += 1
                     if speaker is not None:
-                        relation["speakers"].setdefault(speaker, _Pairs()).update(rx, ry)
+                        relation["speakers"].setdefault(speaker, RunningCovariance()).update(rx, ry)
             for side in group["bins"]:
                 eligible = [r for r in interior if r[side] is not None]
                 if not eligible:

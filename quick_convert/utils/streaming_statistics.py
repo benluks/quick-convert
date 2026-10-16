@@ -92,3 +92,33 @@ class PrioritySample:
         else:
             edges = torch.linspace(self.minimum, self.maximum, count + 1, dtype=torch.float64)[1:-1]
         return torch.unique_consecutive(edges)
+
+
+def average_ranks(values):
+    """One-based ranks with average ties, computed only within one utterance."""
+    _, inverse, counts = torch.unique(values, sorted=True, return_inverse=True, return_counts=True)
+    ranks = counts.cumsum(0).double() - (counts.double() - 1) / 2
+    return ranks[inverse]
+
+
+class RunningCovariance:
+    """Stable merge of paired moments, with optional within-utterance ranking."""
+
+    def __init__(self):
+        self.x, self.y = RunningMoments(), RunningMoments()
+        self.cross = 0.0
+
+    def update(self, x, y):
+        if not len(x):
+            return
+        dx, dy = x - x.mean(), y - y.mean()
+        old, n = self.x.count, len(x)
+        self.cross += float((dx * dy).sum()) + (float(x.mean()) - self.x.mean) * (
+            float(y.mean()) - self.y.mean
+        ) * old * n / (old + n)
+        self.x.update(x)
+        self.y.update(y)
+
+    def correlation(self):
+        denominator = math.sqrt(max(self.x.m2, 0) * max(self.y.m2, 0))
+        return max(-1.0, min(1.0, self.cross / denominator)) if denominator else None

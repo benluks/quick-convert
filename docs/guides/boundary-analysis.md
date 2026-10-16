@@ -214,3 +214,108 @@ These estimates compare segments that have not been matched by SSL trajectory
 identity. Even a fixed total movement budget would not establish that a longer
 segment is a time-stretched version of a shorter one; that requires the planned
 cross-utterance trajectory-matching experiment and detector controls.
+
+## Duration-independent SSL trajectory matching (experimental)
+
+This next experiment requires a new online SSL pass because scalar segment
+records cannot reconstruct trajectories. It retains a bounded sample of segment
+descriptors in RAM and writes only compact reports and match metadata.
+
+```bash
+uv run --extra transformers quick-convert analyze_trajectories_librispeech \
+  dataset.root=/cfs/collections/librispeech/LibriSpeech \
+  'dataset.splits=[dev-clean]' device=cuda
+```
+
+This config selects **native WavLM `encoder.layer=6`**, matching KNN-VC's
+`hidden_states[6]`. It does not use the all-layer output-axis indexing from the
+boundary sweep. The encoder is called once per utterance, in eval/inference mode.
+The complete dev-clean split is used unless `+pipeline.max_utterances=100` is
+supplied. A capped, ordered pilot may contain very few speakers; the report
+includes retained utterance and speaker coverage.
+
+Defaults are the 75th-percentile cosine cutoff, 20 ms minimum peak spacing,
+no smoothing, **2,000 retained segment/control pairs**, **256 sampled queries**,
+16 points per trajectory, and 5 candidates per query for DTW refinement.
+Override constructor settings using `+pipeline.max_segments=4000`,
+`+pipeline.max_queries=512`, `+pipeline.points=32`, etc. One detector setting is
+used per run to keep retrieval populations interpretable. To test another
+setting, use a fresh output directory and change `+pipeline.threshold=0.9` or
+`+pipeline.min_distance_ms=80`.
+
+### Matching and controls
+
+For each detected interior segment containing at least two frames:
+
+1. Draw a random contiguous span in the same utterance with exactly the same
+   frame length. Its endpoints must also be internal; it ignores detector
+   peaks and can overlap other random spans or coincide with the detected span.
+2. Maintain a uniform reservoir over eligible detected segments, retaining each
+   segment together with its paired random-location control. This guarantees
+   identical retained duration distributions and utterance origins for the two
+   populations. The sampling unit is a segment, not an utterance or speaker.
+3. Resample each retained trajectory to 16 uniformly spaced relative-time
+   points, including its endpoints. Normalize each interpolated feature vector
+   for cosine distance. Preserve absolute SSL location and temporal ordering;
+   do not subtract each segment's mean. Duration never enters the descriptor.
+4. Search the same-sized detected and random-location banks separately. Exact,
+   batched search averages pointwise cosine distance over the fixed time grid.
+   Exclude **all segments from the query utterance**, not just the query itself.
+5. Rerank the top 5 candidates using DTW on retained, resampled trajectories.
+   The default band is 25% of the normalized time grid. Choose the path with
+   minimum accumulated cosine cost, then divide by its number of matched
+   steps; this is not a minimum-average-cost DTW objective. Native-frame
+   sequences are discarded, so refinement cannot resolve detail lost during
+   16-point resampling.
+
+For each population, the report compares ordinary nearest neighbors, DTW-refined
+neighbors, a uniformly random eligible partner, and a nearest-neighbor search
+after independently shuffling the time points in every descriptor. Shuffling
+preserves sampled vectors while disrupting order. Candidate pools, query IDs
+and bank sizes are the same for the ordered and shuffled searches. Nearest
+neighbors beat random partners by construction; that alone does **not** validate
+the matching. Compare with the shuffled-time and random-location searches,
+inspect examples, and assess similarity before interpreting duration ratios.
+
+Speaker IDs are used only to report coverage/same-speaker match rates and,
+optionally, exclude same-speaker candidates with `+pipeline.different_speaker=true`.
+They are not features in the distance. The default regex extracts LibriSpeech
+speaker IDs; override `pipeline.speaker_regex` or set it to null for unknown IDs.
+No transcripts, phonetic labels, acoustic measurements or external alignments
+are used to identify similar segments.
+
+### Outputs and resource bounds
+
+- `trajectory_analysis.json`: small aggregate report, including similarity and
+  duration-ratio distributions, fractions differing by at least 1.5x/2x, duration
+  ratios within similarity quartiles, speaker coverage, and DTW warp statistics.
+  It also contains paired detector/control movement summaries and pooled plus
+  within-utterance rank duration relationships over **all eligible segments**,
+  rather than only the retained reservoir.
+- `trajectory_matches.jsonl`: per-query matches and controls with paths, frame
+  coordinates, timestamps, original durations and movement measurements for
+  inspection/listening. It contains no feature tensors.
+- `config.yaml`: resolved run configuration.
+
+Upload **`trajectory_analysis.json`** first. Keep match records locally unless
+specific examples are needed. Query distributions are descriptive; matches
+share candidates and speakers and are not independent observations. No
+confidence intervals or content-equivalence claims are assigned to them.
+
+At the default 16 points and 1,024 features, the two preallocated CPU descriptor
+banks require about **250 MiB**. Working memory also includes the longest
+utterance's SSL output, a shuffled-bank copy, and retrieval tensors on
+`pipeline.retrieval_device` (defaults to `${device}`). Search materializes only
+query-batch-by-bank score blocks; it does not retain a full all-pairs matrix.
+Runtime scales with retained bank size, query count, descriptor dimension and
+DTW candidate count, not all possible corpus segment pairs. Use
+`pipeline.retrieval_device=cpu` for CPU retrieval. New output directories are
+required; resume is not supported. Reducing bank size can change nearest
+neighbors, so comparisons should use equal bank/query budgets.
+
+Time normalization does not remove every possible duration cue: the SSL values
+may themselves retain timing information, and interpolation can reveal native
+sampling density. Similarity means proximity under this declared descriptor,
+not proven linguistic identity. A large nearest-match duration ratio supports
+further investigation; it does not demonstrate plausible rhythm modification
+or natural resynthesis.

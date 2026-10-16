@@ -90,3 +90,6 @@ See the [fitting guide](fitting.md) for resource contracts and saved-state reuse
 
 See [online boundary analysis](boundary-analysis.md) for online encoder-layer and
 detector sweeps over supported datasets without saving SSL embeddings.
+
+The same guide covers `analyze_trajectories_librispeech`: bounded online SSL
+trajectory matching across utterances with duration-matched random controls.
