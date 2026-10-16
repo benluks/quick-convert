@@ -46,5 +46,9 @@ class RunningMoments:
         return math.sqrt(max(self.variance, 0)) if self.count else math.nan
 
     def summary(self):
-        return {"count": self.count, "mean": self.mean if self.count else math.nan,
-                "std": self.std, "variance": self.variance}
+        return {
+            "count": self.count,
+            "mean": self.mean if self.count else math.nan,
+            "std": self.std,
+            "variance": self.variance,
+        }
