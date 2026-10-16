@@ -24,15 +24,14 @@ def small_cpu_threads():
     torch.set_num_threads(previous)
 
 
-def test_fixed_grid_moments_do_not_encode_linear_path_sample_count():
-    def path(n):
-        t = torch.linspace(0, 1, n)
-        return torch.stack((t, torch.ones_like(t), 2 * t + 1), -1)
-
-    torch.testing.assert_close(composition_moments(path(3)), composition_moments(path(31)))
-    assert composition_moments(path(3)).shape == (2, 3)
+def test_moments_use_original_frames_without_interpolation():
+    values = torch.tensor([[0.0, 1.0], [0.0, 3.0], [9.0, 2.0]])
+    moments = composition_moments(values)
+    torch.testing.assert_close(moments[0], values.mean(0))
+    torch.testing.assert_close(moments[1], values.std(0, correction=0))
+    torch.testing.assert_close(moments, composition_moments(values.repeat_interleave(3, dim=0)))
     with pytest.raises(ValueError):
-        composition_moments(path(1))
+        composition_moments(values[:1])
 
 
 def test_integer_bins_train_only_inclusive_edges_and_tail():

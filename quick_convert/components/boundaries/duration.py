@@ -1,15 +1,14 @@
 """Continuous SSL composition and categorical frame-duration probe components."""
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 
 
-def composition_moments(trajectory, points=16):
-    """Mean and population SD on a fixed relative-time grid, without timestamps.
+def composition_moments(trajectory):
+    """Mean and population SD over original SSL frames, without resampling.
 
-    This removes explicit frame count from the descriptor, not every possible
-    timing cue in SSL values or interpolation. No classes are assigned to content.
+    Frame count is not an explicit feature, but the moments can retain timing
+    cues and finite-sample effects. No classes are assigned to content.
     """
     if (
         trajectory.ndim != 2
@@ -18,10 +17,8 @@ def composition_moments(trajectory, points=16):
         or not torch.isfinite(trajectory).all()
     ):
         raise ValueError("Expected a finite floating-point [T,D] segment with T>=2")
-    if not isinstance(points, int) or points < 2:
-        raise ValueError("points must be an integer >=2")
-    normalized = F.interpolate(trajectory.T[None].float(), size=points, mode="linear", align_corners=True)[0]
-    return torch.stack((normalized.mean(-1), normalized.std(-1, correction=0)))
+    values = trajectory.float()
+    return torch.stack((values.mean(0), values.std(0, correction=0)))
 
 
 def fit_frame_bins(training_frames, n_bins=12):

@@ -32,9 +32,8 @@ speakers are required, and every partition/aggregation must yield examples.
 For every interior segment, and overlapping pairs/triples of adjacent interior
 segments within the same utterance:
 
-1. Interpolate the SSL trajectory to a fixed grid of 16 relative-time points.
-2. Compute its mean vector and population standard-deviation vector over that
-   grid. These are deliberately simple candidate descriptions of SSL composition,
+1. Compute the mean vector over the original SSL frames, without interpolation.
+2. Compute the population standard-deviation vector over those same frames. These are deliberately simple candidate descriptions of SSL composition,
    not an established definition of content. They discard temporal ordering.
 3. Compress each vector to 128 dimensions using the same fixed, seeded Gaussian
    random projection. The projection is independent of data/labels and saved
@@ -44,9 +43,9 @@ segments within the same utterance:
    contain no frame counts, timestamps, total path length, speaker IDs, aggregate
    sizes or utterance IDs.
 
-A fixed grid reduces direct sample-count effects in the moments; it does not
-remove timing information already embedded in SSL values, or all effects of
-interpolation. A bounded feature-resampling audit checks numerical descriptor
+These moments omit explicit frame count, but can retain finite-sample effects
+and timing information embedded in SSL values. Old fixed-grid descriptor caches
+are incompatible: rerun extraction to obtain version 2 original-frame moments. A bounded feature-resampling audit checks numerical descriptor
 and prediction changes on the same SSL trajectories resampled at 0.5x, 1.5x and
 2x frame counts. These are feature-space copies, not new audio or natural timing
 examples. Audit results are diagnostics, not evidence of complete duration

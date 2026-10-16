@@ -93,7 +93,7 @@ class _Examples:
 class ExtractDurationCompositionPipeline:
     """One encoder pass; retain only bounded continuous moment sketches.
 
-    Averages/SD use a fixed relative-time grid. A seeded, data-independent random
+    Averages/SD use original SSL frames without resampling. A seeded, data-independent random
     projection compresses each moment vector; frame counts remain labels only.
     Reservoirs are separate per speaker partition and aggregation size.
     """
@@ -105,7 +105,6 @@ class ExtractDurationCompositionPipeline:
         out_path,
         speaker_regex=r"^([^-]+)-",
         aggregation_sizes=(1, 2, 3),
-        points=16,
         projection_dim=128,
         train_capacity=20000,
         heldout_capacity=5000,
@@ -128,14 +127,13 @@ class ExtractDurationCompositionPipeline:
         if not aggregation_sizes or any(not isinstance(n, int) or n < 1 for n in aggregation_sizes):
             raise ValueError("Invalid aggregation sizes")
         for name, value in dict(
-            points=points,
             projection_dim=projection_dim,
             train_capacity=train_capacity,
             heldout_capacity=heldout_capacity,
             batch_size=batch_size,
             audit_capacity=audit_capacity,
         ).items():
-            if not isinstance(value, int) or value < 1 or (name == "points" and value < 2):
+            if not isinstance(value, int) or value < 1:
                 raise ValueError(f"Invalid {name}")
         if (
             threshold_mode not in ("absolute", "utterance_quantile")
@@ -153,7 +151,7 @@ class ExtractDurationCompositionPipeline:
             raise ValueError("Invalid detector/loader setting")
         smooth_changes(torch.ones(2), smoothing_frames)
         self.aggregation_sizes = tuple(dict.fromkeys(aggregation_sizes))
-        self.points, self.projection_dim = points, projection_dim
+        self.projection_dim = projection_dim
         self.train_capacity, self.heldout_capacity = train_capacity, heldout_capacity
         self.validation_fraction, self.test_fraction = validation_fraction, test_fraction
         self.threshold, self.threshold_mode, self.metric = threshold, threshold_mode, metric
@@ -279,9 +277,7 @@ class ExtractDurationCompositionPipeline:
                         if slot is not None:
                             pending.append((examples, slot, start, end))
                 if pending:
-                    moments = torch.stack(
-                        [composition_moments(values[start:end], self.points) for _, _, start, end in pending]
-                    )
+                    moments = torch.stack([composition_moments(values[start:end]) for _, _, start, end in pending])
                     sketches = moments @ projection
                     for (examples, slot, start, end), sketch in zip(pending, sketches, strict=True):
                         examples.commit(
@@ -299,7 +295,7 @@ class ExtractDurationCompositionPipeline:
                     if slot is None:
                         continue
                     trajectory = values[start:end]
-                    variants = [composition_moments(trajectory, self.points)]
+                    variants = [composition_moments(trajectory)]
                     for factor in factors:
                         stretched = F.interpolate(
                             trajectory.T[None],
@@ -307,7 +303,7 @@ class ExtractDurationCompositionPipeline:
                             mode="linear",
                             align_corners=True,
                         )[0].T
-                        variants.append(composition_moments(stretched, self.points))
+                        variants.append(composition_moments(stretched))
                     audit.commit(
                         slot,
                         torch.stack(variants) @ projection,
@@ -319,9 +315,9 @@ class ExtractDurationCompositionPipeline:
             for size, parts in reservoirs.items()
         }
         cache = dict(
-            version=1,
+            version=2,
             encoder=identity,
-            descriptor_points=self.points,
+            descriptor_method="original_frame_moments",
             projection=projection,
             speaker_splits=splits,
             seed=self.seed,
@@ -340,7 +336,7 @@ class ExtractDurationCompositionPipeline:
                 factors=list(factors),
                 metadata=audit.metadata,
             ),
-            descriptor="Mean and population SD of raw SSL vectors interpolated onto a fixed relative-time grid, each sketched by a fixed seeded Gaussian projection (identity when requested size >= native dimension). No frame counts/timestamps/path lengths are input features. Aggregates concatenate adjacent interior segments; overlapping aggregates stay within speaker partitions.",
+            descriptor="Mean and population SD over original raw SSL frames without interpolation, each sketched by a fixed seeded Gaussian projection (identity when requested size >= native dimension). No frame counts/timestamps/path lengths are input features. Aggregates concatenate adjacent interior segments; overlapping aggregates stay within speaker partitions.",
         )
         self.out_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(cache, self.out_path)
@@ -424,8 +420,8 @@ class DurationProbePipeline:
         self.prepare()
         cache_path = self.extractor.run() if self.extractor is not None else self.cache_path
         cache = torch.load(cache_path, map_location="cpu", weights_only=True)
-        if cache["version"] != 1:
-            raise ValueError("Unsupported duration descriptor cache")
+        if cache["version"] != 2 or cache.get("descriptor_method") != "original_frame_moments":
+            raise ValueError("Duration cache requires original-frame moments (version 2); rerun extraction")
         ids = cache["speaker_splits"]
         if any(set(ids[a]) & set(ids[b]) for i, a in enumerate(PARTITIONS) for b in PARTITIONS[i + 1 :]):
             raise ValueError("Speaker leakage in descriptor cache")
@@ -557,7 +553,7 @@ class DurationProbePipeline:
                         descriptor_mode=mode,
                         aggregation_size=int(size),
                         projection=cache["projection"],
-                        descriptor_points=cache["descriptor_points"],
+                        descriptor_method=cache["descriptor_method"],
                         encoder=cache["encoder"],
                     ),
                     self.out_dir / "models" / f"aggregate{size}_{name}.pt",
@@ -570,13 +566,13 @@ class DurationProbePipeline:
             cache_path=str(cache_path),
             encoder=cache["encoder"],
             descriptor=cache["descriptor"],
-            descriptor_points=cache["descriptor_points"],
+            descriptor_method=cache["descriptor_method"],
             sketch_dimension=cache["projection"].shape[1],
             speaker_splits=ids,
             seed=self.seed,
             detector=cache["detector"],
             aggregation_results=results,
-            interpretation="Target is categorical positive frame-count bins, not log duration. Bin edges, Laplace-smoothed unconditional probabilities and feature normalization use training speakers only. Each aggregation size has separate models/bins/baselines. Aggregates overlap within utterances but never across speaker partitions. Early stopping uses validation NLL; test speakers never select checkpoints. Positive NLL gain favors the conditional model. Within-speaker training-label shuffling is a negative control retaining speaker-specific duration marginals. Bootstrap intervals resample held-out speakers. Fixed-grid moments and feature-resampling audits reduce/check numerical length cues but cannot remove timing information intrinsic to SSL features. Descriptor sketches may discard relevant content; negative results are not a rejection of the segmentation or the modeling hypothesis. Probe checkpoints are experimental research outputs, not exported inference systems.",
+            interpretation="Target is categorical positive frame-count bins, not log duration. Bin edges, Laplace-smoothed unconditional probabilities and feature normalization use training speakers only. Each aggregation size has separate models/bins/baselines. Aggregates overlap within utterances but never across speaker partitions. Early stopping uses validation NLL; test speakers never select checkpoints. Positive NLL gain favors the conditional model. Within-speaker training-label shuffling is a negative control retaining speaker-specific duration marginals. Bootstrap intervals resample held-out speakers. Original-frame moments omit explicit frame counts but can retain finite-sample effects and timing information intrinsic to SSL features. Feature-resampling audits measure numerical sensitivity. Descriptor sketches may discard relevant content; negative results are not a rejection of the segmentation or the modeling hypothesis. Probe checkpoints are experimental research outputs, not exported inference systems.",
         )
         (self.out_dir / "duration_report.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
         print(f"Wrote duration_report.json and probe checkpoints to {self.out_dir}")
