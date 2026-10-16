@@ -108,3 +108,59 @@ JSONL files; no final summary means the run did not complete. There is no resume
 support yet. These statistics describe this detector; they do not establish
 phoneme boundaries or plausible duration ranges by themselves. Cross-model
 alignment, perturbation repeatability, and resynthesis are follow-up experiments.
+
+## Analyze saved segment records locally
+
+For a large `segments.jsonl`, run this CPU post-processing command beside the
+file. It does not load audio, download models, or repeat SSL inference:
+
+```bash
+uv run quick-convert summarize_boundaries \
+  input_dir=outputs/boundary_analysis/YOUR_RUN
+```
+
+Upload only `YOUR_RUN/analysis/analysis.json` for discussion. That report contains
+per-setting duration relationships, boundary-strength quartiles, speaker coverage
+and per-speaker duration summaries. `analysis.csv` and `analysis.md` provide
+spreadsheet and readable versions. All processing is local; no service or upload
+is invoked. Use `pipeline.out_dir=/another/new/directory` to change output location.
+Existing reports are refused rather than overwritten.
+
+The command reads one contiguous utterance/setting segmentation at a time, plus
+small aggregate state per setting and speaker. Memory does not scale with the
+number of segment rows; bookkeeping does retain utterance IDs to detect repeated
+or noncontiguous segmentations. Keep the original file ordering. Truncated
+segmentations and malformed records raise errors instead of producing a partial
+report. A progress bar reports bytes read, not an estimate of model inference.
+
+Relationships are computed separately for every detector setting:
+
+- Segment duration versus preceding/following boundary strength.
+- Segment duration versus average internal L2 movement.
+- Segment duration versus the next segment's duration.
+
+Only interior segments are used; neighbor pairs require both segments to be
+interior. Each relationship includes pooled Pearson correlation and a
+within-utterance rank correlation. The latter centers average percentile ranks
+inside each utterance, then pools the centered pairs. Percentile scaling avoids
+weighting long utterances cubically through raw rank magnitudes. It is **not**
+identical to pooled Spearman correlation or a simple mean of utterance-level
+Spearman coefficients. Constant variables and utterances with fewer than three
+eligible pairs are excluded from the rank estimate; counts are included.
+
+The default run config extracts LibriSpeech speaker IDs with `^([^-]+)-`.
+For another ID convention, supply `pipeline.speaker_regex` with exactly one
+capture group, or `pipeline.speaker_regex=null` when speaker IDs are unavailable.
+The command refuses IDs that do not match the selected pattern.
+
+Intervals use a seeded bootstrap that resamples speakers, retaining all their
+utterances (default 1,000 replicates; `+pipeline.bootstrap_samples=0` disables it).
+With fewer than two speakers or unavailable IDs, intervals are null. Intervals
+from very few speakers should not support population-level conclusions.
+Strength quartiles use within-utterance average percentile ranks, so tied values
+can yield unequal or empty bins. Missing/undefined correlations are null.
+
+These are descriptive relationships conditioned on the boundary detector.
+In particular, the detector itself can induce an association between duration
+and internal movement. The report does not compare layers or establish whether
+a segment can be stretched naturally.
