@@ -48,7 +48,7 @@ def detect_boundaries(
     candidates = torch.nonzero((changes >= threshold) & (changes >= left) & (changes > right), as_tuple=True)[0]
     # Include a peak at the last sample if it exceeds its left neighbor.
     if changes.numel() > 1 and changes[-1] >= threshold and changes[-1] > changes[-2]:
-        candidates = torch.cat((candidates, torch.tensor([changes.numel()-1], device=changes.device)))
+        candidates = torch.cat((candidates, torch.tensor([changes.numel() - 1], device=changes.device)))
     ranked = sorted(candidates.tolist(), key=lambda i: (-float(changes[i]), i))
     accepted: list[int] = []
     for index in ranked:
@@ -76,12 +76,14 @@ def segment_measurements(
         is_edge = i == 0 or i == len(edges) - 2
         if not include_edges and is_edge:
             continue
-        records.append({
-            "start_frame": start,
-            "end_frame": end,
-            "start_seconds": start * frame_hop_seconds,
-            "end_seconds": end * frame_hop_seconds,
-            "duration_ms": (end - start) * frame_hop_seconds * 1000,
-            "is_edge": is_edge,
-        })
+        records.append(
+            {
+                "start_frame": start,
+                "end_frame": end,
+                "start_seconds": start * frame_hop_seconds,
+                "end_seconds": end * frame_hop_seconds,
+                "duration_ms": (end - start) * frame_hop_seconds * 1000,
+                "is_edge": is_edge,
+            }
+        )
     return records
