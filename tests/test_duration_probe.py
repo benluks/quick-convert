@@ -235,3 +235,59 @@ def test_no_test_features_affect_fitting_and_zero_step_is_frequency_baseline():
     torch.testing.assert_close(scale_a, scale_b)
     for name, value in a.state_dict().items():
         torch.testing.assert_close(value, b.state_dict()[name])
+
+
+def test_duration_errors_distinguish_intervals_point_estimates_and_order():
+    from quick_convert.training.duration_probe import duration_error_metrics, fit_frame_distribution
+
+    edges = torch.tensor([4, 8])
+    distribution = fit_frame_distribution(torch.tensor([2, 4, 6, 8, 10, 20]), edges)
+    # Correct bins have zero interval error; empirical medians need not equal targets.
+    probs = torch.eye(3)
+    scores = duration_error_metrics(probs, torch.tensor([4, 8, 100]), edges, distribution, 50)
+    assert scores["modal_bin_interval_mae_frames"] == 0
+    assert scores["mixture_median_mae_frames"] == pytest.approx(94 / 3)
+    assert scores["mixture_median_mae_ms"] == pytest.approx(94 / 3 * 20)
+    assert scores["ranked_probability_score"] == 0
+    near = duration_error_metrics(torch.tensor([[0.0, 1.0, 0.0]]), torch.tensor([2]), edges, distribution, 50)
+    far = duration_error_metrics(torch.tensor([[0.0, 0.0, 1.0]]), torch.tensor([2]), edges, distribution, 50)
+    assert near["modal_bin_interval_mae_frames"] == 3
+    assert far["modal_bin_interval_mae_frames"] == 7
+    assert near["ranked_probability_score"] < far["ranked_probability_score"]
+    # Median is taken across the full probability mixture, not the modal bin.
+    mixed = duration_error_metrics(torch.tensor([[0.4, 0.35, 0.25]]), torch.tensor([6]), edges, distribution, 50)
+    assert mixed["mixture_median_mae_frames"] == 0
+
+
+def test_saved_duration_evaluation_agrees_and_supports_legacy_checkpoint(tmp_path):
+    from quick_convert.pipelines.evaluate_duration_probe import EvaluateDurationProbePipeline
+
+    extract(tmp_path / "cache.pt")
+    fitted = DurationProbePipeline(
+        tmp_path / "fit",
+        cache_path=tmp_path / "cache.pt",
+        max_steps=2,
+        eval_interval=1,
+        n_bins=4,
+        descriptor_modes=("both",),
+        train_shuffled_control=False,
+    ).run()
+    path = tmp_path / "fit/models/aggregate1_both.pt"
+
+    def evaluate(checkpoint, name):
+        return EvaluateDurationProbePipeline(checkpoint, tmp_path / "cache.pt", tmp_path / name).run()
+
+    result = evaluate(path, "evaluation")
+    for key, value in result["metrics"]["test"]["model"].items():
+        assert value == fitted["aggregation_results"]["1"]["models"]["both"]["metrics"]["test"][key]
+    checkpoint = torch.load(path, weights_only=True)
+    for key in ("frame_distribution", "training_prior", "speaker_splits"):
+        del checkpoint[key]
+    torch.save(checkpoint, tmp_path / "legacy.pt")
+    legacy = evaluate(tmp_path / "legacy.pt", "legacy_eval")
+    assert legacy["legacy_cache_binding"]
+    assert legacy["metrics"] == result["metrics"]
+    checkpoint["projection"] += 1
+    torch.save(checkpoint, tmp_path / "wrong.pt")
+    with pytest.raises(ValueError, match="projection mismatch"):
+        evaluate(tmp_path / "wrong.pt", "wrong_eval")

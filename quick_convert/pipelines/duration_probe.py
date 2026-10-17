@@ -21,7 +21,9 @@ from quick_convert.components.boundaries.duration import (
 from quick_convert.components.boundaries.measurements import measure_segments, smooth_changes
 from quick_convert.data import AudioBatch
 from quick_convert.training.duration_probe import (
+    duration_error_metrics,
     fit_duration_probe,
+    fit_frame_distribution,
     macro_gain_interval,
     predict_probabilities,
     probability_metrics,
@@ -462,10 +464,21 @@ class DurationProbePipeline:
             labels = {part: duration_labels(data["frames"], edges) for part, data in groups.items()}
             counts = torch.bincount(labels["train"], minlength=len(edges) + 1).float()
             prior = (counts + 1) / (counts.sum() + len(counts))
+            frame_distribution = fit_frame_distribution(groups["train"]["frames"], edges)
             baseline = {
                 part: probability_metrics(prior.expand(len(data["frames"]), -1), labels[part], data["speakers"])
                 for part, data in groups.items()
             }
+            for part, data in groups.items():
+                baseline[part].update(
+                    duration_error_metrics(
+                        prior.expand(len(data["frames"]), -1),
+                        data["frames"],
+                        edges,
+                        frame_distribution,
+                        cache["encoder"]["frame_hz"],
+                    )
+                )
             result = dict(
                 bin_upper_edges_frames=edges.tolist(),
                 bins=[
@@ -510,6 +523,15 @@ class DurationProbePipeline:
                 for part in ("validation", "test"):
                     probabilities = predict_probabilities(model, (features[part] - center) / scale, self.device)
                     scores = probability_metrics(probabilities, labels[part], groups[part]["speakers"])
+                    scores.update(
+                        duration_error_metrics(
+                            probabilities,
+                            groups[part]["frames"],
+                            edges,
+                            frame_distribution,
+                            cache["encoder"]["frame_hz"],
+                        )
+                    )
                     scores["nll_gain_over_unconditional"] = baseline[part]["nll"] - scores["nll"]
                     scores["speaker_macro_nll_gain"] = baseline[part]["speaker_macro_nll"] - scores["speaker_macro_nll"]
                     scores["speaker_bootstrap_95_macro_gain"] = macro_gain_interval(
@@ -550,6 +572,9 @@ class DurationProbePipeline:
                         normalization_mean=center,
                         normalization_scale=scale,
                         bin_upper_edges_frames=edges,
+                        frame_distribution=frame_distribution,
+                        training_prior=prior,
+                        speaker_splits=ids,
                         descriptor_mode=mode,
                         aggregation_size=int(size),
                         projection=cache["projection"],

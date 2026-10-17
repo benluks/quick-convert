@@ -154,3 +154,38 @@ by itself reject the segmentation or the continuous conditional-duration idea.
 Improvement is also not proof of a generative timing model: detector effects and
 residual timing cues remain relevant. This baseline asks a narrower question:
 does this continuous SSL description improve held-out duration probabilities?
+
+## Duration error evaluation
+
+New runs automatically score models and the unconditional baseline with:
+
+- Modal-bin interval MAE in frames and milliseconds: zero inside the predicted
+  interval, otherwise distance to its nearest edge. The final interval has no
+  upper bound; broad bins can make this metric look favorable.
+- Mixture-median MAE and median absolute error, in frames and milliseconds.
+  Each predicted bin probability weights the empirical distribution of training
+  frame counts within that bin. The median of this mixture is the point estimate.
+  Correct-bin predictions may still incur point error. The tail uses observed
+  training durations, so extrapolation beyond training support is unavailable.
+- Ranked probability score (RPS), averaged across bin boundaries. This scores
+  the full distribution and penalizes distant bin errors more than adjacent ones;
+  distance is in bin order, not physical frame widths. Lower is better.
+
+Bin boundaries remain fixed across models within each aggregation experiment.
+These metrics do not change the training loss or validation-NLL checkpoint selection.
+New checkpoints save training within-bin distributions, priors and speaker splits.
+
+Evaluate an existing checkpoint without retraining or extracting SSL again:
+
+```bash
+uv run quick-convert evaluate_duration_probe \
+  checkpoint_path=outputs/duration_probe/RUN/models/aggregate1_both.pt \
+  cache_path=outputs/duration_probe/RUN/descriptors.pt
+```
+
+This writes `duration_evaluation.json` with validation/test model and baseline
+scores. CPU is the default. The original matching descriptor cache is required.
+For older checkpoints, training-only within-bin distributions are reconstructed
+from that cache; their original speaker assignment cannot be independently
+verified against the checkpoint. Encoder, descriptor method and projection must
+match. Evaluation does not modify existing checkpoints or reports.

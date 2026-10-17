@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import torch
 import torch.nn.functional as F
 
@@ -116,3 +118,58 @@ def fit_duration_probe(
     model.load_state_dict(best_state)
     model.to(device).eval()
     return model, center, scale, dict(best_step=best_step, steps_run=step, validation_history=history)
+
+
+def fit_frame_distribution(training_frames, edges):
+    """Empirical within-bin frame distributions, using training durations only."""
+    from quick_convert.components.boundaries.duration import duration_labels
+
+    support, counts = training_frames.unique(sorted=True, return_counts=True)
+    bins = duration_labels(support, edges)
+    totals = torch.zeros(len(edges) + 1).scatter_add_(0, bins, counts.float())
+    if (totals == 0).any():
+        raise ValueError("Every duration bin needs training examples")
+    return dict(support_frames=support, support_bins=bins, conditional_mass=counts.float() / totals[bins])
+
+
+def duration_error_metrics(probabilities, frames, edges, distribution, frame_hz):
+    """Modal-bin interval error, mixture-median MAE, and normalized ordinal RPS.
+
+    Last-bin interval is unbounded above. Point estimates use the median of the
+    probability-weighted training within-bin distributions, including the tail.
+    RPS uses bin order, not unequal physical bin widths. No fitting occurs here.
+    """
+    from quick_convert.components.boundaries.duration import duration_labels
+
+    if not math.isfinite(frame_hz) or frame_hz <= 0:
+        raise ValueError("frame_hz must be positive and finite")
+    frames, edges, probabilities = frames.cpu(), edges.cpu(), probabilities.cpu()
+    labels = duration_labels(frames, edges)
+    predicted = probabilities.argmax(-1)
+    lower = torch.cat((torch.ones(1, dtype=edges.dtype), edges + 1))[predicted]
+    upper = torch.cat((edges.double(), torch.tensor([float("inf")])))[predicted]
+    interval = (lower - frames).clamp_min(0) + (frames - upper).clamp_min(0)
+    support = distribution["support_frames"].cpu()
+    bins = distribution["support_bins"].cpu()
+    mass = distribution["conditional_mass"].cpu()
+    estimates = []
+    for chunk in probabilities.split(256):
+        cdf = (chunk[:, bins] * mass).cumsum(-1)
+        # First support point whose cumulative probability reaches one half.
+        indices = (cdf < 0.5).sum(-1).clamp_max(len(support) - 1)
+        estimates.append(support[indices])
+    absolute = (torch.cat(estimates) - frames).abs().double()
+    if probabilities.shape[1] > 1:
+        thresholds = torch.arange(probabilities.shape[1] - 1)
+        rps = (probabilities.cumsum(-1)[:, :-1] - (labels[:, None] <= thresholds).float()).square().mean()
+    else:
+        rps = torch.tensor(0.0)
+    return dict(
+        modal_bin_interval_mae_frames=float(interval.mean()),
+        modal_bin_interval_mae_ms=float(interval.mean()) * 1000 / frame_hz,
+        mixture_median_mae_frames=float(absolute.mean()),
+        mixture_median_mae_ms=float(absolute.mean()) * 1000 / frame_hz,
+        mixture_median_median_absolute_error_frames=float(absolute.quantile(0.5)),
+        mixture_median_median_absolute_error_ms=float(absolute.quantile(0.5)) * 1000 / frame_hz,
+        ranked_probability_score=float(rps),
+    )
