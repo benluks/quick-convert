@@ -8,6 +8,8 @@ from typing import ClassVar
 
 import torch
 
+from quick_convert.utils.streaming_statistics import PrioritySample, RunningMoments
+
 
 @dataclass(frozen=True)
 class ProsodyMeasurements:
@@ -56,68 +58,13 @@ class ProsodyMeasurements:
         return self.values[:, 4]
 
 
-class _Moments:
-    """Merge frame statistics without retaining frames (population variance)."""
-
-    def __init__(self):
-        self.count, self.mean, self.m2 = 0, 0.0, 0.0
-
-    def update(self, values):
-        count = values.numel()
-        if not count:
-            return
-        mean = values.mean().item()
-        m2 = ((values - mean).square().sum()).item()
-        total = self.count + count
-        delta = mean - self.mean
-        self.m2 += m2 + delta * delta * self.count * count / total
-        self.mean += delta * count / total
-        self.count = total
+class _Moments(RunningMoments):
+    """Prosody serialization adapter over shared streaming moments."""
 
     def statistics(self):
         if not self.count:
             raise ValueError("Cannot fit pitch statistics without voiced frames.")
-        return torch.tensor([self.mean, max((self.m2 / self.count) ** 0.5, 1e-6)], dtype=torch.float64)
-
-
-class _Bins:
-    """Exact extrema and uniform frame sampling via bounded random priorities."""
-
-    def __init__(self, capacity, generator):
-        self.capacity, self.generator = capacity, generator
-        self.values = torch.empty(0, dtype=torch.float64)
-        self.priorities = torch.empty(0, dtype=torch.float64)
-        self.minimum, self.maximum = float("inf"), -float("inf")
-        self.count = 0
-
-    def update(self, values):
-        if not values.numel():
-            return
-        self.minimum = min(self.minimum, values.min().item())
-        self.maximum = max(self.maximum, values.max().item())
-        self.count += values.numel()
-        if not self.capacity:
-            return
-        for chunk in values.split(65536):
-            priorities = torch.rand(len(chunk), generator=self.generator, dtype=torch.float64)
-            if len(self.values) == self.capacity:
-                candidates = priorities < self.priorities.max()
-                chunk, priorities = chunk[candidates], priorities[candidates]
-                if not len(chunk):
-                    continue
-            values = torch.cat((self.values, chunk))
-            priorities = torch.cat((self.priorities, priorities))
-            if len(values) > self.capacity:
-                indices = priorities.topk(self.capacity, largest=False).indices
-                values, priorities = values[indices], priorities[indices]
-            self.values, self.priorities = values, priorities
-
-    def edges(self, strategy, count):
-        if strategy == "quantile":
-            edges = torch.quantile(self.values, torch.arange(1, count, dtype=torch.float64) / count)
-        else:
-            edges = torch.linspace(self.minimum, self.maximum, count + 1, dtype=torch.float64)[1:-1]
-        return torch.unique_consecutive(edges)
+        return torch.tensor([self.mean, max(self.std, 1e-6)], dtype=torch.float64)
 
 
 class ProsodyTransform:
@@ -197,7 +144,7 @@ class ProsodyTransform:
                 records = (torch.load(spool / f"{i}.pt", weights_only=True) for i in range(1, count + 1))
             generator = torch.Generator().manual_seed(self.config["seed"])
             capacity = self.config["quantile_sample_size"] if self.config["bins"] == "quantile" else 0
-            bins = {name: _Bins(capacity, generator) for name in ("pitch", "energy")}
+            bins = {name: PrioritySample(capacity, generator) for name in ("pitch", "energy")}
             observed_records = 0
             for values, speaker in records:
                 observed_records += 1

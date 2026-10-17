@@ -1,0 +1,25 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /dataset: librispeech
+  - _self_
+
+encoder:
+  _target_: quick_convert.components.ssl.WavLMContentEncoder
+  # Native encoder numbering: hidden_states[6], matching KNN-VC layer 6.
+  layer: 6
+  device: ${device}
+
+dataset:
+  root: ${data_root}/librispeech/LibriSpeech
+  splits: [dev-clean]
+  load: true
+  target_sr: 16000
+
+pipeline:
+  _target_: quick_convert.pipelines.trajectory_analysis.TrajectoryAnalysisPipeline
+  dataset: ${dataset}
+  encoder: ${encoder}
+  out_dir: ${out_root}/trajectory_analysis/${now:%Y%m%d_%H%M%S}
+  retrieval_device: ${device}
+  speaker_regex: '^([^-]+)-'

@@ -1,0 +1,11 @@
+# @package _global_
+cache_path: ???
+device: cuda
+hydra:
+  run:
+    dir: ${pipeline.out_dir}
+pipeline:
+  _target_: quick_convert.pipelines.duration_probe.DurationProbePipeline
+  cache_path: ${cache_path}
+  out_dir: ${cache_path}_probe_${now:%Y%m%d_%H%M%S}
+  device: ${device}
