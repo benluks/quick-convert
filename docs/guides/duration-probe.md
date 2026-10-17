@@ -189,3 +189,71 @@ For older checkpoints, training-only within-bin distributions are reconstructed
 from that cache; their original speaker assignment cannot be independently
 verified against the checkpoint. Encoder, descriptor method and projection must
 match. Evaluation does not modify existing checkpoints or reports.
+
+## Predict durations in utterance context
+
+The contextual extension compares an independent MLP with a small bidirectional
+CNN, on **identical ordered utterance sequences of segment means**. Unlike the
+single/pair/triple experiments above, there is one output per original interior
+segment; segments are not joined into aggregates. Each input is the original-frame
+mean, compressed using the same seeded projection as the original probe. No
+standard deviations, duration targets, elapsed frame positions or speaker IDs
+enter either network. WavLM itself still encodes the full utterance first.
+
+```bash
+uv run --extra transformers quick-convert probe_duration_context_librispeech \
+  dataset.root=/cfs/collections/librispeech/LibriSpeech \
+  'dataset.splits=[dev-clean]' device=cuda
+```
+
+Extraction extends the existing descriptor cache with complete ordered sequences.
+Old caches lack these sequences, so the first contextual run requires another
+SSL pass. Both the original independently sampled descriptors and sequences are
+saved by this extraction; either experiment can subsequently reuse the cache.
+The sequence comparison fits its own training-quantile bins from exactly the
+segments that both models train on; compare these models within this run, rather
+than comparing raw accuracy against the older independently sampled experiment.
+
+By default a uniform utterance reservoir retains up to 2,000 training utterances
+and 500 per held-out partition. Whole interior sequences of up to 512 segments
+are retained; longer/empty utterances are skipped and counted, never truncated.
+These limits are configurable through `pipeline.extractor.train_sequence_capacity`,
+`heldout_sequence_capacity` and `max_sequence_segments`. Native frame sequences
+are discarded after each utterance. At 128 projected dimensions the worst-case
+sequence feature storage is about 750 MiB; typical LibriSpeech utterances use
+far fewer than 512 segments. Independently sampled moment descriptors have their
+existing additional bounded storage. Edge segments at recording boundaries are
+excluded as in the original experiment.
+
+The CNN uses a 128-dimensional input projection followed by three residual,
+kernel-3 temporal convolutions with dilations 1, 2 and 4, ReLU/dropout, and a bin
+classifier. Its receptive field covers at most 15 segment positions (seven on
+either side). Padding is masked after every layer; batch members never exchange
+context. Utterance boundaries can reveal position relative to the ends, but
+no original frame positions or total elapsed durations are supplied. The independent baseline uses the original one-hidden-layer MLP.
+Both receive the same utterance minibatches and segment-weighted cross-entropy,
+training-only normalization and bins, and validation-NLL checkpoint selection.
+The report includes parameter counts: the CNN is larger, so its advantage alone
+cannot distinguish the benefit of context from capacity.
+
+`contextual_duration_report.json` includes the existing probability, interval and
+frame-error metrics, baseline comparisons, paired speaker-bootstrap CNN-versus-MLP
+NLL gains, and an order-shuffle diagnostic. For that diagnostic only, segment mean
+vectors are permuted inside each test utterance; predictions are restored to the
+original segment order before scoring. Each segment keeps its own vector and
+target, while neighbors change. The independent head should be unaffected.
+This is a sensitivity check, not a substitute for held-out performance.
+Outputs are per-segment marginal distributions conditioned on content context;
+this does not yet model the joint dependence between sampled durations.
+
+Refit without another SSL pass:
+
+```bash
+uv run quick-convert probe_duration_context_cached \
+  cache_path=outputs/duration_context/RUN/descriptors.pt device=cuda
+```
+
+Saved heads are `models/sequence_independent.pt` and `models/sequence_cnn.pt`.
+Evaluate either with the same `evaluate_duration_probe` command and matching
+cache; it automatically recognizes sequence checkpoints. The current contextual
+extension implements a CNN; a Conformer is not included.

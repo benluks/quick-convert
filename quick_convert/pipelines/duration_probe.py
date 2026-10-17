@@ -108,6 +108,10 @@ class ExtractDurationCompositionPipeline:
         speaker_regex=r"^([^-]+)-",
         aggregation_sizes=(1, 2, 3),
         projection_dim=128,
+        store_sequences=False,
+        train_sequence_capacity=2000,
+        heldout_sequence_capacity=500,
+        max_sequence_segments=512,
         train_capacity=20000,
         heldout_capacity=5000,
         validation_fraction=0.2,
@@ -130,6 +134,9 @@ class ExtractDurationCompositionPipeline:
             raise ValueError("Invalid aggregation sizes")
         for name, value in dict(
             projection_dim=projection_dim,
+            train_sequence_capacity=train_sequence_capacity,
+            heldout_sequence_capacity=heldout_sequence_capacity,
+            max_sequence_segments=max_sequence_segments,
             train_capacity=train_capacity,
             heldout_capacity=heldout_capacity,
             batch_size=batch_size,
@@ -154,6 +161,11 @@ class ExtractDurationCompositionPipeline:
         smooth_changes(torch.ones(2), smoothing_frames)
         self.aggregation_sizes = tuple(dict.fromkeys(aggregation_sizes))
         self.projection_dim = projection_dim
+        self.store_sequences = store_sequences
+        self.sequence_capacities = dict(
+            train=train_sequence_capacity, validation=heldout_sequence_capacity, test=heldout_sequence_capacity
+        )
+        self.max_sequence_segments = max_sequence_segments
         self.train_capacity, self.heldout_capacity = train_capacity, heldout_capacity
         self.validation_fraction, self.test_fraction = validation_fraction, test_fraction
         self.threshold, self.threshold_mode, self.metric = threshold, threshold_mode, metric
@@ -193,6 +205,12 @@ class ExtractDurationCompositionPipeline:
                 for i, part in enumerate(PARTITIONS)
             }
             for size in self.aggregation_sizes
+        }
+        sequences = {part: [] for part in PARTITIONS}
+        sequence_seen = dict.fromkeys(PARTITIONS, 0)
+        sequence_skipped = dict.fromkeys(PARTITIONS, 0)
+        sequence_generators = {
+            part: torch.Generator().manual_seed(self.seed + 12000 + i) for i, part in enumerate(PARTITIONS)
         }
         audit = _Examples(self.audit_capacity, self.seed + 9000)
         factors = (0.5, 1.5, 2.0)
@@ -267,6 +285,40 @@ class ExtractDurationCompositionPipeline:
                     duration_seconds=sample.waveform.numel() / int(sample.sample_rate),
                 )
                 interior = [row for row in rows if not row["is_edge"]]
+                if self.store_sequences:
+                    # Retain whole ordered interior sequences; never crop or join utterances.
+                    if (
+                        not interior
+                        or len(interior) > self.max_sequence_segments
+                        or any(row["end_frame"] - row["start_frame"] < 2 for row in interior)
+                    ):
+                        sequence_skipped[partition] += 1
+                    else:
+                        sequence_seen[partition] += 1
+                        count = sequence_seen[partition]
+                        capacity = self.sequence_capacities[partition]
+                        slot = (
+                            count - 1
+                            if count <= capacity
+                            else int(torch.randint(count, (1,), generator=sequence_generators[partition]))
+                        )
+                        if slot < capacity:
+                            means = (
+                                torch.stack([values[row["start_frame"] : row["end_frame"]].mean(0) for row in interior])
+                                @ projection
+                            )
+                            sequence = dict(
+                                features=means,
+                                frames=torch.tensor(
+                                    [row["end_frame"] - row["start_frame"] for row in interior], dtype=torch.long
+                                ),
+                                speaker=spk,
+                                utterance=f"{sample.split}/{sample.utt_id}",
+                            )
+                            if slot == len(sequences[partition]):
+                                sequences[partition].append(sequence)
+                            else:
+                                sequences[partition][slot] = sequence
                 pending = []
                 for size, parts in reservoirs.items():
                     examples = parts[partition]
@@ -333,6 +385,15 @@ class ExtractDurationCompositionPipeline:
                 min_distance_ms=self.min_distance_ms,
             ),
             groups=groups,
+            sequences=sequences if self.store_sequences else None,
+            sequence_sampling=dict(
+                eligible_utterances=sequence_seen,
+                skipped_utterances=sequence_skipped,
+                capacities=self.sequence_capacities,
+                max_sequence_segments=self.max_sequence_segments,
+            )
+            if self.store_sequences
+            else None,
             audit=dict(
                 features=audit.features[: len(audit.metadata)].clone() if audit.features is not None else None,
                 factors=list(factors),

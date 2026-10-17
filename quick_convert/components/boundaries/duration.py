@@ -68,3 +68,28 @@ class CategoricalDurationProbe(nn.Module):
 
     def forward(self, features):
         return self.network(features)
+
+
+class ContextualDurationCNN(nn.Module):
+    """Bidirectional dilated CNN over segment means, masked between every layer.
+
+    Three kernel-3 layers at dilations 1, 2, 4 see at most 15 segment positions.
+    No durations, frame positions or batch normalization enter the network.
+    """
+
+    def __init__(self, input_dim, n_bins, hidden_dim=128, dropout=0.1):
+        super().__init__()
+        self.input = nn.Linear(input_dim, hidden_dim)
+        self.convolutions = nn.ModuleList(
+            nn.Conv1d(hidden_dim, hidden_dim, 3, padding=d, dilation=d) for d in (1, 2, 4)
+        )
+        self.dropout = nn.Dropout(dropout)
+        self.output = nn.Linear(hidden_dim, n_bins)
+
+    def forward(self, features, mask):
+        hidden = torch.relu(self.input(features)).transpose(1, 2)
+        valid = mask[:, None].to(hidden.dtype)
+        hidden = hidden * valid
+        for convolution in self.convolutions:
+            hidden = (hidden + self.dropout(torch.relu(convolution(hidden)))) * valid
+        return self.output(hidden.transpose(1, 2))

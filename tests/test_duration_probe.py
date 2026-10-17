@@ -119,7 +119,7 @@ class Encoder(nn.Module):
         return ContentFeatures(values[None], torch.tensor([n]), 3, "continuous", "frame", "test", "synthetic", 6, 50.0)
 
 
-def extract(path, batch_size=1):
+def extract(path, batch_size=1, **kwargs):
     encoder = Encoder()
     extractor = ExtractDurationCompositionPipeline(
         Dataset(),
@@ -134,6 +134,7 @@ def extract(path, batch_size=1):
         aggregation_sizes=(1, 2, 3),
         audit_capacity=5,
         batch_size=batch_size,
+        **kwargs,
     )
     extractor.run()
     return torch.load(path, weights_only=True), encoder
@@ -291,3 +292,141 @@ def test_saved_duration_evaluation_agrees_and_supports_legacy_checkpoint(tmp_pat
     torch.save(checkpoint, tmp_path / "wrong.pt")
     with pytest.raises(ValueError, match="projection mismatch"):
         evaluate(tmp_path / "wrong.pt", "wrong_eval")
+
+
+def test_ordered_cache_keeps_complete_sequences_with_bounded_utterance_sampling(tmp_path):
+    from quick_convert.pipelines.contextual_duration_probe import validate_sequences
+
+    cache, encoder = extract(
+        tmp_path / "seq.pt", store_sequences=True, train_sequence_capacity=2, heldout_sequence_capacity=1
+    )
+    other, _ = extract(
+        tmp_path / "seq_batch.pt",
+        batch_size=4,
+        store_sequences=True,
+        train_sequence_capacity=2,
+        heldout_sequence_capacity=1,
+    )
+    rows = validate_sequences(cache)
+    assert encoder.calls == 12
+    assert [len(rows[p]) for p in ("train", "validation", "test")] == [2, 1, 1]
+    for part in rows:
+        for a, b in zip(rows[part], other["sequences"][part], strict=True):
+            assert a["utterance"] == b["utterance"]
+            torch.testing.assert_close(a["features"], b["features"])
+            torch.testing.assert_close(a["frames"], b["frames"])
+    # Verify actual ordered means/targets against fresh detector output.
+    from quick_convert.components.boundaries import change_signal
+    from quick_convert.components.boundaries.measurements import measure_segments
+
+    row = rows["train"][0]
+    sample = next(s for s in Dataset().samples if f"{s.split}/{s.utt_id}" == row["utterance"])
+    with torch.no_grad():
+        values = Encoder().eval()(AudioBatch.from_samples([sample])).values[0]
+    detected = measure_segments(
+        values,
+        change_signal(values, "l2"),
+        threshold=0.3,
+        min_distance_frames=1,
+        frame_hz=50,
+        duration_seconds=sample.waveform.numel() / 100,
+    )
+    interior = [r for r in detected if not r["is_edge"]]
+    expected = torch.stack([values[r["start_frame"] : r["end_frame"]].mean(0) for r in interior]) @ cache["projection"]
+    torch.testing.assert_close(row["features"], expected)
+    assert row["frames"].tolist() == [r["end_frame"] - r["start_frame"] for r in interior]
+    skipped, _ = extract(tmp_path / "short.pt", store_sequences=True, max_sequence_segments=1)
+    assert all(not x for x in skipped["sequences"].values())
+    assert sum(skipped["sequence_sampling"]["skipped_utterances"].values()) == 12
+    with pytest.raises(ValueError, match="No retained"):
+        validate_sequences(skipped)
+
+
+def test_context_cnn_padding_cannot_change_valid_predictions():
+    from quick_convert.components.boundaries.duration import ContextualDurationCNN
+    from quick_convert.training.contextual_duration_probe import predict_sequences
+
+    torch.manual_seed(2)
+    model = ContextualDurationCNN(3, 4, hidden_dim=8, dropout=0).eval()
+    short, long = torch.randn(3, 3), torch.randn(20, 3)
+    center, scale = torch.zeros(3), torch.ones(3)
+    alone = predict_sequences(model, [short], center, scale, "cpu")
+    batched = predict_sequences(model, [short, long], center, scale, "cpu")[:3]
+    torch.testing.assert_close(alone, batched)
+    # Batch members cannot provide context to each other.
+    changed = predict_sequences(model, [short, long * 100], center, scale, "cpu")[:3]
+    torch.testing.assert_close(alone, changed)
+
+
+def test_cnn_learns_neighbor_information_unavailable_to_independent_head():
+    from quick_convert.training.contextual_duration_probe import fit_sequence_probe, predict_sequences
+
+    generator = torch.Generator().manual_seed(17)
+    features = {
+        part: [torch.randint(2, (24, 1), generator=generator).float() * 2 - 1 for _ in range(20)]
+        for part in ("train", "validation")
+    }
+    # Target depends on preceding segment, not its own mean; no duration is input.
+    labels = {part: [(torch.cat((torch.zeros(1), x[:-1, 0])) > 0).long() for x in xs] for part, xs in features.items()}
+    predictions = {}
+    for architecture in ("independent", "cnn"):
+        model, center, scale, _ = fit_sequence_probe(
+            features,
+            labels,
+            torch.ones(2) / 2,
+            architecture=architecture,
+            hidden_dim=16,
+            dropout=0,
+            max_steps=160,
+            batch_size=4,
+            learning_rate=0.01,
+            eval_interval=40,
+            patience=5,
+        )
+        probs = predict_sequences(model, features["validation"], center, scale, "cpu")
+        predictions[architecture] = float((probs.argmax(-1) == torch.cat(labels["validation"])).float().mean())
+    assert predictions["cnn"] > 0.95
+    assert predictions["independent"] < 0.7
+
+
+def test_context_pipeline_cached_reproducible_and_checkpoint_evaluation(tmp_path):
+    from quick_convert.pipelines.contextual_duration_probe import ContextualDurationProbePipeline
+    from quick_convert.pipelines.evaluate_duration_probe import EvaluateDurationProbePipeline
+
+    cache, encoder = extract(tmp_path / "cache.pt", store_sequences=True)
+    kwargs = dict(
+        cache_path=tmp_path / "cache.pt",
+        max_steps=2,
+        eval_interval=1,
+        n_bins=4,
+        hidden_dim=8,
+        train_utterance_batch_size=2,
+    )
+    first = ContextualDurationProbePipeline(tmp_path / "fit", **kwargs).run()
+    second = ContextualDurationProbePipeline(tmp_path / "repeat", **kwargs).run()
+    assert first == second
+    assert encoder.calls == 12
+    assert first["models"]["independent"]["metrics"]["test"]["nll"] == pytest.approx(
+        first["models"]["independent"]["shuffled_order_test"]["nll"], abs=1e-6
+    )
+    for architecture, result in first["models"].items():
+        evaluation = EvaluateDurationProbePipeline(
+            tmp_path / f"fit/models/sequence_{architecture}.pt",
+            tmp_path / "cache.pt",
+            tmp_path / f"eval_{architecture}",
+        ).run()
+        for key, value in evaluation["metrics"]["test"]["model"].items():
+            assert (
+                value == pytest.approx(result["metrics"]["test"][key])
+                if not isinstance(value, dict)
+                else value == result["metrics"]["test"][key]
+            )
+    with pytest.raises(FileExistsError):
+        ContextualDurationProbePipeline(tmp_path / "fit", **kwargs).run()
+    cache["sequences"]["test"][0]["speaker"] = cache["speaker_splits"]["train"][0]
+    torch.save(cache, tmp_path / "leaked.pt")
+    with pytest.raises(ValueError, match="speaker assignment"):
+        ContextualDurationProbePipeline(tmp_path / "leaked", cache_path=tmp_path / "leaked.pt", max_steps=1).run()
+    extract(tmp_path / "old.pt")
+    with pytest.raises(ValueError, match="no ordered sequences"):
+        ContextualDurationProbePipeline(tmp_path / "old", cache_path=tmp_path / "old.pt", max_steps=1).run()

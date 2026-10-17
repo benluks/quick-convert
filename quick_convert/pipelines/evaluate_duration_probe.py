@@ -37,6 +37,13 @@ class EvaluateDurationProbePipeline:
         self.prepare()
         checkpoint = torch.load(self.checkpoint_path, map_location="cpu", weights_only=True)
         cache = torch.load(self.cache_path, map_location="cpu", weights_only=True)
+        if checkpoint.get("probe_type") == "segment_sequence":
+            from quick_convert.pipelines.contextual_duration_probe import evaluate_sequence_checkpoint
+
+            report = evaluate_sequence_checkpoint(checkpoint, cache, self.device)
+            report.update(checkpoint_path=str(self.checkpoint_path), cache_path=str(self.cache_path))
+            (self.out_dir / "duration_evaluation.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+            return report
         if checkpoint["version"] != 1 or cache["version"] != 2:
             raise ValueError("Unsupported duration checkpoint/cache version")
         for key in ("encoder", "descriptor_method"):
