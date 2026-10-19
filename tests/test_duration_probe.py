@@ -430,3 +430,51 @@ def test_context_pipeline_cached_reproducible_and_checkpoint_evaluation(tmp_path
     extract(tmp_path / "old.pt")
     with pytest.raises(ValueError, match="no ordered sequences"):
         ContextualDurationProbePipeline(tmp_path / "old", cache_path=tmp_path / "old.pt", max_steps=1).run()
+
+
+def test_speaker_conditioning_splits_inputs_and_checkpoint(tmp_path):
+    from quick_convert.pipelines.contextual_duration_probe import (
+        ContextualDurationProbePipeline,
+        evaluate_sequence_checkpoint,
+        sequence_inputs,
+        speaker_experiment_sequences,
+        validate_sequences,
+    )
+
+    cache, encoder = extract(tmp_path / "cache.pt", store_sequences=True)
+    # Extend the synthetic cache to four distinct utterances per speaker.
+    for rows in cache["sequences"].values():
+        originals = list(rows)
+        rows.extend(dict(row, utterance=row["utterance"] + "_extra") for row in originals)
+    sequences = validate_sequences(cache)
+    split = speaker_experiment_sequences(sequences, 115)
+    reversed_split = speaker_experiment_sequences({p: list(reversed(r)) for p, r in sequences.items()}, 115)
+    assert {p: [r["utterance"] for r in rows] for p, rows in split.items()} == {
+        p: [r["utterance"] for r in rows] for p, rows in reversed_split.items()
+    }
+    ids = [{r["utterance"] for r in split[p]} for p in split]
+    assert not (ids[0] & ids[1] or ids[0] & ids[2] or ids[1] & ids[2])
+    vocab = sorted({r["speaker"] for r in split["train"]})
+    assert all({r["speaker"] for r in rows} == set(vocab) for rows in split.values())
+    row = split["test"][0]
+    joined = sequence_inputs([row], "ssl_speaker", vocab)[0]
+    torch.testing.assert_close(joined[:, :2], row["features"])
+    assert (joined[:, 2:].sum(-1) == 1).all()
+    torch.save(cache, tmp_path / "cache.pt")
+    report = ContextualDurationProbePipeline(
+        tmp_path / "conditioned",
+        cache_path=tmp_path / "cache.pt",
+        speaker_conditioning=True,
+        max_steps=2,
+        eval_interval=1,
+        hidden_dim=8,
+        n_bins=4,
+    ).run()
+    assert report["evaluation_split"] == "within_speaker_utterance"
+    assert len(report["models"]) == 6
+    for name, result in report["models"].items():
+        checkpoint = torch.load(tmp_path / f"conditioned/models/sequence_{name}.pt", weights_only=True)
+        evaluation = evaluate_sequence_checkpoint(checkpoint, cache, "cpu")
+        assert evaluation["metrics"]["test"]["model"]["nll"] == pytest.approx(result["metrics"]["test"]["nll"])
+    with pytest.raises(ValueError, match="at least three"):
+        speaker_experiment_sequences({"train": [row]}, 115)

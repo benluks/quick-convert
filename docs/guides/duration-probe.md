@@ -257,3 +257,32 @@ Saved heads are `models/sequence_independent.pt` and `models/sequence_cnn.pt`.
 Evaluate either with the same `evaluate_duration_probe` command and matching
 cache; it automatically recognizes sequence checkpoints. The current contextual
 extension implements a CNN; a Conformer is not included.
+
+### Speaker conditioning on cached utterances
+
+Compare speaker-only, SSL-mean-only, and SSL-mean + one-hot speaker inputs for
+both independent MLP and contextual CNN heads:
+
+```bash
+uv run quick-convert probe_duration_speaker_cached \
+  cache_path=outputs/duration_context/YOUR_RUN/descriptors.pt device=cuda
+```
+
+This reuses ordered sequences without another encoder pass. It creates a new,
+seeded split of complete utterances **within each speaker** (approximately
+60/20/20), requiring at least three cached utterances per speaker. All six
+models share these splits, training-derived bins and evaluation metrics.
+The original speaker-held-out experiment remains available unchanged. Results
+across these two split protocols are not directly comparable. Cache sampling
+limits from extraction still apply; speakers may have unequal utterance counts.
+
+The report records exact utterance assignments, speaker vocabulary, all six
+models and the unconditional baseline. Speaker-only performance measures the
+predictiveness of speaker identity; SSL+speaker versus SSL-only measures its
+additional contribution. No gain does not establish that timing is independent
+of speaker: SSL may already encode speaker information. These are known-speaker
+results and do not measure unseen-speaker generalization.
+
+Saved checkpoints can be evaluated with `evaluate_duration_probe` and the same
+cache; the within-speaker assignments and feature composition are reconstructed
+and checked automatically.

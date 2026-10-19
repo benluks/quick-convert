@@ -61,6 +61,45 @@ def validate_sequences(cache):
     return sequences
 
 
+def speaker_experiment_sequences(sequences, seed):
+    """Hold out whole utterances within speakers, never individual segments.
+
+    Requires at least three cached utterances per speaker; no silent exclusions.
+    Assignment is reproducible independently of input cache order.
+    """
+    grouped = {}
+    for rows in sequences.values():
+        for row in rows:
+            grouped.setdefault(row["speaker"], []).append(row)
+    result = {part: [] for part in PARTITIONS}
+    generator = torch.Generator().manual_seed(seed)
+    for speaker in sorted(grouped):
+        rows = sorted(grouped[speaker], key=lambda r: r["utterance"])
+        if len(rows) < 3:
+            raise ValueError(f"Speaker {speaker} needs at least three cached utterances")
+        order = torch.randperm(len(rows), generator=generator).tolist()
+        heldout = max(1, int(len(rows) * 0.2))
+        for part, indices in zip(
+            PARTITIONS, (order[2 * heldout :], order[:heldout], order[heldout : 2 * heldout]), strict=True
+        ):
+            result[part].extend(rows[i] for i in indices)
+    return result
+
+
+def sequence_inputs(rows, input_kind, speaker_vocabulary):
+    """Build continuous SSL and/or explicit one-hot speaker inputs."""
+    result = []
+    for row in rows:
+        x = row["features"]
+        if input_kind == "ssl":
+            result.append(x)
+            continue
+        one_hot = x.new_zeros(len(x), len(speaker_vocabulary))
+        one_hot[:, speaker_vocabulary.index(row["speaker"])] = 1
+        result.append(one_hot if input_kind == "speaker" else torch.cat((x, one_hot), -1))
+    return result
+
+
 def partition_targets(rows, edges):
     frames = torch.cat([row["frames"] for row in rows])
     speakers = [row["speaker"] for row in rows for _ in row["frames"]]
@@ -79,6 +118,11 @@ def evaluate_sequence_checkpoint(checkpoint, cache, device):
     if checkpoint["version"] != 1:
         raise ValueError("Unsupported sequence checkpoint version")
     sequences = validate_sequences(cache)
+    if checkpoint.get("speaker_conditioning", False):
+        sequences = speaker_experiment_sequences(sequences, checkpoint["split_seed"])
+        actual = {p: [r["utterance"] for r in rows] for p, rows in sequences.items()}
+        if actual != checkpoint["utterance_splits"]:
+            raise ValueError("Checkpoint/cache utterance split mismatch")
     for key in ("encoder", "descriptor_method", "speaker_splits"):
         if checkpoint[key] != cache[key]:
             raise ValueError(f"Checkpoint/cache mismatch: {key}")
@@ -101,7 +145,7 @@ def evaluate_sequence_checkpoint(checkpoint, cache, device):
         rows = sequences[part]
         probabilities = predict_sequences(
             model,
-            [r["features"] for r in rows],
+            sequence_inputs(rows, checkpoint.get("input_kind", "ssl"), checkpoint.get("speaker_vocabulary", [])),
             checkpoint["normalization_mean"],
             checkpoint["normalization_scale"],
             device,
@@ -143,6 +187,7 @@ class ContextualDurationProbePipeline:
         patience=5,
         device="cpu",
         seed=115,
+        speaker_conditioning=False,
     ):
         if (extractor is None) == (cache_path is None):
             raise ValueError("Provide exactly one of extractor or cache_path")
@@ -159,6 +204,7 @@ class ContextualDurationProbePipeline:
             or weight_decay < 0
         ):
             raise ValueError("Invalid bins/dropout/optimizer setting")
+        self.speaker_conditioning = speaker_conditioning
         self.out_dir, self.extractor = Path(out_dir), extractor
         self.cache_path = Path(cache_path) if cache_path is not None else None
         self.n_bins, self.device, self.seed = n_bins, device, seed
@@ -188,7 +234,11 @@ class ContextualDurationProbePipeline:
         cache_path = self.extractor.run() if self.extractor is not None else self.cache_path
         cache = torch.load(cache_path, map_location="cpu", weights_only=True)
         sequences = validate_sequences(cache)
-        features = {part: [row["features"] for row in rows] for part, rows in sequences.items()}
+        if self.speaker_conditioning:
+            sequences = speaker_experiment_sequences(sequences, self.seed)
+        vocabulary = sorted({row["speaker"] for row in sequences["train"]})
+        input_kinds = ("ssl", "speaker", "ssl_speaker") if self.speaker_conditioning else ("ssl",)
+
         train_frames = torch.cat([row["frames"] for row in sequences["train"]])
         edges = fit_frame_bins(train_frames, self.n_bins)
         labels = {part: [duration_labels(row["frames"], edges) for row in rows] for part, rows in sequences.items()}
@@ -207,7 +257,10 @@ class ContextualDurationProbePipeline:
         }
         (self.out_dir / "models").mkdir()
         models = {}
-        for architecture in ("independent", "cnn"):
+        experiments = [(a, k) for k in input_kinds for a in ("independent", "cnn")]
+        for architecture, input_kind in experiments:
+            model_name = f"{architecture}_{input_kind}" if self.speaker_conditioning else architecture
+            features = {p: sequence_inputs(rows, input_kind, vocabulary) for p, rows in sequences.items()}
             print(f"Fitting sequence duration architecture={architecture}")
             model, center, scale, training = fit_sequence_probe(
                 {p: features[p] for p in ("train", "validation")},
@@ -241,6 +294,11 @@ class ContextualDurationProbePipeline:
                 restored, sequences["test"], edges, distribution, cache["encoder"]["frame_hz"]
             )
             checkpoint = dict(
+                speaker_conditioning=self.speaker_conditioning,
+                split_seed=self.seed,
+                utterance_splits={p: [r["utterance"] for r in rows] for p, rows in sequences.items()},
+                input_kind=input_kind,
+                speaker_vocabulary=vocabulary,
                 version=1,
                 probe_type="segment_sequence",
                 architecture=architecture,
@@ -261,8 +319,8 @@ class ContextualDurationProbePipeline:
                 descriptor_method=cache["descriptor_method"],
                 projection=cache["projection"],
             )
-            torch.save(checkpoint, self.out_dir / "models" / f"sequence_{architecture}.pt")
-            models[architecture] = dict(
+            torch.save(checkpoint, self.out_dir / "models" / f"sequence_{model_name}.pt")
+            models[model_name] = dict(
                 training=training,
                 metrics=metrics,
                 shuffled_order_test=shuffled_scores,
@@ -270,16 +328,24 @@ class ContextualDurationProbePipeline:
             )
         comparison = {
             part: dict(
-                nll_gain_cnn_over_independent=models["independent"]["metrics"][part]["nll"]
-                - models["cnn"]["metrics"][part]["nll"],
+                nll_gain_cnn_over_independent=models["independent_ssl" if self.speaker_conditioning else "independent"][
+                    "metrics"
+                ][part]["nll"]
+                - models["cnn_ssl" if self.speaker_conditioning else "cnn"]["metrics"][part]["nll"],
                 speaker_bootstrap_95_macro_gain=macro_gain_interval(
-                    models["independent"]["metrics"][part], models["cnn"]["metrics"][part], seed=self.seed
+                    models["independent_ssl" if self.speaker_conditioning else "independent"]["metrics"][part],
+                    models["cnn_ssl" if self.speaker_conditioning else "cnn"]["metrics"][part],
+                    seed=self.seed,
                 ),
             )
             for part in ("validation", "test")
         }
         report = dict(
             version=1,
+            speaker_conditioning=self.speaker_conditioning,
+            evaluation_split="within_speaker_utterance" if self.speaker_conditioning else "heldout_speaker",
+            utterance_splits={p: [r["utterance"] for r in rows] for p, rows in sequences.items()},
+            speaker_vocabulary=vocabulary,
             cache_path=str(cache_path),
             seed=self.seed,
             training_settings=self.fit_kwargs,
@@ -309,6 +375,30 @@ class ContextualDurationProbePipeline:
             comparison=comparison,
             interpretation="Both models use identical projected original-frame segment means, training normalization, speaker splits, duration bins, utterance sampling and segment-weighted loss. CNN is bidirectional, with 15-segment receptive field; it sees no target durations or original frame positions. WavLM features already include utterance context. Padding is masked after every CNN layer. Whole interior sequences are retained without cropping; recording-edge segments are excluded. Test shuffled-order diagnostic permutes vectors within utterances then restores prediction order; it preserves each segment input but changes its neighbors. CNN has more parameters than the MLP, so improved performance alone does not isolate context from capacity. No test information selects checkpoints. Independent per-position output distributions are not a joint generative duration model.",
         )
+        if self.speaker_conditioning:
+            report["speaker_conditioning_comparison"] = {
+                architecture: {
+                    part: {
+                        "nll_gain_over_ssl": models[f"{architecture}_ssl"]["metrics"][part]["nll"]
+                        - models[f"{architecture}_ssl_speaker"]["metrics"][part]["nll"],
+                        "speaker_bootstrap_95_macro_gain": macro_gain_interval(
+                            models[f"{architecture}_ssl"]["metrics"][part],
+                            models[f"{architecture}_ssl_speaker"]["metrics"][part],
+                            seed=self.seed,
+                        ),
+                    }
+                    for part in ("validation", "test")
+                }
+                for architecture in ("independent", "cnn")
+            }
+            report["interpretation"] = (
+                "Speaker-only, SSL-only and SSL+one-hot models use identical utterance-held-out splits within speakers. "
+                "Bins, normalization, priors and within-bin durations use training utterances only. "
+                "This measures known-speaker conditioning, not generalization to unseen speakers. "
+                "The cache was originally sampled by speaker partition, so retained utterance counts may differ by speaker. "
+                "Improvement with speaker IDs measures additional speaker information, not proof that SSL lacks speaker information. "
+                "All six models use the same training schedule; test data never selects checkpoints."
+            )
         (self.out_dir / "contextual_duration_report.json").write_text(
             json.dumps(report, indent=2, allow_nan=False) + "\n"
         )
