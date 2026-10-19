@@ -1,0 +1,24 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /dataset: librispeech
+  - _self_
+encoder:
+  _target_: quick_convert.components.ssl.WavLMContentEncoder
+  layer: 6
+  device: ${device}
+dataset:
+  root: ${data_root}/librispeech/LibriSpeech
+  splits: [dev-clean]
+  load: true
+  target_sr: 16000
+pipeline:
+  _target_: quick_convert.pipelines.contextual_duration_probe.ContextualDurationProbePipeline
+  out_dir: ${out_root}/duration_context/${now:%Y%m%d_%H%M%S}
+  device: ${device}
+  extractor:
+    _target_: quick_convert.pipelines.duration_probe.ExtractDurationCompositionPipeline
+    dataset: ${dataset}
+    encoder: ${encoder}
+    out_path: ${pipeline.out_dir}/descriptors.pt
+    store_sequences: true

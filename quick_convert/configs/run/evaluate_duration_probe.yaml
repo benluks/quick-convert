@@ -1,0 +1,13 @@
+# @package _global_
+checkpoint_path: ???
+cache_path: ???
+device: cpu
+hydra:
+  run:
+    dir: ${pipeline.out_dir}
+pipeline:
+  _target_: quick_convert.pipelines.evaluate_duration_probe.EvaluateDurationProbePipeline
+  checkpoint_path: ${checkpoint_path}
+  cache_path: ${cache_path}
+  out_dir: ${checkpoint_path}_evaluation_${now:%Y%m%d_%H%M%S}
+  device: ${device}

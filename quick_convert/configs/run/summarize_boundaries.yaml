@@ -1,0 +1,12 @@
+# @package _global_
+# Post-process saved segments on CPU; no audio/model downloads required.
+input_dir: ???
+hydra:
+  run:
+    dir: ${pipeline.out_dir}
+pipeline:
+  _target_: quick_convert.pipelines.summarize_boundaries.SummarizeBoundariesPipeline
+  segments_path: ${input_dir}/segments.jsonl
+  out_dir: ${input_dir}/analysis
+  # LibriSpeech IDs: speaker-chapter-utterance. Override with null for unknown IDs.
+  speaker_regex: '^([^-]+)-'

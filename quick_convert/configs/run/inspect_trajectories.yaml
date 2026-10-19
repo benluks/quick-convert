@@ -1,0 +1,15 @@
+# @package _global_
+input_dir: ???
+device: cuda
+encoder:
+  _target_: quick_convert.components.ssl.WavLMContentEncoder
+  layer: 6
+  device: ${device}
+hydra:
+  run:
+    dir: ${pipeline.out_dir}
+pipeline:
+  _target_: quick_convert.pipelines.inspect_trajectories.InspectTrajectoriesPipeline
+  input_dir: ${input_dir}
+  encoder: ${encoder}
+  out_dir: ${input_dir}/inspection
