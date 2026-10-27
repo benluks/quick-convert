@@ -1,0 +1,28 @@
+# @package _global_
+
+# Train the PSST1 flow speaker generator on frozen ECAPA x-vectors from
+# LibriSpeech train-clean-360 (run precompute_spk_ecapa_librispeech first).
+
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: psst1_flow
+  - /dataset@train_dataset: librispeech
+  - _self_
+
+exp_name: psst1_flow_train-clean-360
+project_name: psst1
+embeddings_path: ${out_root}/precomputed/librispeech/ecapa
+
+train_dataset:
+  splits:
+    - train-clean-360
+  resource_providers:
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      kind: torch_tensor
+      name: speaker_embedding
+      path_template: ${embeddings_path}/{sample.split}/{sample.utt_id}.pt
+  load:
+    - speaker_embedding
+
+val_dataset: null

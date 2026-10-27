@@ -1,4 +1,5 @@
 from dataclasses import replace
+from pathlib import Path
 
 import torch
 
@@ -154,3 +155,21 @@ def test_batch_resource_references_share_collated_storage_without_mutating_sampl
             )
         assert recovered["speaker"].value == str(index)
         assert samples[index].resources["content"].value is original
+
+
+def test_audio_batch_collates_metadata_samples_without_audio():
+    samples = [
+        MetadataSample(
+            utt_id=name,
+            path=Path(f"{name}.flac"),
+            resources=ResourceCollection.from_refs(
+                [ResourceRef(name="speaker_embedding", kind="torch_tensor", value=torch.full((3,), float(index)))]
+            ),
+        )
+        for index, name in enumerate(["a", "b"])
+    ]
+
+    batch = AudioBatch.from_samples(samples)
+
+    assert batch.waveforms is None
+    assert batch.resources["speaker_embedding"].values.reshape(2, 3)[:, 0].tolist() == [0.0, 1.0]

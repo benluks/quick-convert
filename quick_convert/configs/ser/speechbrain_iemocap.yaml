@@ -1,0 +1,2 @@
+_target_: quick_convert.systems.ser.speechbrain_ser.SpeechBrainSER
+device: ${device}

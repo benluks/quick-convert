@@ -1,0 +1,34 @@
+# trainer/psst1_flow.yaml
+# PSST1 flow recipe: AdamW + OneCycleLR, batch 128, 301 epochs, seed 1999.
+
+defaults:
+  - /global: default
+  - lightning
+  - /trainer/optimizer@module.optimization: adamw_onecycle
+  - /components/speaker_generator@module.generator: psst1_flow
+  - _self_
+
+module:
+  _target_: quick_convert.training.lightning.modules.speaker_generator.SpeakerGeneratorTrainingModule
+  seed: 1999
+  export_path: ${pipeline.out_dir}/flow.pt
+
+train_dataloader_kwargs:
+  batch_size: 128
+  num_workers: 8
+  drop_last: false
+
+trainer_kwargs:
+  # Lightning's default logger: local TensorBoard, no account needed.
+  logger: true
+  max_epochs: 301
+  log_every_n_steps: 50
+  callbacks:
+    - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+      save_top_k: 1
+      monitor: step
+      mode: max
+      every_n_epochs: 10
+      save_last: true
+    - _target_: lightning.pytorch.callbacks.LearningRateMonitor
+      logging_interval: step

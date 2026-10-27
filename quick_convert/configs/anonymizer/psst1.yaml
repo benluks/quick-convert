@@ -1,0 +1,6 @@
+defaults:
+  - /ser@emotion_recognizer: speechbrain_iemocap
+
+_target_: quick_convert.systems.anonymization.PSST1Anonymizer
+# Weights download on first use; set checkpoint_dir to use a local copy.
+device: ${device}

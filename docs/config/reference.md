@@ -14,6 +14,8 @@ Quick Convert installs its Hydra tree under `quick_convert/configs/`. A file in 
 | `precompute tokens_librispeech` | `run/precompute_tokens_librispeech.yaml` |
 | `evaluate asr_librispeech` | `run/eval_asr_librispeech.yaml` |
 | `anonymize knnvc_clac` | `run/anonymize_knnvc_clac.yaml` |
+| `anonymize psst1_iemocap` | `run/anonymize_psst1_iemocap.yaml` |
+| `train psst1_flow_librispeech` | `run/train_psst1_flow_librispeech.yaml` |
 
 The universal command uses the full stem. A verb command prefixes its alias with `train_`, `precompute_`, `eval_`, or `anonymize_`.
 

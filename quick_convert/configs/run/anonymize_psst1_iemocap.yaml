@@ -1,0 +1,11 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: anonymization
+  - /anonymizer: psst1
+  - /dataset: iemocap
+  - _self_
+
+# PSST1 has no target speaker; this only names the output directory.
+target_id: psst1

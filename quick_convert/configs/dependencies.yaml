@@ -26,6 +26,10 @@ extras:
     probes: [pyannote.audio]
   sentencepiece:
     probes: [sentencepiece]
+  speechbrain:
+    probes: [speechbrain]
+  speechbrain-ser:
+    probes: [speechbrain, transformers]
   training:
     probes: [lightning, matplotlib, tensorboard, wandb]
   transformers:
@@ -36,6 +40,8 @@ extras:
     probes: [jiwer]
   whisper:
     probes: [whisper]
+  yaapt:
+    probes: [amfm_decompy]
 
 targets:
   quick_convert.components.feature_extractors.prosody.OpenSmileProsodyExtractor: [opensmile]
@@ -44,6 +50,9 @@ targets:
   quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusSpeakerEncoder: [cosyvoice]
   quick_convert.components.speaker.ESPnetSpeakerEncoder: [espnet-wavlm-joint]
   quick_convert.components.speaker.PyannoteWeSpeakerEncoder: [pyannote]
+  quick_convert.components.speaker.SpeechBrainECAPASpeakerEncoder: [speechbrain]
+  quick_convert.components.decoders.PSST1Vocoder: [yaapt]
+  quick_convert.components.feature_extractors.YAAPTF0Extractor: [yaapt]
   quick_convert.components.ssl.DACContentEncoder: [dac]
   quick_convert.components.ssl.EmotionEncoder: [emotion2vec]
   quick_convert.components.ssl.PASEContentEncoder: [pase]
@@ -56,8 +65,11 @@ targets:
   quick_convert.pipelines.evaluation.metrics.JiwerWER: [wer]
   quick_convert.systems.asr.WhisperASR: [whisper]
   quick_convert.systems.ser.odyssey_ser.OdysseySER: [transformers]
+  quick_convert.systems.ser.speechbrain_ser.SpeechBrainSER: [speechbrain-ser]
+  quick_convert.systems.anonymization.PSST1Anonymizer: [speechbrain, yaapt]
   quick_convert.training.lightning.modules.vq_asr.VQASRTrainingModule: [asr, training]
   quick_convert.training.lightning.modules.ssl_reconstruction.SSLReconstructionTrainingModule: [training]
+  quick_convert.training.lightning.modules.speaker_generator.SpeakerGeneratorTrainingModule: [training]
   quick_convert.training.lightning.trainer.LightningTrainer: [training]
   quick_convert.training.tokenizer.TokenizerTrainer: [sentencepiece]
   quick_convert.training.tokenizers.sentencepiece.SentencePieceBPETrainer: [sentencepiece]

@@ -70,3 +70,40 @@ def test_explicit_cosine_duration_is_unchanged():
     optimization = Optimization(optimizer_kwargs={"lr": 1e-4}, lr_scheduler_kwargs={"T_max": 10})
     result = optimization.configure([torch.nn.Parameter(torch.ones(1))])
     assert type(result["lr_scheduler"]["scheduler"]) is torch.optim.lr_scheduler.CosineAnnealingLR
+
+
+def build_one_cycle(total_steps=100, **kwargs):
+    optimization = Optimization(
+        optimizer_kwargs={"lr": 2e-4},
+        lr_scheduler=torch.optim.lr_scheduler.OneCycleLR,
+        lr_scheduler_kwargs={"max_lr": 2e-4, "total_steps": "auto", "pct_start": 0.1, "final_div_factor": 1000.0},
+        **kwargs,
+    )
+    result = optimization.configure([torch.nn.Parameter(torch.ones(1))], total_steps=total_steps)
+    return result["optimizer"], result["lr_scheduler"]["scheduler"]
+
+
+def test_auto_one_cycle_spans_the_training_budget():
+    optimizer, scheduler = build_one_cycle(total_steps=100)
+    rates = [optimizer.param_groups[0]["lr"]]
+    for _ in range(99):
+        optimizer.step()
+        scheduler.step()
+        rates.append(optimizer.param_groups[0]["lr"])
+
+    assert scheduler.total_steps == 100
+    assert rates[0] == pytest.approx(2e-4 / 25)
+    assert max(rates) == pytest.approx(2e-4)
+    assert rates.index(max(rates)) == 9
+    assert rates[-1] == pytest.approx(2e-4 / 25 / 1000)
+
+
+def test_auto_one_cycle_rejects_an_extra_warmup():
+    with pytest.raises(ValueError, match="own warmup"):
+        build_one_cycle(warmup=LinearWarmup(5))
+
+
+def test_auto_total_steps_requires_one_cycle():
+    optimization = Optimization(optimizer_kwargs={"lr": 1e-4}, lr_scheduler_kwargs={"total_steps": "auto"})
+    with pytest.raises(ValueError, match="requires torch.optim.lr_scheduler.OneCycleLR"):
+        optimization.configure([torch.nn.Parameter(torch.ones(1))], total_steps=10)

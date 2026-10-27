@@ -95,6 +95,9 @@ opensmile = ["opensmile>=2.6.0,<3"]
 mpm = ["masked-prosody-model>=0.3.0"]
 whisper = ["openai-whisper>=20231117"]
 sentencepiece = ["sentencepiece>=0.2.0"]
+speechbrain = ["speechbrain>=1.0.3,<2"]
+speechbrain-ser = ["speechbrain>=1.0.3,<2", "transformers>=4.36,<5"]
+yaapt = ["amfm-decompy>=1.0.12"]
 wer = ["jiwer>=3.0"]
 asr = ["jiwer>=3.0", "sentencepiece>=0.2.0"] # Compatibility bundle.
 cosyvoice = [

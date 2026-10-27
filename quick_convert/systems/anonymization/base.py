@@ -59,25 +59,27 @@ class BaseAnonymizer(nn.Module, ABC, Generic[T_Target]):
 
         return features
 
-    def _generate_batch(self, batch: AudioBatch, operation, **kwargs) -> GeneratedAudio:
+    def _generate_batch(self, batch: AudioBatch, operation, sample_kwargs=None, **kwargs) -> GeneratedAudio:
         """Apply a single-item operation and preserve exact output lengths.
 
         This default adapter is intentionally sequential. Implementations with
         native backend batching may override :meth:`anonymize_batch` while
-        preserving the same output contract.
+        preserving the same output contract. ``sample_kwargs``, when given,
+        maps each sample to extra keyword arguments for its call.
         """
         waveforms = []
 
         for sample in batch:
+            call_kwargs = {**kwargs, **(sample_kwargs(sample) if sample_kwargs is not None else {})}
             if sample.waveform is None:
-                waveform = operation(sample.path, **kwargs)
+                waveform = operation(sample.path, **call_kwargs)
             else:
                 if sample.sample_rate is None:
                     raise ValueError(f"Loaded sample {sample.utt_id!r} has no sample rate.")
                 waveform = operation(
                     sample.waveform,
                     sample_rate=int(sample.sample_rate),
-                    **kwargs,
+                    **call_kwargs,
                 )
 
             if waveform.ndim == 2 and waveform.shape[0] == 1:

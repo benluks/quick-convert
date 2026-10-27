@@ -32,3 +32,5 @@ distinctions explicit.
 Complete inference behavior belongs in [systems](../design_philosophy.md#systems); orchestration belongs in [pipelines](../design_philosophy.md#pipelines). Vendored implementations under `quick_convert.external` are private dependencies reached through first-party adapters.
 
 See the [CosyVoice mel and vocoder contract](cosyvoice.md) for reconstruction features and checkpoint compatibility.
+
+See [PSST1](psst1.md) ([PSST1 System description for VoicePrivacy Challenge 2026](https://www.voiceprivacychallenge.org/vp2026/docs/T02_system_description.pdf)) for the ECAPA speaker encoder, flow-matching speaker generator, emotion compensation, and speaker-conditioned HiFi-GAN behind `PSST1Anonymizer`.

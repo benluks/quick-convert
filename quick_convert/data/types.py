@@ -149,7 +149,8 @@ class AudioBatch(MetadataBatch):
                 Optional fixed waveform length to pad to. It must not be
                 shorter than any waveform in the batch.
         """
-        has_audio = all(s.waveform is not None for s in samples)
+        # Datasets that load only resources yield MetadataSample rows without audio fields.
+        has_audio = all(getattr(s, "waveform", None) is not None for s in samples)
         resources = collate_resources(samples)
         resource_refs = []
         for index, sample in enumerate(samples):
