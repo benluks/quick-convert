@@ -32,6 +32,10 @@ extras:
     probes: [lightning, matplotlib, tensorboard, wandb]
   transformers:
     probes: [transformers]
+  mimi:
+    probes: [transformers]
+  speechtokenizer:
+    probes: [speechtokenizer, huggingface_hub, beartype, tensorboard]
   voicefm:
     probes: [transformers]
   wer:
@@ -55,6 +59,12 @@ targets:
   quick_convert.components.speaker.ESPnetSpeakerEncoder: [espnet-wavlm-joint]
   quick_convert.components.speaker.PyannoteWeSpeakerEncoder: [pyannote]
   quick_convert.components.ssl.DACContentEncoder: [dac]
+  quick_convert.components.ssl.DACQuantizedContentEncoder: [dac]
+  quick_convert.components.ssl.quantized.DACQuantizedContentEncoder: [dac]
+  quick_convert.components.ssl.MimiQuantizedContentEncoder: [mimi]
+  quick_convert.components.ssl.quantized.MimiQuantizedContentEncoder: [mimi]
+  quick_convert.components.ssl.SpeechTokenizerQuantizedContentEncoder: [speechtokenizer]
+  quick_convert.components.ssl.quantized.SpeechTokenizerQuantizedContentEncoder: [speechtokenizer]
   # The nested saved system selects the content backend's requirements.
   quick_convert.components.ssl.VQASRContentEncoder: []
   quick_convert.components.ssl.vq_asr.VQASRContentEncoder: []
