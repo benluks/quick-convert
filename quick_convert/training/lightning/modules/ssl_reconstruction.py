@@ -8,7 +8,7 @@ from os import PathLike
 import torch
 from torch import nn
 
-from quick_convert.components.decoders import CosyVoiceDecoderOutput, CosyVoiceSpectrogramGenerator
+from quick_convert.components.decoders import ConditioningStream, CosyVoiceDecoderOutput, CosyVoiceSpectrogramGenerator
 from quick_convert.components.layers import LayerWeightedSum
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.mixins.resource import ResolvedResource
@@ -25,7 +25,7 @@ from ..optim import Optimization
 class SSLReconstructionOutput:
     features: torch.Tensor
     lengths: torch.Tensor
-    speaker_embedding: torch.Tensor
+    speaker_embedding: torch.Tensor | None
     loss: torch.Tensor
     decoder_output: CosyVoiceDecoderOutput
     encoder_output: RVQOutput | None = None
@@ -125,7 +125,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         stage: str,
     ) -> SSLReconstructionOutput:
         content = self.system.get_resource(batch, "content")
-        speaker_embedding = self.system.get_resource(batch, "speaker").values
+        speaker_embedding = self.system.speaker_condition(batch)
 
         features, lengths, encoder_output = self._encode_content(content)
 
@@ -136,6 +136,11 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             wav_lens=batch.lengths,
             sampling_rate=batch.sample_rates[0],
             speaker_embedding=speaker_embedding,
+            **(
+                {"streams": self.system.conditioning_streams(batch, self.decoder.flow.output_lengths(lengths))}
+                if getattr(self.decoder, "stream_conditioning", None) is not None
+                else {}
+            ),
         )
 
         encoder_loss = features.new_zeros(()) if encoder_output is None else encoder_output.loss.loss
@@ -216,11 +221,29 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         if batch_idx != 0:
             return
 
+        stream_kwargs = {}
+        if getattr(self.decoder, "stream_conditioning", None) is not None:
+            streams = self.system.conditioning_streams(batch, self.decoder.flow.output_lengths(output.lengths))
+            if "mel" in self.decoder.stream_conditioning.dimensions:
+                mels, mel_lengths = self.decoder._compute_mels(
+                    batch.waveforms, batch.lengths, sampling_rate=batch.sample_rates[0]
+                )
+                streams["mel"] = ConditioningStream(mels.transpose(1, 2), mel_lengths)
+            # Validation exercises prefix-only inference rather than leaking target streams.
+            prefixes = {}
+            for name, stream in streams.items():
+                if stream.is_prefix:
+                    prefixes[name] = stream
+                    continue
+                lengths = (stream.lengths // 5).clamp_min(1)
+                prefixes[name] = ConditioningStream(stream.values[:, : int(lengths.max())], lengths)
+            stream_kwargs["streams"] = prefixes
         generation = self.system.decode_features(
             output.features,
             output.lengths,
             output.speaker_embedding,
             run_vocoder=True,
+            **stream_kwargs,
         )
         if generation.audio is None:
             raise RuntimeError("Decoder did not return audio when run_vocoder=True.")

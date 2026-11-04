@@ -1,0 +1,23 @@
+# @package _global_
+
+defaults:
+  - train_sslr_w2vbert_dit
+  - _self_
+
+exp_name: train_sslr_w2vbert_dit_campp_prefix_${dataset_name}
+
+system:
+  online_encoders:
+    speaker: null
+    frame_speaker:
+      _target_: quick_convert.components.speaker.CosyVoiceCAMPPlusFrameEncoder
+  decoder:
+    stream_conditioning:
+      _target_: quick_convert.components.decoders.StreamConditioning
+      dimensions:
+        frame_speaker: ${class_attr:quick_convert.components.speaker.CosyVoiceCAMPPlusFrameEncoder,FEATURE_DIM}
+    flow:
+      decoder:
+        estimator:
+          cond_dim: ${add:${system.decoder.stream_conditioning.dimensions.frame_speaker},1}
+          spk_dim: null

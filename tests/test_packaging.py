@@ -42,11 +42,22 @@ def test_conditional_rvq_compatibility_extra_matches_emotion2vec():
     assert set(extras["conditional-rvq"]) == set(extras["emotion2vec"])
 
 
-def test_dac_extra_only_declares_its_direct_backend():
+def test_dac_and_onnx_prefix_profiles_have_compatible_requirements():
+    from packaging.requirements import Requirement
+
     with PYPROJECT_PATH.open("rb") as file:
         pyproject = tomllib.load(file)
 
-    assert pyproject["project"]["optional-dependencies"]["dac"] == ["descript-audio-codec"]
+    extras = pyproject["project"]["optional-dependencies"]
+    requirements = {Requirement(value).name: Requirement(value) for value in extras["dac"]}
+    assert set(requirements) == {"descript-audio-codec", "descript-audiotools", "wandb", "protobuf"}
+    url = requirements["descript-audiotools"].url
+    assert url.startswith("git+https://github.com/descriptinc/audiotools.git@")
+    assert len(url.rsplit("@", 1)[1]) == 40
+    assert "0.25.0" in requirements["wandb"].specifier
+    assert "7.0.0" not in requirements["protobuf"].specifier
+    onnx = next(Requirement(value) for value in extras["campplus-frames"] if Requirement(value).name == "onnx")
+    assert "1.18.0" in onnx.specifier and "1.19.0" not in onnx.specifier
 
 
 def test_cosyvoice_extra_tracks_supported_runtime_surface():

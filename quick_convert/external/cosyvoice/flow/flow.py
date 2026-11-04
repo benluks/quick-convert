@@ -288,6 +288,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
         embedding,
         streaming,
         finalize,
+        inference_cfg_rate=None,
     ):
         # xvec projection
         embedding = F.normalize(embedding, dim=1)
@@ -352,6 +353,7 @@ class CausalMaskedDiffWithXvec(torch.nn.Module):
             spks=embedding,
             cond=conds,
             n_timesteps=10,
+            inference_cfg_rate=inference_cfg_rate,
             streaming=streaming,
         )
         feat = feat[:, :, mel_len1:]
@@ -491,6 +493,7 @@ class CausalMaskedDiffWithDiT(torch.nn.Module):
         embedding,
         streaming,
         finalize,
+        inference_cfg_rate=None,
     ):
         # assert token.shape[0] == 1
         # xvec projection
@@ -536,6 +539,7 @@ class CausalMaskedDiffWithDiT(torch.nn.Module):
             spks=embedding,
             cond=conds,
             n_timesteps=10,
+            inference_cfg_rate=inference_cfg_rate,
             streaming=streaming,
         )
         feat = feat[:, :, mel_len1:]

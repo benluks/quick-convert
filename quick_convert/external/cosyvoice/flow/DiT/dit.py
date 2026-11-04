@@ -74,11 +74,12 @@ class TextEmbedding(nn.Module):
 
 
 class InputEmbedding(nn.Module):
-    def __init__(self, mel_dim, text_dim, out_dim, spk_dim=None):
+    def __init__(self, mel_dim, text_dim, out_dim, spk_dim=None, cond_dim=None):
         super().__init__()
         spk_dim = 0 if spk_dim is None else spk_dim
         self.spk_dim = spk_dim
-        self.proj = nn.Linear(mel_dim * 2 + text_dim + spk_dim, out_dim)
+        cond_dim = mel_dim if cond_dim is None else cond_dim
+        self.proj = nn.Linear(mel_dim + cond_dim + text_dim + spk_dim, out_dim)
         self.conv_pos_embed = CausalConvPositionEmbedding(dim=out_dim)
 
     def forward(
@@ -117,14 +118,16 @@ class DiT(nn.Module):
         spk_dim=None,
         out_channels=None,
         static_chunk_size=50,
-        num_decoding_left_chunks=2
+        num_decoding_left_chunks=2,
+        cond_dim=None,
     ):
         super().__init__()
 
         self.time_embed = TimestepEmbedding(dim)
         if mu_dim is None:
             mu_dim = mel_dim
-        self.input_embed = InputEmbedding(mel_dim, mu_dim, dim, spk_dim)
+        self.cond_dim = mel_dim if cond_dim is None else cond_dim
+        self.input_embed = InputEmbedding(mel_dim, mu_dim, dim, spk_dim, self.cond_dim)
 
         self.rotary_embed = RotaryEmbedding(dim_head)
 
@@ -146,14 +149,13 @@ class DiT(nn.Module):
         x = x.transpose(1, 2)
         mu = mu.transpose(1, 2)
         cond = cond.transpose(1, 2)
-        spks = spks.unsqueeze(dim=1)
         batch, seq_len = x.shape[0], x.shape[1]
         if t.ndim == 0:
             t = t.repeat(batch)
 
         # t: conditioning time, c: context (text + masked cond audio), x: noised input audio
         t = self.time_embed(t)
-        x = self.input_embed(x, cond, mu, spks.squeeze(1))
+        x = self.input_embed(x, cond, mu, spks)
 
         rope = self.rotary_embed.forward_from_seq_len(seq_len)
 

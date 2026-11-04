@@ -1,0 +1,14 @@
+# @package _global_
+
+defaults:
+  - train_sslr_w2vbert_cmdiff_campp_prefix
+  - override /components/ssl@system.online_encoders.content: dac
+  - _self_
+
+exp_name: train_sslr_dac_cmdiff_campp_prefix_${dataset_name}
+
+system:
+  feature_transform:
+    num_layers: ${class_attr:${system.online_encoders.content._target_},N_LAYERS}
+  decoder:
+    feature_dim: ${class_attr:${system.online_encoders.content._target_},FEATURE_DIM}

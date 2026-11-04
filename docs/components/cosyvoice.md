@@ -1,5 +1,8 @@
 # CosyVoice reconstruction features
 
+For named prefix streams, CAMPPlus frame context and aligned reference prompts,
+see the [reference-conditioning guide](../guides/reference-conditioning.md).
+
 `CosyVoiceSpectrogramGenerator` uses a resolved
 `quick_convert.components.feature_extractors.mel.MelSpectrogramConfig` as its
 waveform-to-mel contract. Content encoders can continue to consume 16 kHz audio;

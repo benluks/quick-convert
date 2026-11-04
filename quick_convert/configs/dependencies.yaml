@@ -2,6 +2,8 @@
 # Keep package versions in pyproject.toml; this file maps semantic capabilities
 # to import probes and composed object-graph targets.
 extras:
+  campplus-frames:
+    probes: [onnx, onnxruntime, huggingface_hub]
   opensmile:
     probes: [opensmile]
   asr:
@@ -38,6 +40,9 @@ extras:
     probes: [whisper]
 
 targets:
+  quick_convert.components.speaker.CosyVoiceCAMPPlusFrameEncoder: [campplus-frames]
+  quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusFrameEncoder: [campplus-frames]
+  quick_convert.data.resources.SameSpeakerReferenceProvider: [manifests]
   quick_convert.components.encoders.upsample_conformer.UpsampleConformerEncoder: [cosyvoice]
   # Saved-system targets are inspected by the planner; loaders themselves need only base dependencies.
   quick_convert.inference.load_inference_system: []
