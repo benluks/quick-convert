@@ -3,6 +3,12 @@ from .dac import DACContentEncoder
 from .emo2vec import EmotionEncoder
 from .pase import PASEContentEncoder
 from .pros2vec import ProsodyEncoder
+from .quantized import (
+    DACQuantizedContentEncoder,
+    MimiQuantizedContentEncoder,
+    QuantizedContentEncoder,
+    SpeechTokenizerQuantizedContentEncoder,
+)
 from .registry import CONTENT_ENCODER_ALIASES, resolve_content_encoder
 from .s3tokenizer import S3TokenizerContentEncoder
 from .spear import SPEARContentEncoder
@@ -13,6 +19,10 @@ from .wavlm import WavLMContentEncoder
 
 
 __all__ = [
+    "QuantizedContentEncoder",
+    "DACQuantizedContentEncoder",
+    "MimiQuantizedContentEncoder",
+    "SpeechTokenizerQuantizedContentEncoder",
     "VQASRContentEncoder",
     "ContentEncoder",
     "ContentFeatures",

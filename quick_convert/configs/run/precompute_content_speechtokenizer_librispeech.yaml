@@ -1,0 +1,15 @@
+# @package _global_
+defaults:
+  - precompute_content_dac_librispeech
+  - override /components/ssl@encoder: speechtokenizer_quantized
+  - _self_
+
+encoder:
+  # DiffAnon uses first-level RVQ embeddings (zero-based index 0).
+  layer: 0
+
+dataset:
+  target_sr: 16000
+
+pipeline:
+  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/speechtokenizer_rvq${encoder.layer}
