@@ -135,9 +135,24 @@ def load_system_from_run(
     Checkpoint and config paths are relative to run_dir unless absolute.
     No training module, optimizer, logger, or intermediate artifact is created.
     """
-    return restore_system(
-        read_run_state(run_dir, checkpoint=checkpoint, config=config), map_location=map_location, strict=strict
+    return _record_source(
+        restore_system(
+            read_run_state(run_dir, checkpoint=checkpoint, config=config), map_location=map_location, strict=strict
+        ),
+        run_dir,
+        checkpoint,
+        config,
     )
+
+
+def _record_source(system, source, checkpoint=None, config=None):
+    """Retain loader provenance for workflows without attaching training state."""
+    system._inference_source = {"source": str(Path(source).expanduser().resolve())}
+    if checkpoint is not None:
+        system._inference_source["checkpoint"] = str(checkpoint)
+    if config is not None:
+        system._inference_source["config"] = str(config)
+    return system
 
 
 def _artifact_config(source: Path, checkpoint: PathLike | None, config: PathLike | None) -> dict | None:
@@ -210,4 +225,9 @@ def load_inference_system(
         from .artifact import load_inference_artifact
 
         return load_inference_artifact(source, map_location=map_location, strict=strict)
-    return restore_system(_read_training_source(source, checkpoint, config), map_location=map_location, strict=strict)
+    return _record_source(
+        restore_system(_read_training_source(source, checkpoint, config), map_location=map_location, strict=strict),
+        source,
+        checkpoint,
+        config,
+    )
