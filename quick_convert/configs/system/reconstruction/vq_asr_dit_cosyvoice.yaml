@@ -1,0 +1,25 @@
+# @package system
+
+defaults:
+  - /components/decoders@decoder: causal_masked_dit
+  - _self_
+
+_target_: quick_convert.systems.reconstruction.SSLReconstructionSystem
+online_encoders:
+  content:
+    _target_: quick_convert.components.ssl.VQASRContentEncoder
+    system:
+      _target_: quick_convert.inference.load_inference_system
+      source: ${vq_asr_checkpoint}
+      config: ${vq_asr_config}
+      map_location: ${device}
+  speaker:
+    _target_: quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusSpeakerEncoder
+decoder:
+  feature_dim: 1024
+  cond_strategy: null
+  flow:
+    spk_embed_dim: 192
+    vocab_size: null
+    input_frame_rate: 50
+    token_mel_ratio: ${frame_ratio:50,${.input_frame_rate}}

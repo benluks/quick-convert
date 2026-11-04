@@ -17,6 +17,7 @@ CONTENT_ENCODER_ALIASES = MappingProxyType(
         "s3tokenizer": "quick_convert.components.ssl.S3TokenizerContentEncoder",
         "w2vbert": "quick_convert.components.ssl.W2VBertContentEncoder",
         "voicefm": "quick_convert.components.ssl.VoiceFMContentEncoder",
+        "vq_asr": "quick_convert.components.ssl.VQASRContentEncoder",
         "wavlm": "quick_convert.components.ssl.WavLMContentEncoder",
     }
 )

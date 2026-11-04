@@ -15,11 +15,13 @@ from quick_convert.utils.device import DeviceLike, configure_device
 from quick_convert.utils.masking import make_padding_mask
 
 from .cosyvoice_reference import CosyVoiceReference, reference_flow_loss
-from .stream_flow import content_and_speaker, stream_flow_loss, stream_flow_sample
+from .stream_flow import content_and_speaker, independent_prefix_loss, stream_flow_loss, stream_flow_sample
 from .streams import ConditioningStream, StreamConditioning
 
 
 if TYPE_CHECKING:
+    from quick_convert.components.encoders.upsample_conformer import UpsampleConformerEncoder
+
     from ...external.cosyvoice.flow.flow import CausalMaskedDiffWithDiT, CausalMaskedDiffWithXvec
     from .hift_generator import CosyVoiceHiFTDecoder
 
@@ -58,11 +60,22 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         mel_config: MelSpectrogramConfig | None = None,
         stream_conditioning: StreamConditioning | None = None,
         stream_inference_steps: int = 10,
+        content_encoder: UpsampleConformerEncoder | None = None,
     ):
         super().__init__()
 
         self.device = configure_device(device)
         self.flow = flow
+        self.content_encoder = content_encoder
+        if content_encoder is not None:
+            if feature_dim != content_encoder.input_size:
+                raise ValueError("feature_dim must match the content encoder input_size.")
+            if stream_conditioning is None or flow.vocab_size is not None or hasattr(flow, "encoder"):
+                raise ValueError("A content_encoder requires a continuous DiT flow with named streams.")
+            if content_encoder.upsample_factor != 1:
+                raise ValueError("The duration-controlled content encoder requires upsample_factor=1.")
+            # The first-party encoder replaces the donor's shallow content encoder.
+            self.flow.pre_lookahead_layer = None
         self.stream_conditioning = stream_conditioning
         if type(stream_inference_steps) is not int or stream_inference_steps < 1:
             raise ValueError("stream_inference_steps must be a positive integer.")
@@ -92,8 +105,30 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         if mel_config is not None:
             self._set_mel_metadata({"mel_config": asdict(mel_config)})
         self.input_projection = None
-        if flow.vocab_size is None and feature_dim != flow.input_size:
-            self.input_projection = nn.Linear(feature_dim, flow.input_size, device=self.device)
+        projection_dim = content_encoder.output_size() if content_encoder is not None else feature_dim
+        if flow.vocab_size is None and projection_dim != flow.input_size:
+            self.input_projection = nn.Linear(projection_dim, flow.input_size, device=self.device)
+
+    def requested_mel_lengths(self, lengths, duration_ratio=1.0):
+        """Convert source feature lengths and a duration multiplier to mel lengths."""
+        ratio = torch.as_tensor(duration_ratio, device=lengths.device, dtype=torch.float32)
+        if ratio.ndim > 1 or (ratio.ndim == 1 and ratio.shape != lengths.shape):
+            raise ValueError("duration_ratio must be a scalar or one value per example.")
+        if not torch.isfinite(ratio).all() or torch.any(ratio <= 0):
+            raise ValueError("duration_ratio must be finite and positive.")
+        if getattr(self, "content_encoder", None) is None and torch.any(ratio != 1):
+            raise ValueError("duration_ratio requires a duration-controlled content encoder.")
+        return (self.flow.output_lengths(lengths) * ratio).round().long().clamp_min(1)
+
+    def _content_and_speaker(self, features, lengths, speaker, mel_lengths):
+        if getattr(self, "content_encoder", None) is None:
+            return content_and_speaker(self.flow, features, lengths, speaker)
+        h, valid = self.content_encoder(features, lengths, target_lengths=mel_lengths)
+        if self.input_projection is not None:
+            h = self.input_projection(h)
+        h = h.masked_fill(~valid.transpose(1, 2), 0)
+        spks = None if speaker is None else self.flow.spk_embed_affine_layer(F.normalize(speaker, dim=1))
+        return h, spks
 
     @property
     def requires_speaker_embedding(self) -> bool:
@@ -320,17 +355,27 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         ratio = ratio if ratio is not None else 1
         if type(ratio) is not int or ratio < 1:
             raise ValueError("token_mel_ratio must be a positive integer.")
-        # Compare endpoints on the mel axis. Different extraction boundaries
-        # may disagree by one content frame; do not hide larger rate errors.
-        differences = (lengths * ratio - target_mel_lengths).abs()
-        if torch.any(differences > ratio):
-            raise ValueError(
-                f"Content and mel durations differ by more than one content frame: {differences.tolist()}."
-            )
-        lengths = torch.minimum(lengths, target_mel_lengths // ratio)
-        if torch.any(lengths <= 0):
-            raise ValueError("Reconstruction requires at least one aligned content frame per sample.")
-        mel_lengths = lengths * ratio
+        if getattr(self, "content_encoder", None) is not None:
+            if (
+                lengths.shape != target_mel_lengths.shape
+                or torch.any(lengths <= 0)
+                or torch.any(lengths > features.shape[1])
+            ):
+                raise ValueError("Content lengths must match the batch and fit feature storage.")
+            duration_ratio = target_mel_lengths.float() / self.flow.output_lengths(lengths)
+            mel_lengths = self.requested_mel_lengths(lengths, duration_ratio)
+        else:
+            # Compare endpoints on the mel axis. Different extraction boundaries
+            # may disagree by one content frame; do not hide larger rate errors.
+            differences = (lengths * ratio - target_mel_lengths).abs()
+            if torch.any(differences > ratio):
+                raise ValueError(
+                    f"Content and mel durations differ by more than one content frame: {differences.tolist()}."
+                )
+            lengths = torch.minimum(lengths, target_mel_lengths // ratio)
+            if torch.any(lengths <= 0):
+                raise ValueError("Reconstruction requires at least one aligned content frame per sample.")
+            mel_lengths = lengths * ratio
         features = features[:, : int(lengths.max())]
         target_mel = target_mel[:, :, : int(mel_lengths.max())]
 
@@ -342,7 +387,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
                 )
             reference = self._project_reference(reference, features.shape[0], features.shape[-1])
 
-        if self.input_projection is not None:
+        if self.input_projection is not None and getattr(self, "content_encoder", None) is None:
             mask = make_padding_mask(lengths, max_length=features.shape[1])
             features = self.input_projection(features) * mask.unsqueeze(-1)
 
@@ -350,11 +395,19 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
             targets = target_mel.transpose(1, 2)
             supplied = dict(streams or {})
             if "mel" in supplied:
-                raise ValueError("The training mel stream is extracted from target_wav, not supplied externally.")
-            if "mel" in self.stream_conditioning.dimensions:
+                if getattr(self, "content_encoder", None) is None or not supplied["mel"].is_prefix:
+                    raise ValueError("An external training mel stream requires a duration-controlled reference prefix.")
+            elif "mel" in self.stream_conditioning.dimensions:
                 supplied["mel"] = ConditioningStream(targets, mel_lengths)
+            if getattr(self, "content_encoder", None) is not None:
+                h, spks = self._content_and_speaker(features, lengths, speaker_embedding, mel_lengths)
+                return CosyVoiceDecoderOutput(
+                    loss=independent_prefix_loss(
+                        self.flow, self.stream_conditioning, h, spks, targets, mel_lengths, supplied
+                    )
+                )
             conditions, loss_mask = self.stream_conditioning.training_conditions(supplied, mel_lengths, targets)
-            h, spks = content_and_speaker(self.flow, features, lengths, speaker_embedding)
+            h, spks = self._content_and_speaker(features, lengths, speaker_embedding, mel_lengths)
             loss = stream_flow_loss(self.flow, h, spks, targets, mel_lengths, conditions, loss_mask)
             return CosyVoiceDecoderOutput(loss=loss)
 
@@ -391,6 +444,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         reference: CosyVoiceReference | None = None,
         inference_cfg_rate: float | None = None,
         streams: dict[str, ConditioningStream] | None = None,
+        duration_ratio: float | torch.Tensor = 1.0,
     ) -> CosyVoiceGenerationOutput:
         """Generate with optional per-call CFG; None retains the saved guidance rate."""
         self._validate_speaker_embedding(speaker_embedding)
@@ -416,12 +470,13 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
             if not torch.all(reference.lengths == reference.lengths[0]):
                 raise ValueError("Batched generation requires equal reference lengths.")
 
-        if self.input_projection is not None:
+        if self.input_projection is not None and getattr(self, "content_encoder", None) is None:
             mask = make_padding_mask(length, max_length=feature.shape[1])
             feature = self.input_projection(feature) * mask.unsqueeze(-1)
 
+        mel_lengths = self.requested_mel_lengths(length, duration_ratio)
         if self.stream_conditioning is not None:
-            h, spks = content_and_speaker(self.flow, feature, length, speaker_embedding)
+            h, spks = self._content_and_speaker(feature, length, speaker_embedding, mel_lengths)
             prefix_streams = streams or {}
             if torch.is_autocast_enabled(h.device.type):
                 # Frozen extractors return float32 while the content encoder can
@@ -435,7 +490,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
             mel = stream_flow_sample(
                 self.flow,
                 h,
-                self.flow.output_lengths(length),
+                mel_lengths,
                 spks,
                 prefixes,
                 prefix_lengths,
@@ -464,7 +519,6 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
                 # max_feature_len=max_len,
                 # n_timesteps=n_timesteps,
             )
-        mel_lengths = self.flow.output_lengths(length)
         if torch.any(mel_lengths > mel.shape[-1]):
             raise RuntimeError("A generated mel length exceeds the padded mel tensor.")
 

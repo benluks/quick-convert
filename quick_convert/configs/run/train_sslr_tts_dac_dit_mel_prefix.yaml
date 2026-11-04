@@ -1,0 +1,19 @@
+# @package _global_
+
+defaults:
+  - train_sslr_tts_dit_mel_prefix
+  - override /components/ssl@system.online_encoders.content: dac
+  - _self_
+
+exp_name: tts_dac_conformer_dit_mel_prefix_${dataset_name}
+
+system:
+  # DAC exposes one continuous pre-quantization feature layer.
+  feature_transform:
+    _target_: quick_convert.components.layers.layer_fusion.LayerWeightedSum
+    num_layers: ${class_attr:${system.online_encoders.content._target_},N_LAYERS}
+  decoder:
+    feature_dim: ${class_attr:${system.online_encoders.content._target_},FEATURE_DIM}
+    flow:
+      input_frame_rate: ${class_attr:${system.online_encoders.content._target_},FRAME_HZ}
+      token_mel_ratio: ${frame_ratio:50,${.input_frame_rate}}

@@ -55,6 +55,9 @@ targets:
   quick_convert.components.speaker.ESPnetSpeakerEncoder: [espnet-wavlm-joint]
   quick_convert.components.speaker.PyannoteWeSpeakerEncoder: [pyannote]
   quick_convert.components.ssl.DACContentEncoder: [dac]
+  # The nested saved system selects the content backend's requirements.
+  quick_convert.components.ssl.VQASRContentEncoder: []
+  quick_convert.components.ssl.vq_asr.VQASRContentEncoder: []
   quick_convert.components.ssl.EmotionEncoder: [emotion2vec]
   quick_convert.components.ssl.PASEContentEncoder: [pase]
   quick_convert.components.ssl.SPEARContentEncoder: [spear]
