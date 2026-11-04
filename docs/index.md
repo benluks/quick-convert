@@ -20,6 +20,7 @@ Quick Convert is a composable speech-privacy research library with Python APIs a
 - [Conversion outputs and resuming](guides/conversion-outputs.md)
 - [Paired reconstruction and VQ-ASR content](guides/paired-reconstruction.md)
 - [Native codec representations](guides/native-codecs.md)
+- [Frame prediction diagnostics](guides/frame-diagnostics.md)
 - [Data and resources](data/index.md)
 - [Configuration reference](config/reference.md)
 
