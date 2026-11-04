@@ -55,6 +55,44 @@ class MediaLogger(ABC):
         step: int,
     ) -> None: ...
 
+    def log_table(self, key, columns, rows, *, step):
+        """Publish tabular diagnostics; text backends use a Markdown table."""
+        lines = [" | ".join(columns), " | ".join(["---"] * len(columns))]
+        lines.extend(" | ".join("" if value is None else str(value) for value in row) for row in rows)
+        self.log_text({key: "\n".join(lines)}, step=step)
+
+    def log_frame_predictions(self, key, predictions, target, padding_mask, *, kind, step):
+        """Render one aligned target/prediction contour through the image backend."""
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        from matplotlib.figure import Figure
+
+        mask = target.valid_mask(padding_mask)[0].cpu()
+        values = target.values[0].detach().cpu().reshape(-1).float()
+        predicted = predictions[0].detach().float().cpu()
+        predicted = predicted.argmax(-1).float() if kind == "bins" else predicted.squeeze(-1)
+        if kind == "binary":
+            predicted = predicted.sigmoid()
+        values = values.masked_fill(~mask, float("nan"))
+        predicted = predicted.masked_fill(~mask, float("nan"))
+        if target.timestamps is not None and target.timestamps.shape != target.values.shape[:2]:
+            raise ValueError("Contour timestamps must match the target batch/time dimensions.")
+        times = target.timestamps[0].detach().cpu() if target.timestamps is not None else torch.arange(len(mask))
+        figure = Figure(figsize=(10, 3))
+        canvas = FigureCanvasAgg(figure)
+        ax = figure.subplots()
+        ax.plot(times, values, label="target")
+        ax.plot(times, predicted, label="prediction", alpha=0.8)
+        ax.set(xlabel="seconds" if target.timestamps is not None else "frame", ylabel=kind, title=key)
+        ax.legend()
+        figure.tight_layout()
+        canvas.draw()
+        pixels = torch.frombuffer(bytearray(canvas.buffer_rgba()), dtype=torch.uint8)
+        pixels = pixels.reshape(canvas.get_width_height()[1], canvas.get_width_height()[0], 4)
+        self.log_images(
+            {key: pixels[..., :3].permute(2, 0, 1).float() / 255},
+            step=step,
+        )
+
     @abstractmethod
     def log_bar(
         self,
@@ -102,6 +140,9 @@ class WandbMediaLogger(MediaLogger):
             self.logger.experiment.log(data, step=step)
         except TimeoutError as exc:
             warnings.warn(f"W&B logging timed out at step {step}: {exc}", stacklevel=2)
+
+    def log_table(self, key, columns, rows, *, step):
+        self.logger.experiment.log({key: self.wandb.Table(columns=columns, data=rows)}, step=step)
 
     def log_audio(
         self,
@@ -456,6 +497,9 @@ class TensorBoardMediaLogger(MediaLogger):
 
 
 class NullMediaLogger(MediaLogger):
+    def log_frame_predictions(self, key, predictions, target, padding_mask, *, kind, step):
+        pass
+
     def log_audio(
         self,
         key: str,
