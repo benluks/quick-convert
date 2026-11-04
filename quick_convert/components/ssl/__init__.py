@@ -7,11 +7,13 @@ from .registry import CONTENT_ENCODER_ALIASES, resolve_content_encoder
 from .s3tokenizer import S3TokenizerContentEncoder
 from .spear import SPEARContentEncoder
 from .voicefm import VoiceFMContentEncoder
+from .vq_asr import VQASRContentEncoder
 from .w2vbert import W2VBertContentEncoder
 from .wavlm import WavLMContentEncoder
 
 
 __all__ = [
+    "VQASRContentEncoder",
     "ContentEncoder",
     "ContentFeatures",
     "DiscreteContentEncoder",

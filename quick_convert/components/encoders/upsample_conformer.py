@@ -17,6 +17,8 @@
 """Encoder definition."""
 
 import torch
+import torch.nn.functional as F
+from torch.nn.utils.rnn import pad_sequence
 
 from quick_convert.external.cosyvoice.transformer.convolution import ConvolutionModule
 from quick_convert.external.cosyvoice.transformer.encoder_layer import ConformerEncoderLayer
@@ -87,6 +89,7 @@ class UpsampleConformerEncoder(torch.nn.Module):
             raise ValueError("lookahead_frames must be nonnegative or None")
         if output_size <= 0 or attention_heads <= 0 or output_size % attention_heads:
             raise ValueError("output_size must be positive and divisible by attention_heads")
+        self.input_size = input_size
         self._output_size = output_size
 
         self.global_cmvn = global_cmvn
@@ -175,12 +178,29 @@ class UpsampleConformerEncoder(torch.nn.Module):
         xs_lens: torch.Tensor,
         context: torch.Tensor | None = None,
         streaming: bool = False,
+        *,
+        target_lengths: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Return features (B, T * factor, D) and a valid-frame mask (B, 1, T * factor).
+
+        ``target_lengths`` resizes each valid encoded sequence before the second
+        stack. It requires factor one and offline operation; returned masks report
+        the requested lengths rather than ``output_lengths(input_lengths)``.
 
         Streaming uses fixed chunks with unlimited left context. Context contains
         exactly the configured lookahead frames and is accepted only in eval mode.
         """
+        if target_lengths is not None:
+            if self.upsample_factor != 1:
+                raise ValueError("target_lengths requires upsample_factor=1")
+            if streaming or (context is not None and context.numel()):
+                raise ValueError("target_lengths requires offline encoding without context")
+            if target_lengths.shape != xs_lens.shape or target_lengths.dtype != torch.long:
+                raise ValueError("target_lengths must be a long vector matching input lengths")
+            if target_lengths.device != xs.device or torch.any(target_lengths <= 0):
+                raise ValueError("target_lengths must be positive and on the input device")
+            if torch.any(xs_lens <= 0) or torch.any(xs_lens > xs.shape[1]):
+                raise ValueError("Input lengths must be positive and within input storage")
         if context is None:
             context = xs.new_empty((0, 0, 0))
         if context.numel() and self.pre_lookahead_layer is None:
@@ -205,7 +225,18 @@ class UpsampleConformerEncoder(torch.nn.Module):
 
         # upsample + conformer encoder
         xs = xs.transpose(1, 2).contiguous()
-        if self.up_layer is not None:
+        if target_lengths is not None:
+            xs = pad_sequence(
+                [
+                    F.interpolate(value[None, :, : int(n)], size=int(m), mode="linear", align_corners=False)
+                    .squeeze(0)
+                    .transpose(0, 1)
+                    for value, n, m in zip(xs, xs_lens, target_lengths, strict=True)
+                ],
+                batch_first=True,
+            ).transpose(1, 2)
+            xs_lens = target_lengths
+        elif self.up_layer is not None:
             xs, xs_lens = self.up_layer(xs, xs_lens)
         xs = xs.transpose(1, 2).contiguous()
         T = xs.size(1)
@@ -225,6 +256,8 @@ class UpsampleConformerEncoder(torch.nn.Module):
         # Here we assume the mask is not changed in encoder layers, so just
         # return the masks before encoder layers, and the masks will be used
         # for cross attention with decoder later
+        if target_lengths is not None:
+            xs = xs.masked_fill(~masks.transpose(1, 2), 0)
         return xs, masks
 
     def forward_layers(

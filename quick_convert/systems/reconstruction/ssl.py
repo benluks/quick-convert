@@ -270,6 +270,7 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
         *,
         run_vocoder: bool = True,
         streams: dict[str, ConditioningStream] | None = None,
+        duration_ratio: float | torch.Tensor = 1.0,
     ) -> SSLReconstructionResult:
         """Generate from plain content and speaker tensors."""
         features, output_lengths, encoder_output = self.encode_features(values, lengths)
@@ -278,6 +279,7 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
             output_lengths,
             speaker_embedding,
             run_vocoder=run_vocoder,
+            duration_ratio=duration_ratio,
             **({"streams": streams} if streams is not None else {}),
         )
         return SSLReconstructionResult(
@@ -296,13 +298,20 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
         *,
         run_vocoder: bool = True,
         streams: dict[str, ConditioningStream] | None = None,
+        duration_ratio: float | torch.Tensor = 1.0,
     ) -> CosyVoiceGenerationOutput:
         """Generate from already transformed or encoded content features."""
+        if getattr(self.decoder, "content_encoder", None) is None:
+            if torch.any(torch.as_tensor(duration_ratio) != 1):
+                raise ValueError("duration_ratio requires a duration-controlled content encoder.")
         return self.decoder(
             feature=features,
             length=lengths,
             speaker_embedding=speaker_embedding,
             run_vocoder=run_vocoder,
+            **(
+                {"duration_ratio": duration_ratio} if getattr(self.decoder, "content_encoder", None) is not None else {}
+            ),
             **({"streams": streams} if streams is not None else {}),
         )
 

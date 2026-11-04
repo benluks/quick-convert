@@ -24,6 +24,30 @@ def content_and_speaker(flow, features, lengths, speaker):
     return h, spks
 
 
+def independent_prefix_loss(flow, conditioning, h, spks, targets, lengths, streams):
+    """Prepend independent reference context while scoring the entire target."""
+    from .streams import ConditioningStream
+
+    prefixes = {
+        name: stream
+        if stream.is_prefix
+        else ConditioningStream(stream.values, conditioning.sample_prefix_lengths(stream.lengths), is_prefix=True)
+        for name, stream in streams.items()
+    }
+    _, prefix_lengths = conditioning.prefix_conditions(prefixes, targets)
+    total_lengths = prefix_lengths + lengths
+
+    def prepend(values):
+        return pad_sequence(
+            [F.pad(value[:n], (0, 0, int(p), 0)) for value, n, p in zip(values, lengths, prefix_lengths, strict=True)],
+            batch_first=True,
+        )
+
+    targets = prepend(targets)
+    conditions, score = conditioning.training_conditions(prefixes, total_lengths, targets)
+    return stream_flow_loss(flow, prepend(h), spks, targets, total_lengths, conditions, score)
+
+
 def stream_flow_loss(flow, h, spks, targets, lengths, conditions, loss_mask):
     """Score only the shared target span, keeping linguistic conditioning visible."""
     cfm = flow.decoder

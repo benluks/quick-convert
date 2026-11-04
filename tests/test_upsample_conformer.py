@@ -5,6 +5,36 @@ from quick_convert.components.encoders.upsample_conformer import UpsampleConform
 from quick_convert.external.cosyvoice.transformer.upsample_encoder import UpsampleConformerEncoder as Original
 
 
+@pytest.mark.parametrize("target_lengths", [torch.tensor([4]), torch.tensor([4, 0]), torch.tensor([4.0, 2.0])])
+def test_invalid_requested_lengths(target_lengths):
+    model = UpsampleConformerEncoder(input_size=4, output_size=8, attention_heads=2, num_blocks=0)
+    with pytest.raises(ValueError, match="target_lengths"):
+        model(torch.ones(2, 3, 4), torch.tensor([3, 2]), target_lengths=target_lengths)
+
+
+def test_requested_lengths_mask_padding_and_keep_input_owned():
+    model = UpsampleConformerEncoder(
+        input_size=4,
+        output_size=8,
+        attention_heads=2,
+        num_blocks=0,
+        dropout_rate=0,
+        positional_dropout_rate=0,
+    ).eval()
+    values = torch.randn(2, 3, 4, requires_grad=True)
+    original = values.detach().clone()
+    requested = torch.tensor([2, 5])
+    output, mask = model(values, torch.tensor([3, 2]), target_lengths=requested)
+    assert output.shape == (2, 5, 8)
+    assert mask.sum(-1).flatten().tolist() == requested.tolist()
+    assert output[0, 2:].count_nonzero() == 0
+    output.square().sum().backward()
+    assert values.grad[1, 2:].count_nonzero() == 0
+    torch.testing.assert_close(values, original)
+    with pytest.raises(ValueError, match="offline"):
+        model(values, torch.tensor([3, 2]), target_lengths=requested, streaming=True)
+
+
 @pytest.mark.parametrize("upsample", [False, True])
 @pytest.mark.parametrize("cnn", [False, True])
 def test_original_checkpoint_output_and_gradient_parity(upsample, cnn):
