@@ -5,7 +5,7 @@ defaults:
   - train_sslr_w2vbert_dit
   - _self_
 
-exp_name: ${hydra:job.config_name}_${dataset_name}
+exp_name: train_sslr_w2vbert_dit_streams_${dataset_name}
 
 system:
   decoder:

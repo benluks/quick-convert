@@ -210,6 +210,7 @@ def test_stream_run_names_are_distinct_from_each_other_and_the_base_run():
     finally:
         HydraConfig.instance().cfg = previous
     assert len(set(names)) == len(names)
+    assert all("/" not in name and "\\" not in name for name in names)
 
 
 def test_real_dit_supports_non_mel_condition_width():

@@ -5,7 +5,7 @@ defaults:
   - override /components/ssl@system.online_encoders.content: dac
   - _self_
 
-exp_name: ${hydra:job.config_name}_${dataset_name}
+exp_name: train_sslr_dac_dit_campp_prefix_${dataset_name}
 
 system:
   feature_transform:
