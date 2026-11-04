@@ -12,6 +12,7 @@ from quick_convert.components.decoders import CosyVoiceGenerationOutput, CosyVoi
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.mixins.resource import OnlineResourceMixin
 from quick_convert.data import AudioBatch
+from quick_convert.systems.base import InferenceSystem
 from quick_convert.types import AudioInput
 from quick_convert.utils.audio import load_audio_input
 from quick_convert.utils.masking import make_padding_mask
@@ -28,7 +29,7 @@ class SSLReconstructionResult:
     encoder_output: RVQOutput | None = None
 
 
-class SSLReconstructionSystem(OnlineResourceMixin, nn.Module):
+class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
     """Inference-ready SSL speech reconstruction independent of Lightning."""
 
     def __init__(

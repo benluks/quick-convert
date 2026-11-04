@@ -32,7 +32,7 @@ def test_export_command_forwards_arguments(monkeypatch, tmp_path: Path, capsys) 
         (run_dir, destination),
         {
             "checkpoint": "checkpoints/best.ckpt",
-            "config": "config.yaml",
+            "config": None,
             "map_location": "cuda",
             "overwrite": True,
         },

@@ -57,13 +57,15 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         self.system = system
 
         self.save_hyperparameters(
+            logger=False,
             ignore=[
+                "optimization",
                 "system",
                 "decoder",
                 "feature_transform",
                 "online_encoders",
                 "encoder",
-            ]
+            ],
         )
 
     @property

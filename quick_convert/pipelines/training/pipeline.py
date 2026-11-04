@@ -6,6 +6,8 @@ from os import PathLike
 from pathlib import Path
 from typing import Any
 
+from omegaconf import OmegaConf
+
 from quick_convert.data.base_dataset import BaseDataset
 from quick_convert.training.base import BaseTrainer
 
@@ -42,6 +44,9 @@ class TrainingPipeline:
         if self.out_path is None:
             raise RuntimeError("Prepare the training pipeline before writing its config.")
 
+        configure = getattr(self.trainer, "configure_inference", None)
+        if callable(configure):
+            configure(OmegaConf.to_container(OmegaConf.create(config), resolve=True))
         self.out_path.mkdir(parents=True, exist_ok=True)
         config_path = self.out_path / "config.yaml"
         config_path.write_text(config)

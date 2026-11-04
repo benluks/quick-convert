@@ -22,6 +22,13 @@ Use a system for a complete task-level inference capability.
 - Keep training losses out unless they are intrinsic to the task result.
 - Verify that the system can be saved and loaded as an inference artifact.
 
+Subclass `quick_convert.systems.base.InferenceSystem` to inherit typed
+`from_run` and `from_artifact` loaders. Use top-level `system` in the run config
+and `self.system` in its training wrapper. New checkpoints then embed inference
+composition through the standard training pipeline. No per-model loader is
+needed for this contract; any configured `torch.nn.Module` also works with
+`load_inference_system`. See the [inference guide](../guides/inference.md).
+
 ## Add training behavior
 
 Wrap a system in a training module when adding objectives, logging, or optimization-specific behavior.

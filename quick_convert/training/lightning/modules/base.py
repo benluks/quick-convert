@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import abc
 from collections.abc import Iterable, Mapping
+from copy import deepcopy
 from os import PathLike
 from pathlib import Path
 from typing import Protocol, Self, TypeVar
@@ -56,6 +57,7 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
         super().__init__()
 
         self.optimization = optimization
+        self._inference_description = None
         self.checkpoint_exclude_prefixes = tuple(
             self._normalize_checkpoint_prefix(prefix) for prefix in checkpoint_exclude_prefixes
         )
@@ -116,7 +118,7 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
         return self._media_logger
 
     def _is_checkpoint_excluded(self, key: str) -> bool:
-        return key.startswith(self.checkpoint_exclude_prefixes)
+        return any(key == prefix.rstrip(".") or key.startswith(prefix) for prefix in self.checkpoint_exclude_prefixes)
 
     def _clean_compiled_state_dict(
         self,
@@ -124,16 +126,40 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
     ) -> dict[str, torch.Tensor]:
         return {key.replace("._orig_mod.", "."): value for key, value in state_dict.items()}
 
+    def set_inference_config(self, config: Mapping) -> None:
+        """Attach system composition without retaining training configuration.
+
+        TrainingPipeline supplies this through the trainer when saving the
+        resolved run config. Programmatic callers can supply it directly.
+        """
+        from quick_convert.inference.source import inference_description
+
+        self._inference_description = inference_description(config)
+
     def on_save_checkpoint(self, checkpoint: dict) -> None:
+        if self._inference_description is not None:
+            # A fine-tuned online encoder cannot be recreated from pretrained
+            # defaults when its learned state is omitted from the checkpoint.
+            system = getattr(self, "system", None)
+            for name, encoder in getattr(system, "online_encoders", {}).items():
+                if any(
+                    parameter.requires_grad and self._is_checkpoint_excluded(f"system.online_encoders.{name}.{key}")
+                    for key, parameter in encoder.named_parameters()
+                ):
+                    raise ValueError(f"Cannot omit trainable online encoder {name!r} from an inference checkpoint.")
+
         state_dict = self._clean_compiled_state_dict(checkpoint["state_dict"])
 
         checkpoint["state_dict"] = {
             key: value for key, value in state_dict.items() if not self._is_checkpoint_excluded(key)
         }
 
-        # Record this for transparency/debugging. Loading does not need to rely
-        # on it because the current module configuration is authoritative.
+        # Preserve omissions for training resume diagnostics and inference restoration.
         checkpoint["checkpoint_exclude_prefixes"] = list(self.checkpoint_exclude_prefixes)
+        if self._inference_description is not None:
+            from quick_convert.inference.source import CHECKPOINT_METADATA_KEY
+
+            checkpoint[CHECKPOINT_METADATA_KEY] = deepcopy(self._inference_description)
 
     def _prepare_checkpoint_state_dict(
         self,

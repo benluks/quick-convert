@@ -4,17 +4,17 @@ from abc import ABC, abstractmethod
 from typing import Any, Generic
 
 import torch
-import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence
 
 from quick_convert.data import AudioBatch, GeneratedAudio
+from quick_convert.systems.base import InferenceSystem
 from quick_convert.types import AudioInput
 from quick_convert.utils.audio import load_audio_input
 
 from .targets import T_Target
 
 
-class BaseAnonymizer(nn.Module, ABC, Generic[T_Target]):
+class BaseAnonymizer(InferenceSystem, ABC, Generic[T_Target]):
     """Base contract for audio anonymization systems.
 
     Single-item callers may pass a file path or waveform tensor to

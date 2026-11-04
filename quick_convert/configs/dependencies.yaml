@@ -38,6 +38,10 @@ extras:
     probes: [whisper]
 
 targets:
+  # Saved-system targets are inspected by the planner; loaders themselves need only base dependencies.
+  quick_convert.inference.load_inference_system: []
+  quick_convert.inference.load_system_from_run: []
+  quick_convert.inference.load_inference_artifact: []
   quick_convert.components.feature_extractors.prosody.OpenSmileProsodyExtractor: [opensmile]
   quick_convert.components.decoders.CosyVoiceSpectrogramGenerator: [cosyvoice]
   quick_convert.components.feature_extractors.TokenizerFeatureExtractor: [sentencepiece]
