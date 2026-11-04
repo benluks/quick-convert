@@ -59,6 +59,37 @@ results = evaluator.evaluate(
 `enroll_id` identifies a speaker; `test_id` identifies an utterance. `evaluate`
 returns results; `run` uses the default protocol and also writes `results.json`.
 
+## Enrollment aggregation
+
+Equal-weight averaging remains the default. To weight each recording by its
+valid audio duration, excluding batch padding, pass a shared policy:
+
+```python
+from quick_convert.components.speaker import SpeakerEmbeddingAggregation
+
+evaluator = ASVEvaluator(
+    enroll_dataset,
+    test_dataset,
+    speaker_encoder,
+    "outputs/asv-weighted",
+    enrollment_aggregation=SpeakerEmbeddingAggregation("duration_weighted"),
+)
+results = evaluator.run()
+```
+
+For the existing CLI preset, append these overrides:
+
+```bash
+'+pipeline.enrollment_aggregation._target_=quick_convert.components.speaker.SpeakerEmbeddingAggregation' \
+'+pipeline.enrollment_aggregation.method=duration_weighted'
+```
+
+Weighted enrollment requires a valid duration for every enrollment recording.
+Load enrollment audio to supply lengths and sample rates. Aggregation does not
+normalize or modify individual embeddings; cosine scoring owns normalization.
+`extract_embeddings(..., durations=mapping)` optionally fills recording durations
+while preserving its two-mapping return value.
+
 ## Optional caching
 
 Caching is off by default. For repeated evaluations, enable it with
@@ -68,3 +99,8 @@ manifest/audio revision. Change it whenever any of those change and use a fresh
 output directory. A mismatched key raises an error rather than reusing a cache.
 Reusing a key after changing inputs can produce stale results. Only load cache
 files you control.
+
+When durations are requested, older caches can be enriched from loaded audio
+metadata without re-encoding embeddings. Changed durations raise an error and
+require rebuilding the cache. Equal-duration audio changes still require a new
+cache key. Only utterances in the current dataset are returned from a cache.
