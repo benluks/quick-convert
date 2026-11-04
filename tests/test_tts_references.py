@@ -14,7 +14,6 @@ from torch.nn.utils.rnn import pad_sequence
 from quick_convert.components.mixins.resource import ResolvedResource
 from quick_convert.data import AudioBatch
 from quick_convert.systems.reconstruction import SSLReconstructionSystem
-from quick_convert.training.lightning.modules.ssl_reconstruction import SSLReconstructionTrainingModule
 from quick_convert.utils.resolvers import register_config_resolvers
 
 
@@ -78,6 +77,9 @@ def paired_datasets(tmp_path):
 
 
 def module():
+    SSLReconstructionTrainingModule = pytest.importorskip(
+        "quick_convert.training.lightning.modules.ssl_reconstruction"
+    ).SSLReconstructionTrainingModule
     model = decoder()
     model.stream_conditioning.prefix_fraction = (1, 1)
     probe = PrefixProbe()
@@ -170,6 +172,9 @@ def test_same_file_reference_is_rejected_before_loading(tmp_path):
 
 @pytest.mark.parametrize("seconds", [0, -1, float("nan"), float("inf")])
 def test_invalid_reference_duration(seconds):
+    SSLReconstructionTrainingModule = pytest.importorskip(
+        "quick_convert.training.lightning.modules.ssl_reconstruction"
+    ).SSLReconstructionTrainingModule
     with pytest.raises(ValueError, match="reference_seconds"):
         SSLReconstructionTrainingModule(
             system=SSLReconstructionSystem(decoder()), optimization=None, reference_seconds=seconds

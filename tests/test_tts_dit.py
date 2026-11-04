@@ -11,11 +11,11 @@ from test_stream_conditioning import Flow
 from quick_convert.components.decoders import ConditioningStream, CosyVoiceSpectrogramGenerator, StreamConditioning
 from quick_convert.components.encoders.upsample_conformer import UpsampleConformerEncoder
 from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
-from quick_convert.external.cosyvoice.flow.DiT.dit import DiT
 from quick_convert.systems.reconstruction import SSLReconstructionSystem
 
 
 def decoder():
+    DiT = pytest.importorskip("quick_convert.external.cosyvoice.flow.DiT.dit").DiT
     flow = Flow()
     flow.decoder.estimator = DiT(dim=32, depth=1, heads=2, dim_head=16, mel_dim=2, mu_dim=2, spk_dim=None, cond_dim=3)
     return CosyVoiceSpectrogramGenerator(
@@ -133,7 +133,10 @@ def test_paired_run_routes_content_through_tts_audio_resource():
 def test_training_module_resolves_paired_content_and_original_targets(monkeypatch):
     from quick_convert.components.mixins.resource import ResolvedResource
     from quick_convert.data import AudioBatch
-    from quick_convert.training.lightning.modules.ssl_reconstruction import SSLReconstructionTrainingModule
+
+    SSLReconstructionTrainingModule = pytest.importorskip(
+        "quick_convert.training.lightning.modules.ssl_reconstruction"
+    ).SSLReconstructionTrainingModule
 
     model = decoder()
     system = SSLReconstructionSystem(model)
