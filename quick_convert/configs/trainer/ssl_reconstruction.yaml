@@ -13,7 +13,7 @@ ddp:
 compile:
   enabled: false
   targets:
-    - decoder
+    - system.decoder.flow
 
 module:
   _target_: quick_convert.training.lightning.modules.ssl_reconstruction.SSLReconstructionTrainingModule

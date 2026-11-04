@@ -14,6 +14,7 @@ from .base import ContentEncoder, ContentFeatures
 class W2VBertContentEncoder(ContentEncoder):
     FEATURE_DIM = 1024
     SAMPLE_RATE = 16_000
+    FRAME_HZ = 50
     FBANK_HOP_LENGTH = 160
     TIME_D = 1
 

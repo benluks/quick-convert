@@ -66,9 +66,44 @@ mel_config:
 These values describe that model, rather than defaults for every implementation.
 An explicit specification must agree with a supplied or subsequently loaded
 vocoder. The flow's configured output frame rate must agree with the mel rate.
-The current reconstruction training wrapper aligns one content frame to one mel
-frame; configurations requiring temporal upsampling need a corresponding training
-alignment implementation.
+Reconstruction training preserves separate content and mel clocks. A flow with
+`token_mel_ratio=2` receives content lengths in content frames and target lengths
+in mel frames. The wrapper accepts extraction-boundary differences of up to one
+content frame, trims to complete aligned frames, and rejects larger duration
+mismatches. Caller-owned features and lengths are preserved.
+
+The W2V-BERT run configs explicitly load audio at the encoder's required sample
+rate. Flow timing follows the encoder's `FRAME_HZ` capability; the `frame_ratio`
+resolver requires a positive integer ratio to the configured 50 Hz mel clock.
+Changing a model's capabilities or mel clock also requires compatible system
+wiring, rather than rounding a noninteger ratio.
+
+## Encoder and training behavior
+
+The CFM reconstruction configs use the first-party
+`quick_convert.components.encoders.upsample_conformer.UpsampleConformerEncoder`
+adapter. The preset retains the original six-block stack, four-block second
+stack, second projection, and three-frame lookahead. Upsampling follows the
+content-to-mel ratio; factor one bypasses the resampler. See the
+[encoder guide](upsample-conformer.md) for custom compositions and checkpoint
+compatibility.
+
+Frozen online encoders and a frozen vocoder remain in evaluation mode while
+the reconstruction system trains. Encoders selected through
+`trainable_online_encoders` retain their training mode and gradient path.
+Frozen resource tensors can feed trainable downstream layers, including when a
+backend computes them under `torch.inference_mode()`.
+
+SSL reconstruction logs the learned layer-fusion weights and masked quantizer
+usage every 1,000 training steps. Usage metrics include per-codebook utilization,
+perplexity, and maximum usage fraction; padding and inactive codes are excluded.
+Distributed counts are reduced in a fixed-size tensor before computing metrics.
+Gradient-norm groups include feature fusion and any input projection. Set
+`trainer.module.enable_grad_norm_logging=false` to disable gradient-norm logging.
+
+The optional compile target is `system.decoder.flow`, so compilation replaces
+the flow actually used by the system instead of creating a duplicate decoder
+on the training module.
 
 ## Checkpoint compatibility
 
@@ -76,6 +111,9 @@ The resolved specification, pretrained architecture metadata, and model source
 are saved as tensor-backed decoder state, so both Lightning checkpoints and
 inference artifacts preserve them. Loading saved metadata does not require a
 companion download. Explicit conflicting mel specifications are rejected.
+Hydra-created vocoder configs are converted to independent plain lists and
+dictionaries before serialization, allowing JSON metadata and weights-only
+checkpoint restoration.
 
 Checkpoints predating this metadata are rejected rather than silently resuming
 with different targets. They learned the earlier 16 kHz / 8 kHz-upper-limit mel

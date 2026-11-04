@@ -11,7 +11,7 @@ from torch import nn
 from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
 from quick_convert.data import GeneratedAudio
 from quick_convert.utils.device import DeviceLike, configure_device
-from quick_convert.utils.masking import make_padding_mask, trim_to_min
+from quick_convert.utils.masking import make_padding_mask
 
 
 if TYPE_CHECKING:
@@ -228,38 +228,47 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         Thin wrapper around donor compute_loss.
         """
 
+        if features.ndim != 3 or lengths.shape != (features.shape[0],):
+            raise ValueError("Content features must have shape [batch, time, dim] with one length per sample.")
+        if (
+            lengths.dtype not in (torch.int32, torch.int64)
+            or torch.any(lengths <= 0)
+            or torch.any(lengths > features.shape[1])
+        ):
+            raise ValueError("Content lengths must be positive integers and fit feature storage.")
         input_rate = getattr(self.flow, "input_frame_rate", None)
         ratio = getattr(self.flow, "token_mel_ratio", None)
         if input_rate is not None and ratio is not None:
             if abs(input_rate * ratio - self.mel_config.sample_rate / self.mel_config.hop_size) > 1e-6:
                 raise ValueError("Flow output frame rate differs from the mel specification.")
-        target_mel, target_mel_lengths = self._compute_mels(
-            target_wav, wav_lens, int(sampling_rate), max_len=features.shape[1]
-        )
+        target_mel, target_mel_lengths = self._compute_mels(target_wav, wav_lens, int(sampling_rate))
 
-        # W2V-BERT and Matcha both produce 50 Hz features, but their exact
-        # boundary conventions differ: W2V-BERT does not pad waveform edges,
-        # while Matcha reflect-pads them. A one-frame difference is therefore
-        # legitimate and is reconciled explicitly at this training boundary.
-        features, target_mel, lengths = trim_to_min(
-            features.transpose(1, 2),
-            target_mel,
-            lengths,
-            target_mel_lengths,
-        )
+        ratio = ratio if ratio is not None else 1
+        if type(ratio) is not int or ratio < 1:
+            raise ValueError("token_mel_ratio must be a positive integer.")
+        # Compare endpoints on the mel axis. Different extraction boundaries
+        # may disagree by one content frame; do not hide larger rate errors.
+        differences = (lengths * ratio - target_mel_lengths).abs()
+        if torch.any(differences > ratio):
+            raise ValueError(
+                f"Content and mel durations differ by more than one content frame: {differences.tolist()}."
+            )
+        lengths = torch.minimum(lengths, target_mel_lengths // ratio)
+        if torch.any(lengths <= 0):
+            raise ValueError("Reconstruction requires at least one aligned content frame per sample.")
+        mel_lengths = lengths * ratio
+        features = features[:, : int(lengths.max())]
+        target_mel = target_mel[:, :, : int(mel_lengths.max())]
 
         if self.input_projection is not None:
-            mask = make_padding_mask(lengths, max_length=features.shape[-1])
-            features = self.input_projection(features.transpose(1, 2)) * mask.unsqueeze(-1)
-        else:
-            features = features.transpose(1, 2)
+            mask = make_padding_mask(lengths, max_length=features.shape[1])
+            features = self.input_projection(features) * mask.unsqueeze(-1)
 
         batch = {
             "speech_token": features,
             "speech_token_len": lengths,
             "speech_feat": target_mel.transpose(1, 2),
-            # use legnths output from the trim function above
-            "speech_feat_len": lengths,
+            "speech_feat_len": mel_lengths,
             "embedding": speaker_embedding,
         }
 

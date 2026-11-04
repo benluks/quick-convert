@@ -47,6 +47,16 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
         self.feature_transform = feature_transform or nn.Identity()
         self.configure_online_encoders(online_encoders, trainable_online_encoders)
 
+    def train(self, mode: bool = True):
+        super().train(mode)
+        for name, encoder in self.online_encoders.items():
+            if name not in self.trainable_online_encoders:
+                encoder.eval()
+        vocoder = getattr(self.decoder, "vocoder", None)
+        if vocoder is not None and not any(parameter.requires_grad for parameter in vocoder.parameters()):
+            vocoder.eval()
+        return self
+
     @staticmethod
     def _output_lengths(module: nn.Module, lengths: torch.Tensor, role: str) -> torch.Tensor:
         if isinstance(module, nn.Identity):

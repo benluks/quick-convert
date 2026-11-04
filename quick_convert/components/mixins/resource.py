@@ -58,7 +58,7 @@ class OnlineResourceMixin:
             if trainable:
                 resource = encoder(batch)
             else:
-                with torch.inference_mode():
+                with torch.no_grad():
                     resource = encoder(batch)
 
             return self._normalize_resource(resource, detach=not trainable)
@@ -104,4 +104,9 @@ class OnlineResourceMixin:
 
     @staticmethod
     def _maybe_detach(value: Any, detach: bool) -> Any:
-        return value.detach() if detach and isinstance(value, torch.Tensor) else value
+        if detach and isinstance(value, torch.Tensor):
+            value = value.detach()
+            # Some frozen backends use inference_mode internally. Trainable
+            # downstream layers need ordinary tensors for their backward pass.
+            return value.clone() if torch.is_inference(value) else value
+        return value

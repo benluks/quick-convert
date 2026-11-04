@@ -225,3 +225,37 @@ def test_precomputed_resources_remain_detached_with_trainable_online_encoder():
     resource = system.get_resource(batch, "content")
 
     assert not resource.values.requires_grad
+
+
+@pytest.mark.parametrize("backend_inference", [False, True])
+def test_frozen_content_can_feed_trainable_downstream_layers(backend_inference):
+    encoder = TrainableContentEncoder()
+    if backend_inference:
+        encoder.forward = torch.inference_mode()(encoder.forward)
+    system = SSLReconstructionSystem(decoder=FakeDecoder(), online_encoders={"content": encoder})
+    values = system.get_resource(make_audio_batch(), "content").values
+    projection = nn.Linear(4, 2)
+    projection(values).square().mean().backward()
+    assert projection.weight.grad is not None
+    assert not torch.is_inference(values)
+    assert encoder.scale.grad is None
+
+
+@pytest.mark.parametrize("trainable", [False, True])
+def test_training_mode_preserves_frozen_encoders_and_vocoder(trainable):
+    encoder = TrainableContentEncoder()
+    encoder.dropout = nn.Dropout(0.5)
+    decoder = FakeDecoder()
+    decoder.vocoder = nn.Linear(4, 4).requires_grad_(False)
+    system = SSLReconstructionSystem(
+        decoder=decoder,
+        online_encoders={"content": encoder},
+        trainable_online_encoders=("content",) if trainable else (),
+    )
+    assert system.train() is system
+    assert encoder.training is trainable
+    assert encoder.dropout.training is trainable
+    assert not decoder.vocoder.training
+    assert decoder.training
+    system.eval()
+    assert not encoder.training
