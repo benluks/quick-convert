@@ -74,3 +74,22 @@ def test_disabled_logger_accepts_training_media():
     logger = make_media_logger(None)
     assert isinstance(logger, NullMediaLogger)
     logger.log_bar("layer_weights", torch.ones(24), "layer", "weight", step=0)
+
+
+@pytest.mark.parametrize("shape", [(3, 300, 1000), (1, 20, 30), (20, 30)])
+def test_wandb_image_adapter_uses_channel_last_without_mutation(shape):
+    from quick_convert.training.lightning.logging.media_logger import WandbMediaLogger
+
+    wandb = pytest.importorskip("wandb")
+    calls = []
+    logger = WandbMediaLogger(
+        SimpleNamespace(experiment=SimpleNamespace(log=lambda *args, **kwargs: calls.append((args, kwargs))))
+    )
+    image = torch.zeros(shape)
+    original = image.clone()
+    logger.log_images({"contour": image}, step=7)
+    media = calls[0][0][0]["contour"]
+    assert isinstance(media, wandb.Image)
+    assert media.image.size == (shape[-1], shape[-2])
+    assert calls[0][1] == {"step": 7}
+    torch.testing.assert_close(image, original)

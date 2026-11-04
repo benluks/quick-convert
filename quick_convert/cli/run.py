@@ -17,10 +17,24 @@ def _register_resolvers() -> None:
 _register_resolvers()
 
 
-def execute_pipeline(cfg: DictConfig) -> Any:
+def execute_pipeline(cfg: DictConfig, *, print_config: bool = True) -> Any:
     """Instantiate and execute the pipeline described by a composed config."""
     rendered_config = OmegaConf.to_yaml(cfg, resolve=True)
-    print(rendered_config)
+    if print_config:
+        print(rendered_config)
+
+    seed = cfg.get("seed", None)
+    if seed is not None:
+        import random
+
+        import numpy as np
+        import torch
+
+        if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed < 2**32:
+            raise ValueError("seed must be an integer in [0, 2**32).")
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
 
     pipeline = instantiate(cfg.pipeline)
     prepare = getattr(pipeline, "prepare", None)

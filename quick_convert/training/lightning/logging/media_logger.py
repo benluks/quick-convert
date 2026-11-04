@@ -129,10 +129,14 @@ class WandbMediaLogger(MediaLogger):
         *,
         step,
     ):
-        self.logger.experiment.log(
-            {key: self.wandb.Image(image.detach().cpu().float().numpy()) for key, image in images.items()},
-            step=step,
-        )
+        rendered = {}
+        for key, image in images.items():
+            image = image.detach().cpu().float()
+            # The shared image interface uses CHW; W&B numpy images use HWC.
+            if image.ndim == 3:
+                image = image.permute(1, 2, 0)
+            rendered[key] = self.wandb.Image(image.numpy())
+        self.logger.experiment.log(rendered, step=step)
 
     def log_bar(
         self,

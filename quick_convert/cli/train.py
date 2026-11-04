@@ -14,7 +14,7 @@ from .run import execute_pipeline
     config_name="run/train_bpe_tokenizer_librispeech",
 )
 def main(cfg: DictConfig) -> None:
-    execute_pipeline(cfg)
+    execute_pipeline(cfg, print_config=False)
 
 
 def entrypoint() -> None:

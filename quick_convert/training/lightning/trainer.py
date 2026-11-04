@@ -2,6 +2,7 @@ from pathlib import Path
 
 import lightning as L
 import torch
+from lightning.pytorch.utilities.rank_zero import rank_zero_only
 
 from quick_convert.data import BaseDataset
 
@@ -70,10 +71,12 @@ class LightningTrainer(BaseTrainer):
         dynamic = self.compile_cfg.get("dynamic", True)
 
         for target in targets:
-            if not hasattr(self.module, target):
+            owner_path, _, name = target.rpartition(".")
+            owner = self.module.get_submodule(owner_path) if owner_path else self.module
+            if not hasattr(owner, name):
                 continue
 
-            submodule = getattr(self.module, target)
+            submodule = getattr(owner, name)
             if not isinstance(submodule, torch.nn.Module):
                 continue
 
@@ -84,7 +87,7 @@ class LightningTrainer(BaseTrainer):
                 fullgraph=fullgraph,
                 dynamic=dynamic,
             )
-            setattr(self.module, target, compiled_submodule)
+            setattr(owner, name, compiled_submodule)
 
     def prepare(
         self,
@@ -117,14 +120,6 @@ class LightningTrainer(BaseTrainer):
             callbacks.append(LoggerRunCheckpoint())
         trainer_kwargs["callbacks"] = callbacks
         self.pl_trainer = L.Trainer(default_root_dir=output_dir, **trainer_kwargs)
-        # self.log_dir = self.pl_trainer.log_dir
-        for logger in self.pl_trainer.loggers:
-            print(
-                type(logger),
-                logger.name,
-                logger.version,
-                logger.save_dir,
-            )
 
         return self.log_dir
 
@@ -132,7 +127,7 @@ class LightningTrainer(BaseTrainer):
         """Log resolved Hydra settings and their file to W&B on rank zero."""
         from lightning.pytorch.loggers import WandbLogger
 
-        if not self.pl_trainer.is_global_zero:
+        if not self.is_global_zero:
             return
         for logger in self.pl_trainer.loggers:
             if isinstance(logger, WandbLogger):
@@ -145,8 +140,14 @@ class LightningTrainer(BaseTrainer):
         self.prepare(train_dataset, out_dir)
 
     @property
+    def is_global_zero(self) -> bool:
+        """Identify the artifact writer before and after DDP rank setup."""
+        return getattr(self.pl_trainer, "is_global_zero", True) and rank_zero_only.rank == 0
+
+    @property
     def log_dir(self) -> Path:
-        if not self.pl_trainer.loggers:
+        # Child ranks must not initialize a logger before DDP setup.
+        if not self.is_global_zero or not self.pl_trainer.loggers:
             return Path(self.pl_trainer.default_root_dir)
 
         logger = self.pl_trainer.loggers[0]

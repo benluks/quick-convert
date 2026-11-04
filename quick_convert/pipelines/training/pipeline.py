@@ -42,6 +42,8 @@ class TrainingPipeline:
         if self.out_path is None:
             raise RuntimeError("Prepare the training pipeline before writing its config.")
 
+        if not getattr(self.trainer, "is_global_zero", True):
+            return
         self.out_path.mkdir(parents=True, exist_ok=True)
         config_path = self.out_path / "config.yaml"
         config_path.write_text(config)

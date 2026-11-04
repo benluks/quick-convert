@@ -42,11 +42,15 @@ def test_conditional_rvq_compatibility_extra_matches_emotion2vec():
     assert set(extras["conditional-rvq"]) == set(extras["emotion2vec"])
 
 
-def test_dac_extra_only_declares_its_direct_backend():
+def test_logging_profiles_select_compatible_wandb_and_protobuf():
     with PYPROJECT_PATH.open("rb") as file:
         pyproject = tomllib.load(file)
 
-    assert pyproject["project"]["optional-dependencies"]["dac"] == ["descript-audio-codec"]
+    extras = pyproject["project"]["optional-dependencies"]
+    assert "descript-audio-codec" in extras["dac"]
+    for extra in ("dac", "training", "lightning"):
+        assert "wandb==0.25.0" in extras[extra]
+        assert "protobuf<7" in extras[extra]
 
 
 def test_cosyvoice_extra_tracks_supported_runtime_surface():

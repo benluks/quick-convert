@@ -111,3 +111,20 @@ identity when logger configuration has no explicit run ID. Legacy
 `trainer_kwargs.ckpt_path` remains accepted; configuring both raises an error.
 
 Disabling training logging selects a no-op media logger, including qualitative validation logging.
+
+### Run seeds and compilation
+
+The optional top-level `seed` is an integer in `[0, 2**32)`. The runner seeds
+Python, NumPy, and PyTorch before constructing the pipeline. Omit it to retain
+the environment's current random state. Use `+seed=17` when a run does not
+already declare the field.
+
+`trainer.compile.targets` accepts module attributes or dotted paths, such as
+`[system.decoder]`. Compilation replaces the selected module on its owning
+module. Training config files and external logger initialization belong to
+rank zero during distributed preparation.
+
+EMA RVQ commitment loss is computed in projected codebook space for masked,
+unmasked, and top-k inputs. With cosine quantization, that space is normalized;
+old runs that relied on the masked loss using unnormalized input may need their
+commitment weight retuned.
