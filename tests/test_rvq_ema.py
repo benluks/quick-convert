@@ -1,7 +1,40 @@
+import pytest
 import torch
 
 from quick_convert.components.layers.rvq import RVQLosses, RVQOutput
 from quick_convert.components.layers.rvq_ema import ResidualVectorQuantizerEMA
+from quick_convert.components.layers.vector_quantize import VectorQuantize
+
+
+@pytest.mark.parametrize("topk", [None, 1])
+@pytest.mark.parametrize("use_cosine_sim", [False, True])
+def test_commitment_uses_quantizer_space_with_or_without_mask(topk, use_cosine_sim):
+    quantizer = VectorQuantize(
+        dim=3,
+        codebook_dim=2,
+        codebook_size=2,
+        use_cosine_sim=use_cosine_sim,
+        kmeans_init=False,
+        ema_update=False,
+        rotation_trick=False,
+    ).train()
+    with torch.no_grad():
+        quantizer.project_in.weight.copy_(torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]))
+        quantizer.project_in.bias.zero_()
+        quantizer.codebook = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
+
+    values = torch.tensor([[[3.0, 0.0, 7.0], [0.0, 4.0, 8.0]]], requires_grad=True)
+    losses = []
+    gradients = []
+    for mask in (None, torch.ones(1, 2, dtype=torch.bool)):
+        _, _, _, breakdown = quantizer(values, mask=mask, topk=topk, freeze_codebook=True, return_loss_breakdown=True)
+        losses.append(breakdown.commitment)
+        gradients.append(torch.autograd.grad(breakdown.commitment.sum(), values)[0])
+
+    expected = 0.0 if use_cosine_sim else 3.25
+    for loss in losses:
+        torch.testing.assert_close(loss.mean(), torch.tensor(expected))
+    torch.testing.assert_close(gradients[0], gradients[1])
 
 
 def test_rvq_ema_implements_shared_output_contract():

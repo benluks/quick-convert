@@ -47,7 +47,8 @@ def _resolve_config(
         else:
             choices = ", ".join(_available_aliases(config_prefix, run_dir)) or "(none found)"
             usage = f"Usage: {command} <config-alias> [hydra overrides...]"
-        raise SystemExit(f"{usage}\nAvailable configurations: {choices}")
+        print(f"{usage}\nAvailable configurations: {choices}")
+        raise SystemExit(0 if argv else 1)
 
     name, *overrides = argv
     name = Path(name).stem
@@ -65,7 +66,13 @@ def _resolve_config(
 
 
 def main() -> None:
+    executable = str(Path(sys.argv[0]).absolute())
     command = Path(sys.argv[0]).stem
+    # Lightning relaunches this entry point with Hydra's expanded arguments.
+    # They already identify the config and must not be parsed as a run alias.
+    if sys.argv[1:2] == ["--config-path"]:
+        importlib.import_module("quick_convert.cli.run").main()
+        return
     if command in {"quick-convert", "quick_convert"} and sys.argv[1:2]:
         action = sys.argv[1]
         if action == "export":
@@ -83,7 +90,7 @@ def main() -> None:
     os.environ["HYDRA_FULL_ERROR"] = "1"
 
     sys.argv = [
-        command,
+        executable,
         "--config-path",
         str(run_dir.parent),
         "--config-name",

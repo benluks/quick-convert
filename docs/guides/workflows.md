@@ -21,6 +21,36 @@ Run `quick-convert --help` to list the composition roots installed with your ver
 
 Commands shown without `uv run` assume an activated environment. In a development checkout, prefix them with `uv run`.
 
+## Reproducible and distributed runs
+
+Set a top-level seed before constructing datasets and models:
+
+```bash
+quick-convert train_vq_asr_librispeech +seed=17
+```
+
+The runner seeds Python, NumPy, and PyTorch before pipeline instantiation. The
+seed must be an integer in `[0, 2**32)`. This makes random initialization
+repeatable; it does not enable deterministic GPU algorithms.
+
+For two visible CUDA GPUs, enable DDP through the normal console command:
+
+```bash
+quick-convert train_vq_asr_librispeech \
+  trainer.ddp.enabled=true \
+  trainer.train_dataloader_kwargs.batch_size=8 \
+  +trainer.trainer_kwargs.accumulate_grad_batches=4
+```
+
+Batch size is per GPU, giving an effective batch of 64 in this example. The
+entry point preserves its executable path when Lightning relaunches ranks.
+Only rank zero initializes the logger and writes the run configuration; other
+ranks use the output root locally until distributed setup finishes.
+
+`trainer.compile.targets` accepts dotted module paths such as `[system.decoder]`
+as well as direct module attributes. Each selected module is replaced in place
+with its compiled version before training.
+
 ## Hydra overrides
 
 Append overrides after the run name:

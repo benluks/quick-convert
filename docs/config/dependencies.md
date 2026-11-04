@@ -38,6 +38,16 @@ The dependency registry is metadata for planning only. It is deliberately kept
 outside instantiation configs, so dependency declarations are never forwarded
 as constructor arguments.
 
+## Logging and ONNX compatibility
+
+The `training`, `lightning`, and `dac` extras select `wandb==0.25.0` and
+`protobuf<7`. Keep these supported constraints aligned when combining logging
+and codec profiles.
+
+The `s3tokenizer` extra requires `ml-dtypes>=0.5.0` for its ONNX imports.
+It cannot share a uv environment with `mpm`, whose TensorFlow dependency
+requires an older `ml-dtypes`; install those profiles separately.
+
 ## Prefix-conditioned reconstruction
 
 `campplus-frames` supplies `onnx`, `onnxruntime` and `huggingface-hub` for the

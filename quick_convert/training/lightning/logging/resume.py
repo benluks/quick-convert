@@ -8,6 +8,7 @@ from pathlib import Path
 import torch
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.utilities.rank_zero import rank_zero_only
 
 
 _RUNS_KEY = "quick_convert_logger_runs"
@@ -78,6 +79,7 @@ def resolve_loggers(loggers, checkpoint_path=None):
 class LoggerRunCheckpoint(Callback):
     """Keep external logger identity in training checkpoints, outside model state."""
 
+    @rank_zero_only
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         runs = []
         for logger in trainer.loggers:

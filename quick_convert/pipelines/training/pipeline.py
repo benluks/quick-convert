@@ -47,6 +47,8 @@ class TrainingPipeline:
         configure = getattr(self.trainer, "configure_inference", None)
         if callable(configure):
             configure(OmegaConf.to_container(OmegaConf.create(config), resolve=True))
+        if not getattr(self.trainer, "is_global_zero", True):
+            return
         self.out_path.mkdir(parents=True, exist_ok=True)
         config_path = self.out_path / "config.yaml"
         config_path.write_text(config)

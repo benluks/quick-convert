@@ -69,3 +69,11 @@ def test_cosyvoice_extra_tracks_supported_runtime_surface():
 
     assert {"huggingface-hub", "scipy"} <= package_names
     assert {"gdown", "wget", "transformers", "lightning"}.isdisjoint(package_names)
+
+
+def test_training_logging_profiles_select_compatible_wandb_and_protobuf():
+    with PYPROJECT_PATH.open("rb") as file:
+        extras = tomllib.load(file)["project"]["optional-dependencies"]
+    for extra in ("dac", "training", "lightning"):
+        assert "wandb==0.25.0" in extras[extra]
+        assert "protobuf<7" in extras[extra]

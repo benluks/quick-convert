@@ -51,11 +51,20 @@ def test_missing_alias_lists_valid_choices(tmp_path: Path) -> None:
         _resolve_config("anonymize", ["missing"], run_dir)
 
 
-def test_universal_help_lists_export(tmp_path: Path) -> None:
+def test_universal_help_lists_export(tmp_path: Path, capsys) -> None:
     run_dir = make_run_configs(tmp_path)
 
-    with pytest.raises(SystemExit, match=r"quick-convert export <run-dir>"):
+    with pytest.raises(SystemExit) as caught:
         _resolve_config("quick-convert", ["--help"], run_dir)
+    assert caught.value.code == 0
+    assert "quick-convert export <run-dir>" in capsys.readouterr().out
+
+
+def test_missing_arguments_show_usage_and_fail(tmp_path: Path, capsys) -> None:
+    with pytest.raises(SystemExit) as caught:
+        _resolve_config("quick-convert", [], make_run_configs(tmp_path))
+    assert caught.value.code == 1
+    assert "Usage: quick-convert" in capsys.readouterr().out
 
 
 def test_universal_command_dispatches_export(monkeypatch) -> None:
@@ -93,3 +102,21 @@ def test_universal_command_dispatches_dependency_actions(monkeypatch, action) ->
         main()
 
     assert called_with == (["train_vq_asr_librispeech"], action)
+
+
+def test_run_dispatch_preserves_executable_for_distributed_relaunch(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    executable = tmp_path / "bin" / "quick-convert"
+    seen = []
+    monkeypatch.setattr(sys, "argv", [str(executable), "train_vq_asr_librispeech", "trainer.ddp.enabled=true"])
+    monkeypatch.setattr(
+        "main.importlib.import_module", lambda name: SimpleNamespace(main=lambda: seen.append(sys.argv[:]))
+    )
+    main()
+    assert seen[0][0] == str(executable)
+    assert seen[0][1] == "--config-path"
+    assert seen[0][-1] == "trainer.ddp.enabled=true"
+    # The child re-enters the console entry point with the expanded arguments.
+    main()
+    assert seen[1] == seen[0]
