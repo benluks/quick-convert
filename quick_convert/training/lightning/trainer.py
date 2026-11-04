@@ -70,10 +70,12 @@ class LightningTrainer(BaseTrainer):
         dynamic = self.compile_cfg.get("dynamic", True)
 
         for target in targets:
-            if not hasattr(self.module, target):
+            owner_path, _, name = target.rpartition(".")
+            owner = self.module.get_submodule(owner_path) if owner_path else self.module
+            if not hasattr(owner, name):
                 continue
 
-            submodule = getattr(self.module, target)
+            submodule = getattr(owner, name)
             if not isinstance(submodule, torch.nn.Module):
                 continue
 
@@ -84,7 +86,7 @@ class LightningTrainer(BaseTrainer):
                 fullgraph=fullgraph,
                 dynamic=dynamic,
             )
-            setattr(self.module, target, compiled_submodule)
+            setattr(owner, name, compiled_submodule)
 
     def prepare(
         self,

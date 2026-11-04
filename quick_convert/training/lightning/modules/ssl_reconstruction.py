@@ -9,10 +9,12 @@ import torch
 from torch import nn
 
 from quick_convert.components.decoders import CosyVoiceDecoderOutput, CosyVoiceSpectrogramGenerator
+from quick_convert.components.layers import LayerWeightedSum
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.mixins.resource import ResolvedResource
 from quick_convert.data.types import AudioBatch
 from quick_convert.systems.reconstruction import SSLReconstructionSystem
+from quick_convert.utils.masking import make_padding_mask
 
 from ..logging.media_logger import ReconstructedAudio
 from ..modules.base import BaseTrainingModule
@@ -39,8 +41,9 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         *,
         online_encoders: dict[str, nn.Module] | None = None,
         encoder: BaseResidualVectorQuantizer | None = None,
+        enable_grad_norm_logging: bool = True,
     ):
-        super().__init__(optimization=optimization)
+        super().__init__(optimization=optimization, enable_grad_norm_logging=enable_grad_norm_logging)
 
         legacy_components = (decoder, feature_transform, online_encoders, encoder)
         if system is not None and any(component is not None for component in legacy_components):
@@ -103,6 +106,10 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
     @property
     def grad_norm_modules(self) -> dict[str, nn.Module]:
         modules = {f"flow/{name}": module for name, module in self.decoder.flow.named_children()}
+        modules["feature_transform"] = self.feature_transform
+        projection = getattr(self.decoder, "input_projection", None)
+        if projection is not None:
+            modules["input_projection"] = projection
         if self.encoder is not None:
             modules["encoder"] = self.encoder
         return modules
@@ -153,6 +160,9 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             batch_size=len(batch),
         )
 
+        if stage == "train" and self.global_step % 1000 == 0:
+            self._log_representation_state(encoder_output, lengths)
+
         return SSLReconstructionOutput(
             features=features,
             lengths=lengths,
@@ -161,6 +171,46 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             decoder_output=decoder_output,
             encoder_output=encoder_output,
         )
+
+    def _log_representation_state(self, encoder_output, lengths):
+        if isinstance(self.feature_transform, LayerWeightedSum) and (
+            self._trainer is None or self.trainer.is_global_zero
+        ):
+            self.media_logger.log_bar(
+                "layer_weights",
+                self.feature_transform.weights.detach().softmax(-1).squeeze(0),
+                "layer",
+                "weight",
+                step=self.global_step,
+            )
+        if encoder_output is None:
+            return
+        codes = encoder_output.codes.detach()
+        mask = make_padding_mask(lengths, max_length=codes.shape[-1])
+        counts_by_codebook = torch.zeros(
+            self.encoder.n_codebooks,
+            self.encoder.codebook_size,
+            device=codes.device,
+        )
+        for index in range(codes.shape[1]):
+            valid = codes[:, index][mask]
+            counts_by_codebook[index] = torch.bincount(valid[valid >= 0], minlength=self.encoder.codebook_size)
+        # A fixed-size reduction also works when quantizer dropout activates
+        # different numbers of codebooks on different ranks.
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            torch.distributed.all_reduce(counts_by_codebook)
+        metrics = {}
+        for index, counts in enumerate(counts_by_codebook):
+            total = counts.sum().clamp_min(1)
+            probabilities = counts / total
+            nonzero = probabilities > 0
+            prefix = f"rvq/codebook_{index}"
+            metrics[f"{prefix}/utilization"] = (counts > 0).float().mean()
+            metrics[f"{prefix}/perplexity"] = (-(probabilities[nonzero] * probabilities[nonzero].log()).sum()).exp() * (
+                counts.sum() > 0
+            )
+            metrics[f"{prefix}/max_usage"] = counts.max() / total
+        self.log_dict(metrics, on_step=True, on_epoch=False, sync_dist=False)
 
     def log_validation_output(self, batch, output, batch_idx):
         if batch_idx != 0:

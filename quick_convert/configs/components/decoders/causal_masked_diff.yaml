@@ -12,11 +12,14 @@ flow:
   token_mel_ratio: ???
   pre_lookahead_len: 3
   encoder:
-    _target_: quick_convert.external.cosyvoice.transformer.upsample_encoder.UpsampleConformerEncoder
+    _target_: quick_convert.components.encoders.upsample_conformer.UpsampleConformerEncoder
     output_size: 512
     attention_heads: 8
     linear_units: 2048
     num_blocks: 6
+    post_upsample_blocks: 4
+    second_projection: true
+    lookahead_frames: 3
     dropout_rate: 0.1
     positional_dropout_rate: 0.1
     attention_dropout_rate: 0.1

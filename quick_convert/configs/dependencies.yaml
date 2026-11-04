@@ -38,6 +38,7 @@ extras:
     probes: [whisper]
 
 targets:
+  quick_convert.components.encoders.upsample_conformer.UpsampleConformerEncoder: [cosyvoice]
   # Saved-system targets are inspected by the planner; loaders themselves need only base dependencies.
   quick_convert.inference.load_inference_system: []
   quick_convert.inference.load_system_from_run: []

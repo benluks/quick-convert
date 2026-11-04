@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, field
 
 import torch
 from huggingface_hub import hf_hub_download
+from omegaconf import OmegaConf
 from torch import nn
 
 from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
@@ -76,11 +77,18 @@ class CosyVoiceHiFTDecoder(nn.Module):
         )
 
     def checkpoint_config(self) -> dict:
-        return {
+        """Return an independent, JSON-compatible architecture snapshot.
+
+        Hydra can pass OmegaConf containers into dataclass fields; asdict alone
+        preserves those nested containers rather than converting them to lists
+        and dictionaries.
+        """
+        metadata = {
             "config": asdict(self.config),
             "f0_config": asdict(self.f0_config),
             "mel_config": asdict(self.mel_config) if self.mel_config is not None else None,
         }
+        return OmegaConf.to_container(OmegaConf.create(metadata), resolve=True)
 
     @classmethod
     def pretrained_config(

@@ -126,3 +126,20 @@ checkpoint file or exported artifact. Run directories default to
 Artifact sources reject checkpoint/config overrides. See the
 [inference guide](../guides/inference.md) for legacy configuration discovery,
 export, and Python examples.
+
+### Reconstruction timing and diagnostics
+
+W2V-BERT reconstruction runs set dataset `target_sr` from the content encoder's
+`SAMPLE_RATE` and derive flow timing from `FRAME_HZ`. `${frame_ratio:50,25}`
+resolves to `2`; noninteger, nonpositive and nonfinite rates are rejected.
+For other mel clocks, update the system wiring to the actual vocoder contract.
+
+The CFM decoder uses the first-party `UpsampleConformerEncoder`, whose
+`upsample_factor` follows `token_mel_ratio`. Preset second-stack and lookahead
+settings explicitly preserve the previous decoder architecture. See the
+[encoder guide](../components/upsample-conformer.md).
+
+`trainer.compile.targets=[system.decoder.flow]` compiles the owned flow.
+`trainer.module.enable_grad_norm_logging=false` disables gradient norms;
+layer-fusion and masked quantizer-usage diagnostics remain available at the
+training module's 1,000-step logging cadence.
