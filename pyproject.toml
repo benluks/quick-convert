@@ -38,6 +38,7 @@ dependencies = [
     "einx>=0.3.0",
     "hydra-core",
     "omegaconf",
+    "PyYAML>=6.0",
     "soundfile>=0.13.1",
     "torch==2.6",
     "torchaudio==2.6",

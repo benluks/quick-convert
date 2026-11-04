@@ -1,0 +1,50 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /dataset: librispeech
+  - /dataset@target_dataset: librispeech
+  - /resource_providers/librispeech@spkid_provider: spkid
+  - /components/speaker_aggregation@pipeline.target.aggregation: null
+  - _self_
+
+source: ???
+checkpoint: null
+target_id: ???
+
+system:
+  _target_: quick_convert.inference.load_inference_system
+  source: ${source}
+  checkpoint: ${checkpoint}
+  map_location: ${device}
+
+dataset:
+  splits: [test-clean]
+  load: [audio, spkid]
+  resource_providers:
+    - ${spkid_provider}
+
+target_dataset:
+  load: [spkid]
+  resource_providers:
+    - ${spkid_provider}
+
+pipeline:
+  _target_: quick_convert.pipelines.conversion.SpeechConversionPipeline
+  system: ${system}
+  dataset: ${dataset}
+  target:
+    _target_: quick_convert.pipelines.conversion.reference_speech_from_dataset
+    dataset: ${target_dataset}
+    speaker_id: ${target_id}
+    prompt_seconds: 3.0
+    prompt_builder:
+      _target_: quick_convert.components.reference_prompt.SpeechPromptBuilder
+  metadata:
+    system: speech-conversion
+    dataset: librispeech
+    source: ${source}
+    checkpoint: ${checkpoint}
+    source_root: ${dataset.root}
+    reference_root: ${target_dataset.root}
+    target_speaker: ${target_id}
+  out_dir: ${conversion_dir:${out_root},${pipeline.metadata},${pipeline.target},${out_dir_suffix}}

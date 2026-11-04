@@ -33,7 +33,7 @@ class BatchDataset:
 
 
 def test_anonymization_uses_batch_contract_and_trims_outputs(tmp_path, monkeypatch):
-    from quick_convert.pipelines.anonymization import pipeline as pipeline_module
+    import torchaudio
 
     samples = [
         AudioSample(utt_id="first", path=tmp_path / "first.wav", split="test"),
@@ -43,11 +43,13 @@ def test_anonymization_uses_batch_contract_and_trims_outputs(tmp_path, monkeypat
     dataset = BatchDataset(batch)
     anonymizer = BatchAnonymizer()
     saved = []
-    monkeypatch.setattr(
-        pipeline_module.torchaudio,
-        "save",
-        lambda path, waveform, sample_rate: saved.append((path, waveform.clone(), sample_rate)),
-    )
+    save = torchaudio.save
+
+    def record_save(path, waveform, sample_rate):
+        saved.append((path, waveform.clone(), sample_rate))
+        save(path, waveform, sample_rate)
+
+    monkeypatch.setattr(torchaudio, "save", record_save)
 
     AnonymizationPipeline(
         anonymizer=anonymizer,

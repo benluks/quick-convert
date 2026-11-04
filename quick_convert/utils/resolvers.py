@@ -1,6 +1,7 @@
 """OmegaConf resolvers used by installed Quick Convert configurations."""
 
 import math
+from pathlib import Path
 from typing import Any
 
 from hydra.utils import get_class
@@ -42,7 +43,16 @@ def register_config_resolvers() -> None:
         "len": len,
         "class_attr": class_attribute,
         "frame_ratio": frame_ratio,
+        "conversion_dir": conversion_directory,
+        "path_stem": lambda path: Path(path).stem,
     }
     for name, resolver in resolvers.items():
         if not OmegaConf.has_resolver(name):
             OmegaConf.register_new_resolver(name, resolver)
+
+
+def conversion_directory(root, metadata, target, suffix="") -> str:
+    """Resolve conversion layouts without importing inference backends."""
+    from quick_convert.pipelines.conversion_records import conversion_output_dir
+
+    return conversion_output_dir(root, metadata, target, suffix)

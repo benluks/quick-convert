@@ -212,11 +212,11 @@ def load_inference_artifact(
     if manifest.get("version") != ARTIFACT_VERSION:
         raise ValueError(f"Unsupported inference artifact version: {manifest.get('version')!r}")
 
-    from .source import InferenceState, restore_system
+    from .source import InferenceState, _record_source, restore_system
 
     state = InferenceState(
         system_config=OmegaConf.to_container(manifest.system, resolve=True),
         state_dict=torch.load(artifact_dir / manifest.weights, map_location="cpu", weights_only=True),
         excluded_state_prefixes=tuple(manifest.get("excluded_state_prefixes", ())),
     )
-    return restore_system(state, map_location=map_location, strict=strict)
+    return _record_source(restore_system(state, map_location=map_location, strict=strict), artifact_dir)

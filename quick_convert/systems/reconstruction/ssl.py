@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import warnings
+from dataclasses import dataclass, replace
 from os import PathLike
 from pathlib import Path
+from uuid import uuid4
 
 import torch
 import torchaudio
@@ -15,8 +17,11 @@ from quick_convert.components.decoders import (
 )
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.mixins.resource import OnlineResourceMixin
-from quick_convert.data import AudioBatch
+from quick_convert.components.speaker.aggregation import SpeakerEmbeddingAggregation, audio_durations
+from quick_convert.data import AudioBatch, GeneratedAudio
+from quick_convert.systems.anonymization.targets import PreparedTarget, ReferenceSpeech
 from quick_convert.systems.base import InferenceSystem
+from quick_convert.systems.reference import ReferenceCondition, prepare_reference_audio
 from quick_convert.types import AudioInput
 from quick_convert.utils.audio import load_audio_input
 from quick_convert.utils.masking import make_padding_mask
@@ -46,6 +51,7 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
         encoder: BaseResidualVectorQuantizer | None = None,
     ) -> None:
         super().__init__()
+        self._target_space = str(uuid4())
         self.encoder = encoder
         self.decoder = decoder
         self.feature_transform = feature_transform or nn.Identity()
@@ -53,6 +59,154 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
             {name: encoder for name, encoder in (online_encoders or {}).items() if encoder is not None},
             trainable_online_encoders,
         )
+
+    @property
+    def target_space(self) -> str:
+        """Identity of the model that owns prepared prefix streams."""
+        return self._target_space
+
+    def _reference_batch(self, waveform, sample_rate):
+        device = next(self.parameters(), torch.empty(0)).device
+        return AudioBatch(
+            utt_ids=["reference"],
+            paths=[Path("reference")],
+            splits=[None],
+            resources={},
+            waveforms=waveform.to(device).unsqueeze(0),
+            lengths=torch.tensor([waveform.numel()], device=device),
+            sample_rates=torch.tensor([sample_rate], device=device),
+        )
+
+    @torch.inference_mode()
+    def prepare_target(self, target: ReferenceSpeech | PreparedTarget) -> PreparedTarget:
+        """Prepare the saved decoder's native reference or named streams."""
+        if self.training:
+            raise RuntimeError("Call eval() before preparing targets.")
+        conditioning = getattr(self.decoder, "stream_conditioning", None)
+        needs_embedding = self.decoder.requires_speaker_embedding
+        if isinstance(target, PreparedTarget):
+            if target.space != self.target_space or target.representation != "ssl-reference-v1":
+                raise ValueError("Prepared target belongs to a different model or representation.")
+            if not isinstance(target.conditioning, ReferenceCondition):
+                raise ValueError("Expected prepared reference conditioning.")
+            probe = next(self.parameters(), torch.empty(0))
+            kwargs = target.conditioning.decoder_kwargs(1, device=probe.device, dtype=probe.dtype)
+            return replace(
+                target,
+                conditioning=ReferenceCondition(
+                    kwargs["speaker_embedding"],
+                    kwargs.get("reference"),
+                    kwargs.get("streams"),
+                ),
+            )
+        if not isinstance(target, ReferenceSpeech):
+            raise TypeError("Expected ReferenceSpeech or PreparedTarget.")
+        if not needs_embedding and target.aggregation is not None:
+            raise ValueError("Stream targets without a global embedding do not support embedding aggregation.")
+        if target.allow_missing_streams and conditioning is None:
+            raise ValueError("allow_missing_streams requires named stream conditioning.")
+        if target.prompt_seconds is None:
+            raise ValueError("Reference targets require prompt_seconds.")
+        sample_rate = self.online_encoders["content"].sample_rate
+        paths = tuple(sorted(target.paths)) if target.prompt_builder is not None else target.paths
+
+        def load_batch(path):
+            waveform = load_audio_input(path, target_sample_rate=sample_rate, mono=True).reshape(-1)
+            return self._reference_batch(waveform, sample_rate)
+
+        embedding = None
+        durations = []
+        aggregation = None
+        if needs_embedding:
+            policy = target.aggregation or SpeakerEmbeddingAggregation()
+            embeddings = []
+            for path in paths:
+                recording = load_batch(path)
+                durations.extend(audio_durations(recording))
+                embeddings.append(self.speaker_condition(recording))
+            embedding = policy(torch.cat(embeddings), durations=durations).unsqueeze(0).detach().clone()
+            aggregation = policy.method
+        batch, prompt = prepare_reference_audio(target, load_batch)
+        streams = None
+        reference = None
+        if conditioning is None:
+            content = self.get_resource(batch, "content")
+            if content.lengths is None:
+                raise ValueError("Reference content requires valid lengths.")
+            features, lengths, _ = self.encode_features(content.values, content.lengths)
+            reference = self.decoder.prepare_reference(
+                features,
+                lengths,
+                batch.waveforms,
+                batch.lengths,
+                sample_rate,
+            )
+        else:
+            lengths = self.decoder.mel_output_lengths(batch.lengths, sample_rate)
+            if torch.any(lengths <= 0):
+                raise ValueError("Reference prompt is too short for the mel clock.")
+            streams = {}
+            for name in conditioning.dimensions:
+                if name == "mel":
+                    mels, mel_lengths = self.decoder._compute_mels(batch.waveforms, batch.lengths, sample_rate)
+                    stream = ConditioningStream(mels.transpose(1, 2), mel_lengths, True)
+                else:
+                    encoder = self.online_encoders[name] if name in self.online_encoders else None
+                    encode = getattr(encoder, "encode_prefixes", None)
+                    if not callable(encode):
+                        message = f"No reference prefix extractor configured for stream {name!r}."
+                        if not target.allow_missing_streams:
+                            raise ValueError(message)
+                        warnings.warn(message + " Continuing without this stream.", RuntimeWarning, stacklevel=2)
+                        continue
+                    if encoder.sample_rate != sample_rate:
+                        raise ValueError(f"Stream {name!r} requires the content sample rate.")
+                    try:
+                        resource = encode(
+                            batch, lengths, self.decoder.mel_config.sample_rate / self.decoder.mel_config.hop_size
+                        )
+                    except ImportError as error:
+                        if not target.allow_missing_streams:
+                            raise
+                        warnings.warn(f"Skipping unavailable stream {name!r}: {error}", RuntimeWarning, stacklevel=2)
+                        continue
+                    stream = ConditioningStream(resource.values, resource.lengths, True)
+                streams[name] = stream
+        return PreparedTarget(
+            ReferenceCondition(embedding, reference, streams),
+            self.target_space,
+            "ssl-reference-v1",
+            paths,
+            durations=tuple(durations),
+            aggregation=aggregation,
+            prompt_segments=prompt.segments if prompt is not None else (),
+            prompt_sample_rate=sample_rate,
+            prompt_crossfade_seconds=target.prompt_builder.crossfade_seconds if prompt is not None else None,
+        )
+
+    @torch.inference_mode()
+    def convert_batch(
+        self, batch: AudioBatch, *, target: PreparedTarget, inference_cfg_rate: float | None = None
+    ) -> GeneratedAudio:
+        """Generate source content with the prepared target conditions."""
+        if self.training:
+            raise RuntimeError("Call eval() before converting speech.")
+        target = self.prepare_target(target)
+        content = self.get_resource(batch, "content")
+        if content.lengths is None:
+            raise ValueError("Content features require valid lengths.")
+        features, lengths, _ = self.encode_features(content.values, content.lengths)
+        kwargs = target.conditioning.decoder_kwargs(len(batch), device=features.device, dtype=features.dtype)
+        generation = self.decoder(
+            feature=features,
+            length=lengths,
+            run_vocoder=True,
+            **kwargs,
+            **({"inference_cfg_rate": inference_cfg_rate} if inference_cfg_rate is not None else {}),
+        )
+        if generation.audio is None:
+            raise RuntimeError("Conversion requires generated audio.")
+        return generation.audio
 
     def train(self, mode: bool = True):
         super().train(mode)
