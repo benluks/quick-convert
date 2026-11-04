@@ -11,6 +11,7 @@ from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQ
 from quick_convert.components.mixins.resource import OnlineResourceMixin
 from quick_convert.components.ssl import ContentEncoder
 from quick_convert.data import AudioBatch
+from quick_convert.systems.base import InferenceSystem
 from quick_convert.utils.masking import make_padding_mask
 
 
@@ -45,7 +46,7 @@ class VQASRResult:
         return self.quantizer.codes
 
 
-class VQASRSystem(OnlineResourceMixin, nn.Module):
+class VQASRSystem(OnlineResourceMixin, InferenceSystem):
     """Inference-ready quantized ASR system independent of Lightning."""
 
     def __init__(

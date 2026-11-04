@@ -111,3 +111,18 @@ identity when logger configuration has no explicit run ID. Legacy
 `trainer_kwargs.ckpt_path` remains accepted; configuring both raises an error.
 
 Disabling training logging selects a no-op media logger, including qualitative validation logging.
+
+### Saved inference systems
+
+New standard training checkpoints embed the resolved top-level `system`
+composition as `quick_convert_inference` metadata. The training pipeline
+supplies it through the backend's `configure_inference(config)` hook.
+Training-only runs without a system do not attach this metadata.
+
+`quick_convert.inference.load_inference_system(source, checkpoint=None,
+config=None, map_location="cpu", strict=True)` accepts a run directory,
+checkpoint file or exported artifact. Run directories default to
+`checkpoints/last.ckpt`; explicit `config` overrides embedded composition.
+Artifact sources reject checkpoint/config overrides. See the
+[inference guide](../guides/inference.md) for legacy configuration discovery,
+export, and Python examples.

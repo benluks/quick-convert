@@ -14,6 +14,7 @@ Quick Convert is a composable speech-privacy research library with Python APIs a
 ### Use the Python library
 
 - [Python API guide](library/python-api.md)
+- [Load trained systems for inference](guides/inference.md)
 - [Data and resources](data/index.md)
 - [Configuration reference](config/reference.md)
 

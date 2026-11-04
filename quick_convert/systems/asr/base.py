@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import torch
+from quick_convert.systems.base import InferenceSystem
 
 from ...data.types import AudioBatch, MetadataSample
 
 
-class ASRSystem(torch.nn.Module, ABC):
+class ASRSystem(InferenceSystem, ABC):
     """Base interface for systems that transcribe audio samples and batches.
 
     Args:

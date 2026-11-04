@@ -21,8 +21,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--config",
-        default="config.yaml",
-        help="Resolved config path, relative to the run directory by default",
+        default=None,
+        help="Override embedded inference composition with this config path, relative to the run directory by default",
     )
     parser.add_argument("--device", default="cpu", help="Device used while reading the checkpoint")
     parser.add_argument("--overwrite", action="store_true", help="Replace a non-empty destination")

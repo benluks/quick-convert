@@ -5,6 +5,19 @@ from typing import Any
 # from ..data.types import AudioSample
 
 
+def checkpoint_run_config(checkpoint: Path) -> Path | None:
+    """Find config.yaml beside a checkpoint or above its checkpoints directory.
+
+    An adjacent config wins. Do not search arbitrary ancestors for unrelated
+    run configurations.
+    """
+    checkpoint = Path(checkpoint).expanduser().resolve()
+    directories = [checkpoint.parent]
+    if checkpoint.parent.name == "checkpoints":
+        directories.append(checkpoint.parent.parent)
+    return next((directory / "config.yaml" for directory in directories if (directory / "config.yaml").is_file()), None)
+
+
 class TemplateFormatter:
     @staticmethod
     def format_str(template: str, **context: Any) -> str:

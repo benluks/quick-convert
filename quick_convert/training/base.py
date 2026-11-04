@@ -51,6 +51,10 @@ class BaseTrainer(ABC):
         """
         raise NotImplementedError
 
+    def configure_inference(self, config: dict[str, Any]) -> None:
+        """Optionally attach resolved inference composition to future checkpoints."""
+        return None
+
     def log_config(self, config: dict[str, Any], config_path: Path) -> None:
         """Optionally record resolved configuration with a backend's run logger."""
         return None
