@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from hydra import compose, initialize_config_dir
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from quick_convert.utils.resolvers import register_config_resolvers
 
@@ -66,6 +66,32 @@ def _targets(value: Any) -> set[str]:
     return targets
 
 
+def _inference_targets(config: DictConfig | ListConfig) -> set[str]:
+    """Inspect saved compositions without constructing their optional backends."""
+    targets = set()
+    if isinstance(config, DictConfig):
+        loader = config.get("_target_")
+        if loader in {"quick_convert.inference.load_inference_system", "quick_convert.inference.load_system_from_run"}:
+            from .inference.source import inference_system_config
+
+            field = "source" if loader.endswith("load_inference_system") else "run_dir"
+            return _targets(
+                inference_system_config(config[field], checkpoint=config.get("checkpoint"), config=config.get("config"))
+            )
+        if loader == "quick_convert.inference.load_inference_artifact":
+            from .inference.source import inference_system_config
+
+            return _targets(inference_system_config(config.artifact_dir))
+    # Follow concrete nested mappings, leaving unrelated aliases and missing
+    # workflow fields unresolved, as in the ordinary dependency graph walk.
+    raw = OmegaConf.to_container(config, resolve=False)
+    values = raw.items() if isinstance(raw, dict) else enumerate(raw)
+    for key, value in values:
+        if isinstance(value, (dict, list)):
+            targets.update(_inference_targets(config[key]))
+    return targets
+
+
 def dependency_plan(config: DictConfig) -> DependencyPlan:
     """Build a dependency plan from an already composed configuration."""
     registry = OmegaConf.to_container(OmegaConf.load(_REGISTRY_PATH), resolve=True)
@@ -73,7 +99,7 @@ def dependency_plan(config: DictConfig) -> DependencyPlan:
     if not isinstance(registry, dict) or not isinstance(graph, dict):
         raise TypeError("Dependency registry and composed config must be mappings.")
 
-    targets = sorted(_targets(graph))
+    targets = sorted(_targets(graph) | _inference_targets(config))
     target_extras = registry.get("targets", {})
     extra_metadata = registry.get("extras", {})
     extras = sorted({extra for target in targets for extra in target_extras.get(target, [])})

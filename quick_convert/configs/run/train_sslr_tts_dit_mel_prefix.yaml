@@ -1,0 +1,19 @@
+# @package _global_
+
+defaults:
+  - train_sslr_tts_dit_campp_prefix
+  - _self_
+
+exp_name: tts_content_conformer_dit_mel_prefix_${dataset_name}
+
+system:
+  online_encoders:
+    frame_speaker: null
+  decoder:
+    stream_conditioning:
+      # Replace the inherited mapping rather than merging speaker and mel streams.
+      dimensions: '${oc.create:"{mel: 80}"}'
+    flow:
+      decoder:
+        estimator:
+          cond_dim: ${add:${system.decoder.stream_conditioning.dimensions.mel},1}

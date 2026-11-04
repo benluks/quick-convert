@@ -6,6 +6,7 @@ from collections.abc import Sequence
 import torch
 import torch.nn.functional as F
 import torchaudio
+from torch.nn.utils.rnn import pad_sequence
 
 from quick_convert.data.types import AudioBatch
 
@@ -34,6 +35,11 @@ class DACContentEncoder(ContentEncoder):
             precomputed offline; if ``True`` it stays trainable.
     """
 
+    SAMPLE_RATE = 16_000
+    FRAME_HZ = 50
+    FEATURE_DIM = 1024
+    N_LAYERS = 1
+
     def __init__(
         self,
         *,
@@ -58,6 +64,8 @@ class DACContentEncoder(ContentEncoder):
             import dac
 
             model = dac.DAC.load(dac.utils.download(model_type=pretrained))
+            if int(model.sample_rate) != sample_rate:
+                raise ValueError("sample_rate must match the selected pretrained DAC model.")
             self.dac_encoder = model.encoder
             self.hop_length = int(model.hop_length)  # audio samples collapsed into one frame
             self.FEATURE_DIM = int(model.latent_dim)  # D: size of each frame's feature vector
@@ -135,25 +143,37 @@ class DACContentEncoder(ContentEncoder):
 
         if waveforms.dim() == 3:  # accept (B, 1, T) too -> (B, T)
             waveforms = waveforms.squeeze(1)
+        if waveforms.ndim != 2:
+            raise ValueError("DAC waveforms must have shape [batch, time] or [batch, 1, time].")
         B, T = waveforms.shape
-        if lengths is None:  # assume full-length if not told otherwise
+        if lengths is None:
             lengths = torch.full((B,), T, dtype=torch.long, device=waveforms.device)
-
-        # Pad to a whole number of frames (DAC's convention), then add the channel
-        # axis the conv encoder expects -> (B, 1, T_pad).
-        pad = math.ceil(T / self.hop_length) * self.hop_length - T
-        x = F.pad(waveforms.to(self.device), (0, pad)).unsqueeze(1)
-
-        z = self.dac_encoder(x)  # (B, D, T_frames) — channels-first
-        # -> (B, T, D), then insert L=1 so ParallelConformer reads it unchanged.
-        z = z.transpose(1, 2).unsqueeze(2)  # (B, T_frames, 1, D)
-
+        if lengths.shape != (B,) or lengths.dtype != torch.long:
+            raise ValueError("DAC lengths must be int64 vectors with one entry per sample.")
+        if torch.any(lengths <= 0) or torch.any(lengths > T):
+            raise ValueError("DAC lengths must be positive and fit waveform storage.")
+        # Follow model moves made by Lightning rather than the constructor's
+        # original device preference.
+        parameter = next(self.dac_encoder.parameters(), None)
+        encoder_device = self.device if parameter is None else parameter.device
         frame_lengths = self.output_lengths(lengths)
-        if torch.any(frame_lengths > z.shape[1]):
-            raise RuntimeError(
-                "DAC's deterministic output-length calculation exceeds the encoded time dimension: "
-                f"expected at most {z.shape[1]}, got {int(frame_lengths.max())}."
-            )
+        groups = {}
+        for i, frames in enumerate(frame_lengths.tolist()):
+            groups.setdefault(frames, []).append(i)
+        encoded = [None] * B
+        for frames, indices in groups.items():
+            storage = frames * self.hop_length
+            index = torch.tensor(indices, device=waveforms.device)
+            x = waveforms.index_select(0, index)[:, :storage].to(encoder_device)
+            valid_lengths = lengths.to(encoder_device).index_select(0, index.to(encoder_device))
+            valid = torch.arange(x.shape[1], device=encoder_device)[None] < valid_lengths[:, None]
+            x = F.pad(x.masked_fill(~valid, 0), (0, storage - x.shape[1]))[:, None]
+            z = self.dac_encoder(x).transpose(1, 2)
+            if z.shape[1] != frames:
+                raise RuntimeError("DAC output length differs from its declared encoder hop.")
+            for row, original in enumerate(indices):
+                encoded[original] = z[row]
+        z = pad_sequence(encoded, batch_first=True).unsqueeze(2)
 
         return ContentFeatures(
             values=z,
@@ -164,7 +184,7 @@ class DACContentEncoder(ContentEncoder):
             backend="dac",
             model_name=self.model_name,
             layer=None,
-            frame_hz=self.frame_hz,
+            frame_hz=self.frame_hz,  # 16000/320 = 50 Hz
         )
 
     def output_lengths(self, input_lengths: torch.Tensor) -> torch.Tensor:

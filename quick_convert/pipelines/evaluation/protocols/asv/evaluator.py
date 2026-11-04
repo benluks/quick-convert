@@ -9,7 +9,8 @@ from pathlib import Path
 import torch
 from tqdm import tqdm
 
-from quick_convert.components.speaker import SpeakerEncoder
+from quick_convert.components.speaker import SpeakerEmbeddingAggregation, SpeakerEncoder
+from quick_convert.components.speaker.aggregation import audio_durations
 from quick_convert.data import BaseDataset
 
 from ...metrics.eer import compute_eer
@@ -18,7 +19,7 @@ from .trials import ASVTrial
 
 
 class ASVEvaluator:
-    """Evaluate mean enrollment speaker vectors against test utterances.
+    """Evaluate aggregated enrollment speaker vectors against test utterances.
 
     Cache keys are caller-managed identities for weights, preprocessing, and
     dataset contents. Caching is disabled unless explicitly requested.
@@ -36,6 +37,7 @@ class ASVEvaluator:
         cache_embeddings: bool = False,
         cache_key: str | None = None,
         cache_every: int = 100,
+        enrollment_aggregation: SpeakerEmbeddingAggregation | None = None,
     ) -> None:
         self.enroll_dataset = enroll_dataset
         self.test_dataset = test_dataset
@@ -55,6 +57,11 @@ class ASVEvaluator:
             raise ValueError("cache_every must be at least 1.")
 
         self.cache_every = cache_every
+        if enrollment_aggregation is not None and not isinstance(enrollment_aggregation, SpeakerEmbeddingAggregation):
+            raise TypeError("enrollment_aggregation must be a SpeakerEmbeddingAggregation policy.")
+        self.enrollment_aggregation = (
+            enrollment_aggregation if enrollment_aggregation is not None else SpeakerEmbeddingAggregation()
+        )
 
     def run(self) -> dict[str, float | int]:
         results = self.evaluate(
@@ -79,9 +86,15 @@ class ASVEvaluator:
         *,
         desc: str = "Extracting embeddings",
         cache_name: str | None = None,
+        durations: dict[str, float] | None = None,
     ) -> tuple[dict[str, torch.Tensor], dict[str, str]]:
+        """Extract embeddings and optionally populate valid audio durations.
 
+        The return value remains two mappings. When durations are requested,
+        loaded length/rate metadata enriches legacy caches without re-encoding.
+        """
         new_since_cache = 0
+        metadata_since_cache = 0
         cache_path = (
             self.out_dir / "cache" / f"{cache_name}.pt" if self.cache_embeddings and cache_name is not None else None
         )
@@ -96,9 +109,11 @@ class ASVEvaluator:
                 raise ValueError("ASV cache_key changed; use a fresh output directory or remove the old cache.")
             embeddings = cache["embeddings"]
             speakers = cache["speakers"]
+            cached_durations = dict(cache.get("durations", {}))
         else:
             embeddings = {}
             speakers = {}
+            cached_durations = {}
 
         loader = dataset.make_dataloader(
             batch_size=self.batch_size,
@@ -117,6 +132,21 @@ class ASVEvaluator:
                 if sample.utt_id in seen:
                     raise ValueError(f"Duplicate utterance ID: {sample.utt_id!r}")
                 seen.add(sample.utt_id)
+            if (
+                durations is not None
+                and getattr(batch, "lengths", None) is not None
+                and getattr(batch, "sample_rates", None) is not None
+            ):
+                for sample, duration in zip(batch, audio_durations(batch), strict=True):
+                    uid = sample.utt_id
+                    if uid in cached_durations and cached_durations[uid] != duration:
+                        raise ValueError(
+                            f"Recording duration changed for cached utterance {uid!r}; rebuild its embedding cache."
+                        )
+                    if uid not in cached_durations:
+                        cached_durations[uid] = duration
+                        if uid in embeddings:
+                            metadata_since_cache += 1
             if all(sample.utt_id in embeddings for sample in batch):
                 continue
 
@@ -154,7 +184,7 @@ class ASVEvaluator:
 
             new_since_cache += num_new
 
-            if cache_path is not None and new_since_cache >= self.cache_every:
+            if cache_path is not None and new_since_cache + metadata_since_cache >= self.cache_every:
                 cache_path.parent.mkdir(parents=True, exist_ok=True)
 
                 torch.save(
@@ -162,12 +192,14 @@ class ASVEvaluator:
                         "cache_key": self.cache_key,
                         "embeddings": embeddings,
                         "speakers": speakers,
+                        "durations": cached_durations,
                     },
                     cache_path,
                 )
                 new_since_cache = 0
+                metadata_since_cache = 0
 
-        if cache_path is not None and new_since_cache > 0:
+        if cache_path is not None and new_since_cache + metadata_since_cache > 0:
             cache_path.parent.mkdir(parents=True, exist_ok=True)
 
             torch.save(
@@ -175,23 +207,44 @@ class ASVEvaluator:
                     "cache_key": self.cache_key,
                     "embeddings": embeddings,
                     "speakers": speakers,
+                    "durations": cached_durations,
                 },
                 cache_path,
             )
 
+        if durations is not None:
+            durations.update({key: cached_durations[key] for key in sorted(seen) if key in cached_durations})
         return {key: embeddings[key] for key in sorted(seen)}, {key: speakers[key] for key in sorted(seen)}
 
     @staticmethod
     def aggregate_enrollment(
         embeddings: dict[str, torch.Tensor],
         speakers: dict[str, str],
+        *,
+        aggregation: SpeakerEmbeddingAggregation | None = None,
+        durations: dict[str, float] | None = None,
     ) -> dict[str, torch.Tensor]:
-        grouped: dict[str, list[torch.Tensor]] = defaultdict(list)
-
-        for utt_id, embedding in embeddings.items():
-            grouped[speakers[utt_id]].append(embedding)
-
-        return {speaker: torch.stack(values).mean(dim=0) for speaker, values in grouped.items()}
+        """Group speaker recordings and apply the shared embedding policy."""
+        if aggregation is not None and not isinstance(aggregation, SpeakerEmbeddingAggregation):
+            raise TypeError("aggregation must be a SpeakerEmbeddingAggregation policy.")
+        aggregation = aggregation if aggregation is not None else SpeakerEmbeddingAggregation()
+        grouped: dict[str, list[str]] = defaultdict(list)
+        for utt_id in embeddings:
+            grouped[speakers[utt_id]].append(utt_id)
+        enrollment = {}
+        for speaker, utt_ids in grouped.items():
+            recording_durations = None
+            if durations is not None and all(utt_id in durations for utt_id in utt_ids):
+                recording_durations = [durations[utt_id] for utt_id in utt_ids]
+            if aggregation.method == "duration_weighted" and recording_durations is None:
+                raise ValueError(
+                    f"Duration-weighted enrollment for speaker {speaker!r} requires durations for every recording. "
+                    "Load enrollment audio to recover missing duration metadata."
+                )
+            enrollment[speaker] = aggregation(
+                torch.stack([embeddings[utt_id] for utt_id in utt_ids]), durations=recording_durations
+            )
+        return enrollment
 
     def evaluate(
         self,
@@ -199,10 +252,12 @@ class ASVEvaluator:
         test_dataset: BaseDataset,
         trials: Iterable[ASVTrial] | None = None,
     ) -> dict[str, float | int]:
+        enroll_durations = {} if self.enrollment_aggregation.method == "duration_weighted" else None
         enroll_utt_embeddings, enroll_speakers = self.extract_embeddings(
             enroll_dataset,
             desc="Extracting enrollment embeddings",
             cache_name="enroll",
+            durations=enroll_durations,
         )
 
         test_embeddings, test_speakers = self.extract_embeddings(
@@ -217,6 +272,8 @@ class ASVEvaluator:
         enroll_embeddings = self.aggregate_enrollment(
             enroll_utt_embeddings,
             enroll_speakers,
+            aggregation=self.enrollment_aggregation,
+            durations=enroll_durations,
         )
 
         if trials is None:

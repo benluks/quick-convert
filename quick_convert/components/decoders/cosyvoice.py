@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+import math
+from dataclasses import asdict, dataclass, replace
 from typing import TYPE_CHECKING, Literal
 
 import torch
@@ -11,10 +12,16 @@ from torch import nn
 from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
 from quick_convert.data import GeneratedAudio
 from quick_convert.utils.device import DeviceLike, configure_device
-from quick_convert.utils.masking import make_padding_mask, trim_to_min
+from quick_convert.utils.masking import make_padding_mask
+
+from .cosyvoice_reference import CosyVoiceReference, reference_flow_loss
+from .stream_flow import content_and_speaker, independent_prefix_loss, stream_flow_loss, stream_flow_sample
+from .streams import ConditioningStream, StreamConditioning
 
 
 if TYPE_CHECKING:
+    from quick_convert.components.encoders.upsample_conformer import UpsampleConformerEncoder
+
     from ...external.cosyvoice.flow.flow import CausalMaskedDiffWithDiT, CausalMaskedDiffWithXvec
     from .hift_generator import CosyVoiceHiFTDecoder
 
@@ -51,11 +58,39 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         vocoder_config_filename: str = "cosyvoice3.yaml",
         vocoder_revision: str | None = None,
         mel_config: MelSpectrogramConfig | None = None,
+        stream_conditioning: StreamConditioning | None = None,
+        stream_inference_steps: int = 10,
+        content_encoder: UpsampleConformerEncoder | None = None,
     ):
         super().__init__()
 
         self.device = configure_device(device)
         self.flow = flow
+        self.content_encoder = content_encoder
+        if content_encoder is not None:
+            if feature_dim != content_encoder.input_size:
+                raise ValueError("feature_dim must match the content encoder input_size.")
+            if stream_conditioning is None or flow.vocab_size is not None or hasattr(flow, "encoder"):
+                raise ValueError("A content_encoder requires a continuous DiT flow with named streams.")
+            if content_encoder.upsample_factor != 1:
+                raise ValueError("The duration-controlled content encoder requires upsample_factor=1.")
+            # The first-party encoder replaces the donor's shallow content encoder.
+            self.flow.pre_lookahead_layer = None
+        self.stream_conditioning = stream_conditioning
+        if type(stream_inference_steps) is not int or stream_inference_steps < 1:
+            raise ValueError("stream_inference_steps must be a positive integer.")
+        self.stream_inference_steps = stream_inference_steps
+        if stream_conditioning is not None:
+            if flow.vocab_size is not None or not (hasattr(flow, "pre_lookahead_layer") or hasattr(flow, "encoder")):
+                raise ValueError("Named streams require a continuous-feature CosyVoice flow.")
+            estimator = flow.decoder.estimator
+            if getattr(estimator, "cond_dim", None) != stream_conditioning.output_dim:
+                raise ValueError("Estimator cond_dim must equal stream_conditioning.output_dim.")
+            if "mel" in stream_conditioning.dimensions and stream_conditioning.dimensions["mel"] != mel_dim:
+                raise ValueError("The mel stream dimension must equal mel_dim.")
+        if stream_conditioning is not None and not self.requires_speaker_embedding:
+            # Remove unused trainable parameters as well as the runtime input.
+            self.flow.spk_embed_affine_layer = None
         self.cond_strategy = cond_strategy
         self.vocoder = vocoder
         self.vocoder_repo_id = vocoder_repo_id
@@ -70,8 +105,45 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         if mel_config is not None:
             self._set_mel_metadata({"mel_config": asdict(mel_config)})
         self.input_projection = None
-        if flow.vocab_size is None and feature_dim != flow.input_size:
-            self.input_projection = nn.Linear(feature_dim, flow.input_size, device=self.device)
+        projection_dim = content_encoder.output_size() if content_encoder is not None else feature_dim
+        if flow.vocab_size is None and projection_dim != flow.input_size:
+            self.input_projection = nn.Linear(projection_dim, flow.input_size, device=self.device)
+
+    def requested_mel_lengths(self, lengths, duration_ratio=1.0):
+        """Convert source feature lengths and a duration multiplier to mel lengths."""
+        ratio = torch.as_tensor(duration_ratio, device=lengths.device, dtype=torch.float32)
+        if ratio.ndim > 1 or (ratio.ndim == 1 and ratio.shape != lengths.shape):
+            raise ValueError("duration_ratio must be a scalar or one value per example.")
+        if not torch.isfinite(ratio).all() or torch.any(ratio <= 0):
+            raise ValueError("duration_ratio must be finite and positive.")
+        if getattr(self, "content_encoder", None) is None and torch.any(ratio != 1):
+            raise ValueError("duration_ratio requires a duration-controlled content encoder.")
+        return (self.flow.output_lengths(lengths) * ratio).round().long().clamp_min(1)
+
+    def _content_and_speaker(self, features, lengths, speaker, mel_lengths):
+        if getattr(self, "content_encoder", None) is None:
+            return content_and_speaker(self.flow, features, lengths, speaker)
+        h, valid = self.content_encoder(features, lengths, target_lengths=mel_lengths)
+        if self.input_projection is not None:
+            h = self.input_projection(h)
+        h = h.masked_fill(~valid.transpose(1, 2), 0)
+        spks = None if speaker is None else self.flow.spk_embed_affine_layer(F.normalize(speaker, dim=1))
+        return h, spks
+
+    @property
+    def requires_speaker_embedding(self) -> bool:
+        """Whether this composition consumes a global speaker vector."""
+        if getattr(self, "stream_conditioning", None) is None:
+            return True
+        estimator = self.flow.decoder.estimator
+        embedding = getattr(estimator, "input_embed", estimator)
+        return getattr(embedding, "spk_dim", 1) > 0
+
+    def _validate_speaker_embedding(self, speaker_embedding):
+        if self.requires_speaker_embedding and speaker_embedding is None:
+            raise ValueError("This decoder requires a speaker_embedding.")
+        if not self.requires_speaker_embedding and speaker_embedding is not None:
+            raise ValueError("This decoder disables x-vector conditioning; omit speaker_embedding.")
 
     def initialize_checkpoint_vocoder(self, config: dict | None = None) -> None:
         """Construct HiFT for strict checkpoint restoration without downloading weights."""
@@ -213,6 +285,36 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         """Convert mel spectrograms to waveforms, loading the default vocoder on first use."""
         return self._get_vocoder()(mel)
 
+    def prepare_reference(self, features, lengths, waveform, waveform_lengths, sample_rate) -> CosyVoiceReference:
+        """Extract matching reference mels and trim extraction-boundary differences."""
+        self._require_reference_flow()
+        mels, mel_lengths = self._compute_mels(waveform, waveform_lengths, int(sample_rate))
+        ratio = self.flow.token_mel_ratio
+        if torch.any((lengths * ratio - mel_lengths).abs() > ratio):
+            raise ValueError("Reference content and mel durations differ by more than one content frame.")
+        lengths = torch.minimum(lengths, mel_lengths // ratio)
+        reference = CosyVoiceReference(
+            features[:, : int(lengths.max())],
+            lengths,
+            mels[:, :, : int(lengths.max()) * ratio].transpose(1, 2),
+            lengths * ratio,
+        )
+        reference.validate(features.shape[0], features.shape[-1], self.mel_dim, ratio)
+        return reference
+
+    def _require_reference_flow(self):
+        if self.flow.vocab_size is not None or not (
+            hasattr(self.flow, "encoder") or hasattr(self.flow, "pre_lookahead_layer")
+        ):
+            raise ValueError("Reference prompts require a continuous-feature CosyVoice flow.")
+
+    def _project_reference(self, reference, batch_size, feature_dim):
+        self._require_reference_flow()
+        reference.validate(batch_size, feature_dim, self.mel_dim, self.flow.token_mel_ratio)
+        if self.input_projection is not None:
+            reference = replace(reference, features=self.input_projection(reference.features))
+        return reference
+
     def compute_loss(
         self,
         features: torch.Tensor,
@@ -220,48 +322,108 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         target_wav: torch.Tensor,
         wav_lens: torch.Tensor,
         sampling_rate: int,
-        speaker_embedding: torch.Tensor,
+        speaker_embedding: torch.Tensor | None = None,
         mask: torch.Tensor = None,
+        reference: CosyVoiceReference | None = None,
+        streams: dict[str, ConditioningStream] | None = None,
         # cond: Optional[torch.Tensor] = None,
     ):
         """
         Thin wrapper around donor compute_loss.
         """
 
+        if features.ndim != 3 or lengths.shape != (features.shape[0],):
+            raise ValueError("Content features must have shape [batch, time, dim] with one length per sample.")
+        if (
+            lengths.dtype not in (torch.int32, torch.int64)
+            or torch.any(lengths <= 0)
+            or torch.any(lengths > features.shape[1])
+        ):
+            raise ValueError("Content lengths must be positive integers and fit feature storage.")
+        self._validate_speaker_embedding(speaker_embedding)
+        if streams is not None and self.stream_conditioning is None:
+            raise ValueError("Named streams require stream_conditioning configuration.")
+        if self.stream_conditioning is not None and reference is not None:
+            raise ValueError("Use named stream prefixes instead of CosyVoiceReference in stream mode.")
         input_rate = getattr(self.flow, "input_frame_rate", None)
         ratio = getattr(self.flow, "token_mel_ratio", None)
         if input_rate is not None and ratio is not None:
             if abs(input_rate * ratio - self.mel_config.sample_rate / self.mel_config.hop_size) > 1e-6:
                 raise ValueError("Flow output frame rate differs from the mel specification.")
-        target_mel, target_mel_lengths = self._compute_mels(
-            target_wav, wav_lens, int(sampling_rate), max_len=features.shape[1]
-        )
+        target_mel, target_mel_lengths = self._compute_mels(target_wav, wav_lens, int(sampling_rate))
 
-        # W2V-BERT and Matcha both produce 50 Hz features, but their exact
-        # boundary conventions differ: W2V-BERT does not pad waveform edges,
-        # while Matcha reflect-pads them. A one-frame difference is therefore
-        # legitimate and is reconciled explicitly at this training boundary.
-        features, target_mel, lengths = trim_to_min(
-            features.transpose(1, 2),
-            target_mel,
-            lengths,
-            target_mel_lengths,
-        )
-
-        if self.input_projection is not None:
-            mask = make_padding_mask(lengths, max_length=features.shape[-1])
-            features = self.input_projection(features.transpose(1, 2)) * mask.unsqueeze(-1)
+        ratio = ratio if ratio is not None else 1
+        if type(ratio) is not int or ratio < 1:
+            raise ValueError("token_mel_ratio must be a positive integer.")
+        if getattr(self, "content_encoder", None) is not None:
+            if (
+                lengths.shape != target_mel_lengths.shape
+                or torch.any(lengths <= 0)
+                or torch.any(lengths > features.shape[1])
+            ):
+                raise ValueError("Content lengths must match the batch and fit feature storage.")
+            duration_ratio = target_mel_lengths.float() / self.flow.output_lengths(lengths)
+            mel_lengths = self.requested_mel_lengths(lengths, duration_ratio)
         else:
-            features = features.transpose(1, 2)
+            # Compare endpoints on the mel axis. Different extraction boundaries
+            # may disagree by one content frame; do not hide larger rate errors.
+            differences = (lengths * ratio - target_mel_lengths).abs()
+            if torch.any(differences > ratio):
+                raise ValueError(
+                    f"Content and mel durations differ by more than one content frame: {differences.tolist()}."
+                )
+            lengths = torch.minimum(lengths, target_mel_lengths // ratio)
+            if torch.any(lengths <= 0):
+                raise ValueError("Reconstruction requires at least one aligned content frame per sample.")
+            mel_lengths = lengths * ratio
+        features = features[:, : int(lengths.max())]
+        target_mel = target_mel[:, :, : int(mel_lengths.max())]
+
+        if reference is not None:
+            if not hasattr(self.flow, "encoder"):
+                raise ValueError(
+                    "Separate-reference training requires an encoder flow. "
+                    "For native DiT prefix training, omit reference; the flow samples its own mel prefix."
+                )
+            reference = self._project_reference(reference, features.shape[0], features.shape[-1])
+
+        if self.input_projection is not None and getattr(self, "content_encoder", None) is None:
+            mask = make_padding_mask(lengths, max_length=features.shape[1])
+            features = self.input_projection(features) * mask.unsqueeze(-1)
+
+        if self.stream_conditioning is not None:
+            targets = target_mel.transpose(1, 2)
+            supplied = dict(streams or {})
+            if "mel" in supplied:
+                if getattr(self, "content_encoder", None) is None or not supplied["mel"].is_prefix:
+                    raise ValueError("An external training mel stream requires a duration-controlled reference prefix.")
+            elif "mel" in self.stream_conditioning.dimensions:
+                supplied["mel"] = ConditioningStream(targets, mel_lengths)
+            if getattr(self, "content_encoder", None) is not None:
+                h, spks = self._content_and_speaker(features, lengths, speaker_embedding, mel_lengths)
+                return CosyVoiceDecoderOutput(
+                    loss=independent_prefix_loss(
+                        self.flow, self.stream_conditioning, h, spks, targets, mel_lengths, supplied
+                    )
+                )
+            conditions, loss_mask = self.stream_conditioning.training_conditions(supplied, mel_lengths, targets)
+            h, spks = self._content_and_speaker(features, lengths, speaker_embedding, mel_lengths)
+            loss = stream_flow_loss(self.flow, h, spks, targets, mel_lengths, conditions, loss_mask)
+            return CosyVoiceDecoderOutput(loss=loss)
 
         batch = {
             "speech_token": features,
             "speech_token_len": lengths,
             "speech_feat": target_mel.transpose(1, 2),
-            # use legnths output from the trim function above
-            "speech_feat_len": lengths,
+            "speech_feat_len": mel_lengths,
             "embedding": speaker_embedding,
         }
+
+        if reference is not None:
+            loss = reference_flow_loss(
+                self.flow, features, lengths, target_mel.transpose(1, 2), reference, speaker_embedding
+            )
+            return CosyVoiceDecoderOutput(loss=loss)
 
         output = self.flow(
             batch=batch,
@@ -277,10 +439,21 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         self,
         feature: torch.Tensor,
         length: torch.Tensor,
-        speaker_embedding: torch.Tensor,
+        speaker_embedding: torch.Tensor | None = None,
         run_vocoder: bool = False,
+        reference: CosyVoiceReference | None = None,
+        inference_cfg_rate: float | None = None,
+        streams: dict[str, ConditioningStream] | None = None,
+        duration_ratio: float | torch.Tensor = 1.0,
     ) -> CosyVoiceGenerationOutput:
-
+        """Generate with optional per-call CFG; None retains the saved guidance rate."""
+        self._validate_speaker_embedding(speaker_embedding)
+        if inference_cfg_rate is not None:
+            if not math.isfinite(inference_cfg_rate) or inference_cfg_rate < 0:
+                raise ValueError("inference_cfg_rate must be finite and nonnegative.")
+        if self.stream_conditioning is not None and reference is not None:
+            raise ValueError("Use named stream prefixes instead of CosyVoiceReference in stream mode.")
+        generation_kwargs = {} if inference_cfg_rate is None else {"inference_cfg_rate": inference_cfg_rate}
         length = length.clone()
 
         # because of different feature extractions, sometimes lengths can be
@@ -292,26 +465,60 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         feature = feature[:, :min_max_length]
         length[max_length_idx] = min_max_length
 
-        if self.input_projection is not None:
+        if reference is not None:
+            reference = self._project_reference(reference, feature.shape[0], feature.shape[-1])
+            if not torch.all(reference.lengths == reference.lengths[0]):
+                raise ValueError("Batched generation requires equal reference lengths.")
+
+        if self.input_projection is not None and getattr(self, "content_encoder", None) is None:
             mask = make_padding_mask(length, max_length=feature.shape[1])
             feature = self.input_projection(feature) * mask.unsqueeze(-1)
 
-        B, _, D = feature.shape
-        mel, _ = self.flow.inference(
-            token=feature,
-            token_len=length,
-            prompt_token=torch.zeros(B, 0, D).long().to(self.device),
-            prompt_token_len=torch.zeros((B,)).long().to(self.device),
-            prompt_feat=torch.zeros(B, 0, self.flow.output_size).to(self.device),
-            prompt_feat_len=torch.zeros((B,)).long().to(self.device),
-            embedding=speaker_embedding,
-            finalize=True,
-            streaming=False,
-            # max_feature_len=max_len,
-            # n_timesteps=n_timesteps,
-        )
-
-        mel_lengths = self.flow.output_lengths(length)
+        mel_lengths = self.requested_mel_lengths(length, duration_ratio)
+        if self.stream_conditioning is not None:
+            h, spks = self._content_and_speaker(feature, length, speaker_embedding, mel_lengths)
+            prefix_streams = streams or {}
+            if torch.is_autocast_enabled(h.device.type):
+                # Frozen extractors return float32 while the content encoder can
+                # produce an autocast dtype during validation generation.
+                prefix_streams = {
+                    name: replace(stream, values=stream.values.to(dtype=h.dtype))
+                    for name, stream in prefix_streams.items()
+                }
+            prefixes, prefix_lengths = self.stream_conditioning.prefix_conditions(prefix_streams, h)
+            cfg_rate = self.flow.decoder.inference_cfg_rate if inference_cfg_rate is None else inference_cfg_rate
+            mel = stream_flow_sample(
+                self.flow,
+                h,
+                mel_lengths,
+                spks,
+                prefixes,
+                prefix_lengths,
+                self.stream_inference_steps,
+                cfg_rate,
+            )
+        else:
+            if streams is not None:
+                raise ValueError("Named streams require stream_conditioning configuration.")
+            B, _, D = feature.shape
+            mel, _ = self.flow.inference(
+                token=feature,
+                token_len=length,
+                prompt_token=reference.features[:, : int(reference.lengths[0])]
+                if reference is not None
+                else feature.new_zeros((B, 0, D)),
+                prompt_token_len=reference.lengths if reference is not None else length.new_zeros((B,)),
+                prompt_feat=reference.mels[:, : int(reference.mel_lengths[0])]
+                if reference is not None
+                else feature.new_zeros((B, 0, self.flow.output_size)),
+                prompt_feat_len=reference.mel_lengths if reference is not None else length.new_zeros((B,)),
+                embedding=speaker_embedding,
+                finalize=True,
+                streaming=False,
+                **generation_kwargs,
+                # max_feature_len=max_len,
+                # n_timesteps=n_timesteps,
+            )
         if torch.any(mel_lengths > mel.shape[-1]):
             raise RuntimeError("A generated mel length exceeds the padded mel tensor.")
 

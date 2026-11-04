@@ -1,0 +1,16 @@
+# @package _global_
+
+defaults:
+  - train_sslr_w2vbert_dit_streams
+  - _self_
+
+exp_name: train_sslr_w2vbert_dit_streams_no_xvector_${dataset_name}
+
+system:
+  online_encoders:
+    speaker: null
+  decoder:
+    flow:
+      decoder:
+        estimator:
+          spk_dim: null

@@ -2,6 +2,8 @@
 # Keep package versions in pyproject.toml; this file maps semantic capabilities
 # to import probes and composed object-graph targets.
 extras:
+  campplus-frames:
+    probes: [onnx, onnxruntime, huggingface_hub]
   opensmile:
     probes: [opensmile]
   asr:
@@ -30,6 +32,10 @@ extras:
     probes: [lightning, matplotlib, tensorboard, wandb]
   transformers:
     probes: [transformers]
+  mimi:
+    probes: [transformers]
+  speechtokenizer:
+    probes: [speechtokenizer, huggingface_hub, beartype, tensorboard]
   voicefm:
     probes: [transformers]
   wer:
@@ -38,6 +44,14 @@ extras:
     probes: [whisper]
 
 targets:
+  quick_convert.components.speaker.CosyVoiceCAMPPlusFrameEncoder: [campplus-frames]
+  quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusFrameEncoder: [campplus-frames]
+  quick_convert.data.resources.SameSpeakerReferenceProvider: [manifests]
+  quick_convert.components.encoders.upsample_conformer.UpsampleConformerEncoder: [cosyvoice]
+  # Saved-system targets are inspected by the planner; loaders themselves need only base dependencies.
+  quick_convert.inference.load_inference_system: []
+  quick_convert.inference.load_system_from_run: []
+  quick_convert.inference.load_inference_artifact: []
   quick_convert.components.feature_extractors.prosody.OpenSmileProsodyExtractor: [opensmile]
   quick_convert.components.decoders.CosyVoiceSpectrogramGenerator: [cosyvoice]
   quick_convert.components.feature_extractors.TokenizerFeatureExtractor: [sentencepiece]
@@ -45,6 +59,15 @@ targets:
   quick_convert.components.speaker.ESPnetSpeakerEncoder: [espnet-wavlm-joint]
   quick_convert.components.speaker.PyannoteWeSpeakerEncoder: [pyannote]
   quick_convert.components.ssl.DACContentEncoder: [dac]
+  quick_convert.components.ssl.DACQuantizedContentEncoder: [dac]
+  quick_convert.components.ssl.quantized.DACQuantizedContentEncoder: [dac]
+  quick_convert.components.ssl.MimiQuantizedContentEncoder: [mimi]
+  quick_convert.components.ssl.quantized.MimiQuantizedContentEncoder: [mimi]
+  quick_convert.components.ssl.SpeechTokenizerQuantizedContentEncoder: [speechtokenizer]
+  quick_convert.components.ssl.quantized.SpeechTokenizerQuantizedContentEncoder: [speechtokenizer]
+  # The nested saved system selects the content backend's requirements.
+  quick_convert.components.ssl.VQASRContentEncoder: []
+  quick_convert.components.ssl.vq_asr.VQASRContentEncoder: []
   quick_convert.components.ssl.EmotionEncoder: [emotion2vec]
   quick_convert.components.ssl.PASEContentEncoder: [pase]
   quick_convert.components.ssl.SPEARContentEncoder: [spear]

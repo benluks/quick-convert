@@ -6,11 +6,10 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
-from quick_convert.utils.device import DeviceLike, configure_device, override_devices
+from quick_convert.utils.device import DeviceLike
 
 
 ARTIFACT_FORMAT = "quick-convert-inference"
@@ -124,7 +123,7 @@ def _system_checkpoint_state(
         if key.startswith("system.") and isinstance(value, torch.Tensor)
     }
     if not system_state:
-        if not cleaned or not all(isinstance(value, torch.Tensor) for value in cleaned.values()):
+        if not all(isinstance(value, torch.Tensor) for value in cleaned.values()):
             raise ValueError("Checkpoint does not contain `system.*` weights or a plain system state dict.")
         system_state = {key: value.detach().cpu() for key, value in cleaned.items()}
 
@@ -142,14 +141,15 @@ def export_inference_artifact(
     destination: PathLike,
     *,
     checkpoint: PathLike = "checkpoints/last.ckpt",
-    config: PathLike = "config.yaml",
+    config: PathLike | None = None,
     map_location: DeviceLike = "cpu",
     overwrite: bool = False,
 ) -> Path:
     """Export the inference system from a Quick Convert training run.
 
-    The run configuration supplies the top-level ``system`` definition. For
-    compatibility, older runs may use ``architecture.system``. Lightning
+    Embedded checkpoint metadata supplies the system definition when available;
+    otherwise the run config supplies top-level ``system``. For compatibility,
+    older runs may use ``architecture.system``. Lightning
     checkpoints are reduced to ``system.*`` parameters; plain system state
     dictionaries are also accepted.
 
@@ -157,7 +157,8 @@ def export_inference_artifact(
         run_dir: Directory containing the resolved run config and checkpoint.
         destination: Output artifact directory.
         checkpoint: Absolute checkpoint path or path relative to ``run_dir``.
-        config: Resolved YAML config path, relative to ``run_dir`` by default.
+        config: Explicit YAML config override, relative to ``run_dir`` by default.
+            If omitted, use embedded metadata or fall back to config.yaml.
         map_location: Device used while reading the checkpoint.
         overwrite: Allow writing into a non-empty destination directory.
 
@@ -168,32 +169,14 @@ def export_inference_artifact(
         ValueError: If the run has no system config or checkpoint weights.
         TypeError: If the checkpoint is not a supported state mapping.
     """
-    run_dir = Path(run_dir)
-    cfg = OmegaConf.load(run_dir / config)
-    system_config = OmegaConf.select(cfg, "system")
-    if system_config is None:
-        # Runs written before the top-level system config was introduced.
-        system_config = OmegaConf.select(cfg, "architecture.system")
-    if system_config is None:
-        raise ValueError("Run config does not define `system`.")
+    from .source import read_run_state
 
-    checkpoint_path = Path(checkpoint)
-    if not checkpoint_path.is_absolute():
-        checkpoint_path = run_dir / checkpoint_path
-    checkpoint_state = torch.load(
-        checkpoint_path,
-        map_location=configure_device(map_location),
-        weights_only=False,
-    )
-    if not isinstance(checkpoint_state, Mapping):
-        raise TypeError("Training checkpoint must be a mapping.")
-    state_dict, excluded = _system_checkpoint_state(checkpoint_state)
-
+    state = read_run_state(run_dir, checkpoint=checkpoint, config=config, map_location=map_location)
     return _write_artifact(
         destination,
-        system_config=system_config,
-        state_dict=state_dict,
-        excluded_state_prefixes=excluded,
+        system_config=state.system_config,
+        state_dict=state.state_dict,
+        excluded_state_prefixes=state.excluded_state_prefixes,
         overwrite=overwrite,
     )
 
@@ -208,7 +191,7 @@ def load_inference_artifact(
 
     Device fields in the saved system configuration are overridden with
     ``map_location`` before Hydra instantiation. The returned module is moved
-    to that device and placed in evaluation mode.
+    to that device, frozen, and placed in evaluation mode.
 
     Args:
         artifact_dir: Directory containing ``artifact.yaml`` and ``weights.pt``.
@@ -222,26 +205,18 @@ def load_inference_artifact(
     Raises:
         ValueError: If the artifact format or version is unsupported.
     """
-    artifact_dir = Path(artifact_dir)
+    artifact_dir = Path(artifact_dir).expanduser()
     manifest = OmegaConf.load(artifact_dir / MANIFEST_NAME)
     if manifest.get("format") != ARTIFACT_FORMAT:
         raise ValueError(f"Unsupported inference artifact format: {manifest.get('format')!r}")
     if manifest.get("version") != ARTIFACT_VERSION:
         raise ValueError(f"Unsupported inference artifact version: {manifest.get('version')!r}")
 
-    device = configure_device(map_location)
-    system_config = manifest.system
-    override_devices(system_config, str(device))
-    system = instantiate(system_config).to(device)
+    from .source import InferenceState, _record_source, restore_system
 
-    weights_path = artifact_dir / manifest.weights
-    state_dict = torch.load(weights_path, map_location=device, weights_only=True)
-    excluded = tuple(_normalize_prefix(prefix) for prefix in manifest.get("excluded_state_prefixes", ()))
-    if excluded:
-        for key, value in system.state_dict().items():
-            if _matches_prefix(key, excluded):
-                state_dict.setdefault(key, value)
-
-    system.load_state_dict(state_dict, strict=strict)
-    system.eval()
-    return system
+    state = InferenceState(
+        system_config=OmegaConf.to_container(manifest.system, resolve=True),
+        state_dict=torch.load(artifact_dir / manifest.weights, map_location="cpu", weights_only=True),
+        excluded_state_prefixes=tuple(manifest.get("excluded_state_prefixes", ())),
+    )
+    return _record_source(restore_system(state, map_location=map_location, strict=strict), artifact_dir)

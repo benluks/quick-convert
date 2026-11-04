@@ -89,6 +89,8 @@ def test_child_before_ddp_initialization_does_not_access_logger_or_write_config(
 
     monkeypatch.setattr(rank_zero_only, "rank", 1)
     trainer = LightningTrainer.__new__(LightningTrainer)
+    configured = []
+    trainer.module = SimpleNamespace(set_inference_config=configured.append)
     # Before setup, LightningEnvironment still reports global rank zero.
     trainer.pl_trainer = SimpleNamespace(is_global_zero=True, loggers=[ChildLogger()], default_root_dir=str(tmp_path))
     assert not trainer.is_global_zero
@@ -96,5 +98,6 @@ def test_child_before_ddp_initialization_does_not_access_logger_or_write_config(
     pipeline = TrainingPipeline(trainer, object())
     pipeline.out_path = tmp_path
     pipeline.write_config("test: true\n")
+    assert configured == [{"test": True}]
     pipeline.log_config({"test": True})
     assert not (tmp_path / "config.yaml").exists()

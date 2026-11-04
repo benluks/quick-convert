@@ -9,6 +9,9 @@ from .base import ContentEncoder
 CONTENT_ENCODER_ALIASES = MappingProxyType(
     {
         "dac": "quick_convert.components.ssl.DACContentEncoder",
+        "dac_quantized": "quick_convert.components.ssl.DACQuantizedContentEncoder",
+        "mimi_quantized": "quick_convert.components.ssl.MimiQuantizedContentEncoder",
+        "speechtokenizer_quantized": "quick_convert.components.ssl.SpeechTokenizerQuantizedContentEncoder",
         "emotion2vec": "quick_convert.components.ssl.EmotionEncoder",
         "pase": "quick_convert.components.ssl.PASEContentEncoder",
         "paseplus": "quick_convert.components.ssl.PASEContentEncoder",
@@ -17,6 +20,7 @@ CONTENT_ENCODER_ALIASES = MappingProxyType(
         "s3tokenizer": "quick_convert.components.ssl.S3TokenizerContentEncoder",
         "w2vbert": "quick_convert.components.ssl.W2VBertContentEncoder",
         "voicefm": "quick_convert.components.ssl.VoiceFMContentEncoder",
+        "vq_asr": "quick_convert.components.ssl.VQASRContentEncoder",
         "wavlm": "quick_convert.components.ssl.WavLMContentEncoder",
     }
 )

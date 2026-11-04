@@ -80,6 +80,87 @@ def test_training_uses_resolved_mel_targets_and_accepts_integer_sample_rate():
         )
 
 
+@pytest.mark.parametrize("ratio", [1, 2, 4])
+def test_training_preserves_content_and_mel_time_axes(ratio):
+    module = decoder()
+    module.flow.input_frame_rate = 50 / ratio
+    module.flow.token_mel_ratio = ratio
+    # The shorter waveform has one extra mel frame beyond a complete token.
+    wav_lengths = torch.tensor([16000, 10560])
+    content_lengths = torch.tensor([50 // ratio, 33 // ratio])
+    original_lengths = content_lengths.clone()
+    features = torch.randn(2, int(content_lengths.max()) + 3, 4)
+    original_features = features.clone()
+    wav = torch.stack([tone(16000), torch.nn.functional.pad(tone(10560), (0, 5440))])
+    module.compute_loss(features, content_lengths, wav, wav_lengths, 16000, torch.zeros(2, 2))
+    batch = module.flow.batch
+    torch.testing.assert_close(batch["speech_token_len"], content_lengths)
+    torch.testing.assert_close(batch["speech_feat_len"], content_lengths * ratio)
+    assert batch["speech_token"].shape[1] == int(content_lengths.max())
+    assert batch["speech_feat"].shape[1] == int(content_lengths.max()) * ratio
+    torch.testing.assert_close(content_lengths, original_lengths)
+    torch.testing.assert_close(features, original_features)
+
+
+def test_training_rejects_large_duration_mismatch():
+    module = decoder()
+    module.flow.input_frame_rate = 25
+    module.flow.token_mel_ratio = 2
+    with pytest.raises(ValueError, match="durations differ"):
+        module.compute_loss(
+            torch.zeros(1, 20, 4),
+            torch.tensor([20]),
+            tone(16000)[None],
+            torch.tensor([16000]),
+            16000,
+            torch.zeros(1, 2),
+        )
+
+
+def test_training_trims_padded_features_to_valid_mask_width(monkeypatch):
+    module = decoder()
+    monkeypatch.setattr(module, "_compute_mels", lambda *args: (torch.zeros(2, 80, 833), torch.tensor([833, 700])))
+    lengths = torch.tensor([832, 700])
+    module.compute_loss(
+        torch.zeros(2, 833, 4), lengths, torch.zeros(2, 1), torch.ones(2, dtype=torch.long), 16000, torch.zeros(2, 2)
+    )
+    batch = module.flow.batch
+    assert batch["speech_token"].shape[1] == int(batch["speech_token_len"].max()) == 832
+    assert batch["speech_feat"].shape[1] == int(batch["speech_feat_len"].max()) == 832
+    assert lengths.tolist() == [832, 700]
+
+
+def test_training_projection_masks_padding_and_preserves_backward(monkeypatch):
+    module = CosyVoiceSpectrogramGenerator(Flow(), 6, device="cpu", mel_config=SPEC)
+    module.flow.input_frame_rate = 25
+    module.flow.token_mel_ratio = 2
+
+    def forward(batch, device):
+        module.flow.batch = batch
+        return {"loss": batch["speech_token"].square().mean()}
+
+    monkeypatch.setattr(module.flow, "forward", forward)
+    values = torch.randn(2, 30, 6, requires_grad=True)
+    lengths = torch.tensor([25, 16])
+    waveform = torch.stack([tone(16000), torch.nn.functional.pad(tone(10560), (0, 5440))])
+    output = module.compute_loss(values, lengths, waveform, torch.tensor([16000, 10560]), 16000, torch.ones(2, 2))
+    output.loss.backward()
+    batch = module.flow.batch
+    assert batch["speech_token"].shape == (2, 25, 4)
+    assert torch.count_nonzero(batch["speech_token"][1, 16:]) == 0
+    assert torch.count_nonzero(values.grad[1, 16:]) == 0
+    assert module.input_projection.weight.grad.norm() > 0
+    assert lengths.tolist() == [25, 16]
+
+
+@pytest.mark.parametrize("lengths", [torch.tensor([0]), torch.tensor([51]), torch.tensor([50.0]), torch.tensor([[50]])])
+def test_training_rejects_invalid_content_lengths(lengths):
+    with pytest.raises(ValueError, match="Content"):
+        decoder().compute_loss(
+            torch.ones(1, 50, 4), lengths, tone(16000)[None], torch.tensor([16000]), 16000, torch.ones(1, 2)
+        )
+
+
 def test_mel_contract_survives_weights_only_restore_without_metadata_download(tmp_path):
     original = decoder()
     original._set_mel_metadata({"mel_config": asdict(SPEC), "revision": "pinned-commit"})
@@ -215,3 +296,68 @@ def test_saved_vocoder_architecture_restores_lazily_without_downloads(monkeypatc
     assert initialized[0]["config"]["sampling_rate"] == 24000
     assert restored.mel_config == SPEC
     torch.testing.assert_close(original.vocoder.layer.weight, restored.vocoder.layer.weight)
+
+
+def test_hydra_vocoder_metadata_is_serializable_and_restores_strictly(monkeypatch):
+    import json
+
+    from hydra.utils import instantiate
+    from omegaconf import OmegaConf
+
+    adapter = pytest.importorskip("quick_convert.components.decoders.hift_generator")
+    monkeypatch.setattr(adapter, "CausalConvRNNF0Predictor", lambda **kwargs: nn.Linear(2, 2))
+    monkeypatch.setattr(adapter, "CausalHiFTGenerator", lambda **kwargs: nn.Linear(2, 2))
+    config = OmegaConf.create(
+        {
+            "_target_": "quick_convert.components.decoders.hift_generator.CosyVoiceHiFTDecoder",
+            "config": {
+                "_target_": "quick_convert.components.decoders.hift_generator.CosyVoiceHiFTConfig",
+                "upsample_rates": [8, 5, 3],
+                "istft_params": {"n_fft": 16, "hop_len": 4},
+                "resblock_dilation_sizes": [[1, 3, 5]] * 3,
+            },
+            "device": "cpu",
+            "mel_config": {
+                "_target_": "quick_convert.components.feature_extractors.mel.MelSpectrogramConfig",
+                **asdict(SPEC),
+            },
+        }
+    )
+    vocoder = instantiate(config)
+    metadata = vocoder.checkpoint_config()
+    assert json.loads(json.dumps(metadata)) == metadata
+    assert type(metadata["config"]["upsample_rates"]) is list
+    assert type(metadata["config"]["istft_params"]) is dict
+    assert type(metadata["config"]["resblock_dilation_sizes"][0]) is list
+    metadata["config"]["upsample_rates"][0] = 999
+    assert vocoder.config.upsample_rates[0] == 8  # Snapshot does not mutate caller-owned configuration.
+
+    original = decoder()
+    original.vocoder = vocoder
+    state = original.state_dict()  # Same metadata serialization that failed during inference loading.
+    restored = decoder()
+    restored.vocoder = instantiate(config)
+    restored.load_state_dict(state, strict=True)
+    assert restored._metadata()["config"]["upsample_rates"] == [8, 5, 3]
+    torch.testing.assert_close(original.vocoder.generator.weight, restored.vocoder.generator.weight)
+
+    from quick_convert.inference.source import InferenceState, restore_system
+
+    # Excluded external state makes the loader inspect freshly instantiated
+    # state before loading checkpoint weights, as in the reported traceback.
+    restored_system = restore_system(
+        InferenceState(
+            system_config={
+                "_target_": "quick_convert.components.decoders.cosyvoice.CosyVoiceSpectrogramGenerator",
+                "flow": {"_target_": "test_mel_contract.Flow"},
+                "feature_dim": 4,
+                "device": "cpu",
+                "vocoder": OmegaConf.to_container(config, resolve=True),
+                "mel_config": OmegaConf.to_container(config.mel_config, resolve=True),
+            },
+            state_dict=state,
+            excluded_state_prefixes=("flow.",),
+        )
+    )
+    torch.testing.assert_close(original.vocoder.generator.weight, restored_system.vocoder.generator.weight)
+    assert not restored_system.training

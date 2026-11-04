@@ -123,6 +123,12 @@ class LightningTrainer(BaseTrainer):
 
         return self.log_dir
 
+    def configure_inference(self, config: dict) -> None:
+        """Give compatible modules the saved composition before checkpointing."""
+        configure = getattr(self.module, "set_inference_config", None)
+        if callable(configure):
+            configure(config)
+
     def log_config(self, config: dict, config_path: Path) -> None:
         """Log resolved Hydra settings and their file to W&B on rank zero."""
         from lightning.pytorch.loggers import WandbLogger

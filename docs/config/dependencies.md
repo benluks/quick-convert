@@ -41,10 +41,29 @@ as constructor arguments.
 ## Logging and ONNX compatibility
 
 The `training`, `lightning`, and `dac` extras select `wandb==0.25.0` and
-`protobuf<7`. This W&B release includes Protobuf 3 bindings used with DAC's
-AudioTools dependency, while excluding unsupported Protobuf 7 runtimes.
-Keep these constraints aligned when combining logging and codec profiles.
+`protobuf<7`. Keep these supported constraints aligned when combining logging
+and codec profiles.
 
 The `s3tokenizer` extra requires `ml-dtypes>=0.5.0` for its ONNX imports.
 It cannot share a uv environment with `mpm`, whose TensorFlow dependency
 requires an older `ml-dtypes`; install those profiles separately.
+
+## Prefix-conditioned reconstruction
+
+`campplus-frames` supplies `onnx`, `onnxruntime` and `huggingface-hub` for the
+frame-wise CAMPPlus adapter. Imports and model downloads are lazy until that
+encoder is selected. Its supported ONNX graph is truncated in memory and is
+never written back to the model cache.
+
+The DAC profile pins AudioTools to an upstream revision with a broader Protobuf
+range, allowing DAC and CAMPPlus/ONNX context in the same environment. The
+[pinned upstream requirements](https://github.com/descriptinc/audiotools/blob/348ebf2034ce24e2a91a553e3171cb00c0c71678/setup.py#L55)
+are retained through a direct VCS requirement; selecting this profile needs Git
+and access to that public repository. Existing DAC/ESPnet profile conflicts are
+unchanged.
+
+Run `quick-convert requirements train_sslr_dac_dit_campp_prefix` to inspect the
+complete profile, or choose the W2V-BERT prefix variants when DAC is not needed.
+The same-speaker reference resource provider selects the existing `manifests`
+profile; prompt assembly and the stream-packing components need only the base
+dependencies.

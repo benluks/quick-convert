@@ -30,6 +30,12 @@ def override_devices(
     device: str,
 ) -> None:
     if isinstance(cfg, DictConfig):
+        if cfg.get("_target_") in {
+            "quick_convert.inference.load_inference_system",
+            "quick_convert.inference.load_system_from_run",
+            "quick_convert.inference.load_inference_artifact",
+        }:
+            cfg["map_location"] = device
         for key in cfg:
             if key == "device":
                 cfg[key] = device

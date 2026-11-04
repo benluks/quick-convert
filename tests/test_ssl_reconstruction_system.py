@@ -225,3 +225,97 @@ def test_precomputed_resources_remain_detached_with_trainable_online_encoder():
     resource = system.get_resource(batch, "content")
 
     assert not resource.values.requires_grad
+
+
+@pytest.mark.parametrize("backend_inference", [False, True])
+def test_frozen_content_can_feed_trainable_downstream_layers(backend_inference):
+    encoder = TrainableContentEncoder()
+    if backend_inference:
+        encoder.forward = torch.inference_mode()(encoder.forward)
+    system = SSLReconstructionSystem(decoder=FakeDecoder(), online_encoders={"content": encoder})
+    values = system.get_resource(make_audio_batch(), "content").values
+    projection = nn.Linear(4, 2)
+    projection(values).square().mean().backward()
+    assert projection.weight.grad is not None
+    assert not torch.is_inference(values)
+    assert encoder.scale.grad is None
+
+
+@pytest.mark.parametrize("trainable", [False, True])
+def test_training_mode_preserves_frozen_encoders_and_vocoder(trainable):
+    encoder = TrainableContentEncoder()
+    encoder.dropout = nn.Dropout(0.5)
+    decoder = FakeDecoder()
+    decoder.vocoder = nn.Linear(4, 4).requires_grad_(False)
+    system = SSLReconstructionSystem(
+        decoder=decoder,
+        online_encoders={"content": encoder},
+        trainable_online_encoders=("content",) if trainable else (),
+    )
+    assert system.train() is system
+    assert encoder.training is trainable
+    assert encoder.dropout.training is trainable
+    assert not decoder.vocoder.training
+    assert decoder.training
+    system.eval()
+    assert not encoder.training
+
+
+def test_native_reference_conversion_prepares_content_mels_and_global_embedding(tmp_path, monkeypatch):
+    from quick_convert.components.decoders.cosyvoice_reference import CosyVoiceReference
+    from quick_convert.components.reference_prompt import SpeechPromptBuilder
+    from quick_convert.components.speaker.aggregation import SpeakerEmbeddingAggregation
+    from quick_convert.systems.anonymization.targets import ReferenceSpeech
+
+    class NativeDecoder(FakeDecoder):
+        stream_conditioning = None
+        requires_speaker_embedding = True
+
+        def prepare_reference(self, features, lengths, waveform, waveform_lengths, sample_rate):
+            assert waveform_lengths.tolist() == [1600]
+            return CosyVoiceReference(features.clone(), lengths.clone(), torch.ones(1, 3, 80), lengths.clone())
+
+        def forward(self, *, feature, length, speaker_embedding, run_vocoder, reference):
+            assert reference.features.shape == (2, 3, 4)
+            assert reference.mel_lengths.tolist() == [3, 3]
+            torch.testing.assert_close(speaker_embedding, torch.full((2, 5), 7 / 3))
+            return super().forward(
+                feature=feature, length=length, speaker_embedding=speaker_embedding, run_vocoder=run_vocoder
+            )
+
+    class Speaker(nn.Module):
+        sample_rate = 16000
+
+        def forward(self, batch):
+            return batch.waveforms[:, : int(batch.lengths[0])].mean(1, keepdim=True).expand(-1, 5)
+
+    def load(path, **kwargs):
+        return torch.full((1, 3200 if Path(path).stem == "b" else 1600), 3.0 if Path(path).stem == "b" else 1.0)
+
+    monkeypatch.setattr("quick_convert.systems.reconstruction.ssl.load_audio_input", load)
+    system = SSLReconstructionSystem(
+        NativeDecoder(),
+        online_encoders={
+            "content": FakeContentEncoder(),
+            "speaker": Speaker(),
+        },
+    ).eval()
+    request = ReferenceSpeech(
+        [tmp_path / "b.wav", tmp_path / "a.wav"],
+        prompt_seconds=0.1,
+        prompt_builder=SpeechPromptBuilder(),
+        aggregation=SpeakerEmbeddingAggregation("duration_weighted"),
+    )
+    target = system.prepare_target(request)
+    assert target.durations == (0.1, 0.2)
+    assert target.prompt_segments
+    batch = AudioBatch(
+        utt_ids=["x", "y"],
+        paths=[Path("x"), Path("y")],
+        splits=[None, None],
+        resources={},
+        waveforms=torch.zeros(2, 1600),
+        lengths=torch.tensor([1600, 1600]),
+        sample_rates=torch.tensor([16000, 16000]),
+    )
+    assert len(system.convert_batch(batch, target=target)) == 2

@@ -136,3 +136,99 @@ def test_ssl_reconstruction_training_step_uses_the_wrapped_system(monkeypatch):
 
     assert module.decoder.loss_calls == 1
     torch.testing.assert_close(output.loss, torch.tensor(0.75))
+
+
+def test_ssl_training_keeps_teachers_and_frozen_vocoder_in_eval():
+    decoder = FakeDecoder()
+    decoder.vocoder = nn.Sequential(nn.BatchNorm1d(4), nn.Dropout()).requires_grad_(False)
+    system = SSLReconstructionSystem(
+        decoder=decoder,
+        online_encoders={"content": nn.Dropout()},
+        feature_transform=LayerWeightedSum(2),
+    )
+    module = SSLReconstructionTrainingModule(system=system, optimization=Optimization())
+    module.eval()
+    module.train()
+    assert module.feature_transform.training
+    assert module.decoder.training
+    assert not module.online_encoders["content"].training
+    assert not module.online_encoders["content"].training
+    assert not decoder.vocoder.training
+    assert not any(p.requires_grad for p in module.online_encoders.parameters())
+
+
+def test_ssl_gradient_groups_include_fusion_and_input_projection():
+    decoder = FakeDecoder()
+    decoder.input_projection = nn.Linear(4, 4)
+    module = SSLReconstructionTrainingModule(
+        decoder=decoder,
+        feature_transform=LayerWeightedSum(2),
+        optimization=Optimization(),
+        enable_grad_norm_logging=False,
+    )
+    assert module.grad_norm_modules["feature_transform"] is module.feature_transform
+    assert module.grad_norm_modules["input_projection"] is decoder.input_projection
+    assert not module.enable_grad_norm_logging
+
+
+def test_ssl_compile_replaces_flow_used_by_training():
+    from quick_convert.training.lightning.trainer import LightningTrainer
+
+    decoder = FakeDecoder()
+    decoder.flow = nn.Linear(4, 4)
+    module = SSLReconstructionTrainingModule(decoder=decoder, optimization=Optimization())
+    original_keys = set(module.state_dict())
+    compilations = []
+
+    def backend(graph, inputs):
+        compilations.append(graph)
+        return graph.forward
+
+    trainer = LightningTrainer(
+        module, compile={"enabled": True, "targets": ["system.decoder.flow"], "backend": backend}
+    )
+    trainer._maybe_compile_module()
+    x = torch.randn(2, 4, requires_grad=True)
+    module.decoder.flow(x).sum().backward()
+    assert compilations
+    assert torch.isfinite(x.grad).all()
+    assert "decoder" not in module._modules
+    assert set(module._clean_compiled_state_dict(module.state_dict())) == original_keys
+
+
+def test_ssl_representation_logging_masks_padding_and_logs_layer_weights(monkeypatch):
+    from types import SimpleNamespace
+
+    encoder = FakeRVQEncoder()
+    encoder.codebook_size = 4
+    encoder.n_codebooks = 2
+    module = SSLReconstructionTrainingModule(
+        decoder=FakeDecoder(),
+        feature_transform=LayerWeightedSum(2),
+        encoder=encoder,
+        optimization=Optimization(),
+    )
+    bars = []
+    metrics = {}
+    module._media_logger = SimpleNamespace(log_bar=lambda *args, **kwargs: bars.append(args))
+    monkeypatch.setattr(module, "log_dict", lambda values, **kwargs: metrics.update(values))
+    output = SimpleNamespace(codes=torch.tensor([[[0, 1, 3]], [[1, 3, 3]]]))
+    module._log_representation_state(output, torch.tensor([2, 1]))
+    assert len(bars) == 1
+    torch.testing.assert_close(bars[0][1], torch.tensor([0.5, 0.5]))
+    assert metrics["rvq/codebook_0/utilization"] == 0.5
+    torch.testing.assert_close(metrics["rvq/codebook_0/max_usage"], torch.tensor(2 / 3))
+    assert metrics["rvq/codebook_1/perplexity"] == 0
+    monkeypatch.setattr(torch.distributed, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
+
+    def reduce_counts(counts):
+        assert counts.shape == (2, 4)
+        # Another rank used the codebook absent from this rank's output.
+        counts[1, 2] += 3
+
+    monkeypatch.setattr(torch.distributed, "all_reduce", reduce_counts)
+    module._log_representation_state(output, torch.tensor([2, 1]))
+    assert metrics["rvq/codebook_1/perplexity"] == 1
+    assert metrics["rvq/codebook_1/utilization"] == 0.25
+    module._log_representation_state(None, torch.tensor([2, 1]))

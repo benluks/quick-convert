@@ -305,6 +305,8 @@ class CausalConditionalDecoder(ConditionalDecoder):
         act_fn="snake",
         static_chunk_size=50,
         num_decoding_left_chunks=2,
+        cond_dim=None,
+        spk_dim=80,
     ):
         """
         This decoder requires an input with the same shape of the target. So, if your text content
@@ -314,10 +316,16 @@ class CausalConditionalDecoder(ConditionalDecoder):
         channels = tuple(channels)
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.time_embeddings = SinusoidalPosEmb(in_channels)
+        self.cond_dim = cond_dim
+        self.spk_dim = 0 if spk_dim is None else spk_dim
+        if cond_dim is not None and in_channels != 2 * out_channels + cond_dim + self.spk_dim:
+            raise ValueError("in_channels must cover noisy mel, content, conditions and optional speaker channels")
+        # Preserve existing even-width checkpoints while allowing odd stream widths.
+        time_channels = in_channels + in_channels % 2
+        self.time_embeddings = SinusoidalPosEmb(time_channels)
         time_embed_dim = channels[0] * 4
         self.time_mlp = TimestepEmbedding(
-            in_channels=in_channels,
+            in_channels=time_channels,
             time_embed_dim=time_embed_dim,
             act_fn="silu",
         )

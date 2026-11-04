@@ -1,0 +1,23 @@
+# @package _global_
+defaults:
+  - train_sslr_w2vbert_cmdiff_campp_prefix
+  - override /components/ssl@system.online_encoders.content: speechtokenizer_quantized
+  - _self_
+
+# Capabilities of the standard speechtokenizer_hubert_avg checkpoint.
+data:
+  target_sr: 16000
+train_dataset:
+  target_sr: 16000
+val_dataset:
+  target_sr: 16000
+
+system:
+  online_encoders:
+    content:
+      layer: 0
+  feature_transform: null
+  decoder:
+    feature_dim: 1024
+    flow:
+      input_frame_rate: 50

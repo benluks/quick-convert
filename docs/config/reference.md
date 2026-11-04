@@ -14,8 +14,13 @@ Quick Convert installs its Hydra tree under `quick_convert/configs/`. A file in 
 | `precompute tokens_librispeech` | `run/precompute_tokens_librispeech.yaml` |
 | `evaluate asr_librispeech` | `run/eval_asr_librispeech.yaml` |
 | `anonymize knnvc_clac` | `run/anonymize_knnvc_clac.yaml` |
+| `quick-convert convert_reference_manifest` | `run/convert_reference_manifest.yaml` |
 
 The universal command uses the full stem. A verb command prefixes its alias with `train_`, `precompute_`, `eval_`, or `anonymize_`.
+
+Reference conversion presets and target overrides are described in the
+[conversion guide](../guides/voice-conversion.md); output identity and resume
+rules are in [conversion outputs](../guides/conversion-outputs.md).
 
 ## Composition slots
 
@@ -128,3 +133,56 @@ EMA RVQ commitment loss is computed in projected codebook space for masked,
 unmasked, and top-k inputs. With cosine quantization, that space is normalized;
 old runs that relied on the masked loss using unnormalized input may need their
 commitment weight retuned.
+
+### Saved inference systems
+
+New standard training checkpoints embed the resolved top-level `system`
+composition as `quick_convert_inference` metadata. The training pipeline
+supplies it through the backend's `configure_inference(config)` hook.
+Training-only runs without a system do not attach this metadata.
+
+`quick_convert.inference.load_inference_system(source, checkpoint=None,
+config=None, map_location="cpu", strict=True)` accepts a run directory,
+checkpoint file or exported artifact. Run directories default to
+`checkpoints/last.ckpt`; explicit `config` overrides embedded composition.
+Artifact sources reject checkpoint/config overrides. See the
+[inference guide](../guides/inference.md) for legacy configuration discovery,
+export, and Python examples.
+
+### Reconstruction timing and diagnostics
+
+W2V-BERT reconstruction runs set dataset `target_sr` from the content encoder's
+`SAMPLE_RATE` and derive flow timing from `FRAME_HZ`. `${frame_ratio:50,25}`
+resolves to `2`; noninteger, nonpositive and nonfinite rates are rejected.
+For other mel clocks, update the system wiring to the actual vocoder contract.
+
+The CFM decoder uses the first-party `UpsampleConformerEncoder`, whose
+`upsample_factor` follows `token_mel_ratio`. Preset second-stack and lookahead
+settings explicitly preserve the previous decoder architecture. See the
+[encoder guide](../components/upsample-conformer.md).
+
+`trainer.compile.targets=[system.decoder.flow]` compiles the owned flow.
+`trainer.module.enable_grad_norm_logging=false` disables gradient norms;
+layer-fusion and masked quantizer-usage diagnostics remain available at the
+training module's 1,000-step logging cadence.
+
+### Reference and prefix conditioning
+
+`decoder.stream_conditioning` composes `StreamConditioning` with ordered named
+dimensions. Its packed width is the sum of those dimensions plus one
+availability channel per stream; the estimator's `cond_dim` must match.
+`prefix_fraction`, `context_mask_fraction` and `stream_drop_probability` control
+prefix visibility during training. `stream_inference_steps` is a positive
+integer controlling named-stream sampling.
+
+Stream resources use the mel clock and explicit valid lengths. The reserved
+`mel` stream is extracted by the decoder. Online contextual encoders use
+`encode_prefixes` to crop audio before encoding. A null speaker encoder disables
+the global speaker resource when the estimator has `spk_dim: null`; explicitly
+trainable content encoders remain supported.
+
+`SameSpeakerReferenceProvider(manifest_path, speaker_column="spkid", seed=0)`
+attaches `reference_path` without loading its audio. `SpeechPromptBuilder`
+assembles an exact active-speech duration without changing caller audio or
+random state. See the [reference-conditioning guide](../guides/reference-conditioning.md)
+for executable presets and Python examples.

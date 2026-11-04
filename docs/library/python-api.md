@@ -78,16 +78,21 @@ Built-in aliases include `dac`, `emotion2vec`, `pase`, `paseplus`, `spear`, `voi
 `ContentEncoder` contract. Resolution imports the class but does not construct
 it or load its model weights.
 
-## Load an inference artifact
+## Load a trained inference system
 
 ```python
-from quick_convert.inference import load_inference_artifact
+from quick_convert.inference import load_inference_system
 
-system = load_inference_artifact("models/vq-asr", map_location="cpu")
+system = load_inference_system("models/vq-asr", map_location="cpu")
 result = system(batch)
 ```
 
 The concrete result type depends on the system. For example, `VQASRSystem` returns logits, valid lengths, codes, quantized values, and probeable intermediate representations.
+
+The same loader accepts a run directory or a checkpoint file. It returns a
+frozen module in evaluation mode without constructing its trainer. Existing
+`load_inference_artifact` calls remain supported. See the
+[inference guide](../guides/inference.md) for config overrides and export.
 
 ## Save an instantiated system
 

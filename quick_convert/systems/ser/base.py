@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-import torch
+from quick_convert.systems.base import InferenceSystem
 
 
-class SERSystem(torch.nn.Module, ABC):
+class SERSystem(InferenceSystem, ABC):
     """Base interface for speech-emotion recognition systems."""
 
     # def __init__(self, name: str, device: str):
