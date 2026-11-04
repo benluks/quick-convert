@@ -1,5 +1,10 @@
 # Supported workflows
 
+For reconstruction with reference prefixes, see the
+[reference-prompt and conditioning-stream workflows](reference-conditioning.md).
+Start with `train_sslr_w2vbert_dit_streams`, or choose a CAMPPlus-prefix preset
+for frame-wise speaker context.
+
 Run `quick-convert --help` to list the composition roots installed with your version. The universal form accepts the complete run name; verb-oriented aliases add their prefix automatically.
 
 | Goal | Required profile | Canonical command | Main output |

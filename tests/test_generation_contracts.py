@@ -32,6 +32,7 @@ class FakeVocoder(nn.Module):
 def make_decoder():
     decoder = CosyVoiceSpectrogramGenerator.__new__(CosyVoiceSpectrogramGenerator)
     nn.Module.__init__(decoder)
+    decoder.stream_conditioning = None
     decoder.device = torch.device("cpu")
     decoder.flow = FakeFlow()
     decoder.vocoder = FakeVocoder()

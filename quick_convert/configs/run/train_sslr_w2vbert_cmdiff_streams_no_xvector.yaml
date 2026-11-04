@@ -1,0 +1,22 @@
+# @package _global_
+
+defaults:
+  - train_sslr_w2vbert_cmdiff
+  - _self_
+
+exp_name: ${hydra:job.config_name}_${dataset_name}
+
+system:
+  online_encoders:
+    speaker: null
+  decoder:
+    stream_conditioning:
+      _target_: quick_convert.components.decoders.StreamConditioning
+      dimensions:
+        mel: 80
+    flow:
+      decoder:
+        estimator:
+          cond_dim: 81
+          spk_dim: null
+          in_channels: 241  # noisy mel + encoded content + packed conditions

@@ -1,0 +1,16 @@
+# @package _global_
+
+defaults:
+  - train_sslr_w2vbert_dit_streams
+  - _self_
+
+exp_name: ${hydra:job.config_name}_${dataset_name}
+
+system:
+  online_encoders:
+    speaker: null
+  decoder:
+    flow:
+      decoder:
+        estimator:
+          spk_dim: null

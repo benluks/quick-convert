@@ -8,9 +8,11 @@ from .annotations import CSVAnnotationProvider
 from .base import BaseResourceProvider, ResourceCollection, ResourceRef, collate_resources
 from .loader import load_resource
 from .providers import PathResourceProvider, TemplateResourceProvider
+from .reference import SameSpeakerReferenceProvider
 
 
 __all__ = [
+    "SameSpeakerReferenceProvider",
     "BaseResourceProvider",
     "PathResourceProvider",
     "TemplateResourceProvider",

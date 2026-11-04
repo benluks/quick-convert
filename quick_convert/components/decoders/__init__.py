@@ -1,7 +1,10 @@
 from .cosyvoice import CosyVoiceDecoderOutput, CosyVoiceGenerationOutput, CosyVoiceSpectrogramGenerator
+from .streams import ConditioningStream, StreamConditioning
 
 
 __all__ = [
+    "ConditioningStream",
+    "StreamConditioning",
     "CosyVoiceDecoderOutput",
     "CosyVoiceGenerationOutput",
     "CosyVoiceHiFTDecoder",

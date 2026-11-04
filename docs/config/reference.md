@@ -143,3 +143,24 @@ settings explicitly preserve the previous decoder architecture. See the
 `trainer.module.enable_grad_norm_logging=false` disables gradient norms;
 layer-fusion and masked quantizer-usage diagnostics remain available at the
 training module's 1,000-step logging cadence.
+
+### Reference and prefix conditioning
+
+`decoder.stream_conditioning` composes `StreamConditioning` with ordered named
+dimensions. Its packed width is the sum of those dimensions plus one
+availability channel per stream; the estimator's `cond_dim` must match.
+`prefix_fraction`, `context_mask_fraction` and `stream_drop_probability` control
+prefix visibility during training. `stream_inference_steps` is a positive
+integer controlling named-stream sampling.
+
+Stream resources use the mel clock and explicit valid lengths. The reserved
+`mel` stream is extracted by the decoder. Online contextual encoders use
+`encode_prefixes` to crop audio before encoding. A null speaker encoder disables
+the global speaker resource when the estimator has `spk_dim: null`; explicitly
+trainable content encoders remain supported.
+
+`SameSpeakerReferenceProvider(manifest_path, speaker_column="spkid", seed=0)`
+attaches `reference_path` without loading its audio. `SpeechPromptBuilder`
+assembles an exact active-speech duration without changing caller audio or
+random state. See the [reference-conditioning guide](../guides/reference-conditioning.md)
+for executable presets and Python examples.

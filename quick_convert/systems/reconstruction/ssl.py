@@ -8,7 +8,11 @@ import torch
 import torchaudio
 from torch import nn
 
-from quick_convert.components.decoders import CosyVoiceGenerationOutput, CosyVoiceSpectrogramGenerator
+from quick_convert.components.decoders import (
+    ConditioningStream,
+    CosyVoiceGenerationOutput,
+    CosyVoiceSpectrogramGenerator,
+)
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.mixins.resource import OnlineResourceMixin
 from quick_convert.data import AudioBatch
@@ -25,7 +29,7 @@ class SSLReconstructionResult:
     generation: CosyVoiceGenerationOutput
     features: torch.Tensor
     lengths: torch.Tensor
-    speaker_embedding: torch.Tensor
+    speaker_embedding: torch.Tensor | None
     encoder_output: RVQOutput | None = None
 
 
@@ -45,7 +49,10 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
         self.encoder = encoder
         self.decoder = decoder
         self.feature_transform = feature_transform or nn.Identity()
-        self.configure_online_encoders(online_encoders, trainable_online_encoders)
+        self.configure_online_encoders(
+            {name: encoder for name, encoder in (online_encoders or {}).items() if encoder is not None},
+            trainable_online_encoders,
+        )
 
     def train(self, mode: bool = True):
         super().train(mode)
@@ -105,9 +112,10 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
         self,
         values: torch.Tensor,
         lengths: torch.Tensor,
-        speaker_embedding: torch.Tensor,
+        speaker_embedding: torch.Tensor | None = None,
         *,
         run_vocoder: bool = True,
+        streams: dict[str, ConditioningStream] | None = None,
     ) -> SSLReconstructionResult:
         """Generate from plain content and speaker tensors."""
         features, output_lengths, encoder_output = self.encode_features(values, lengths)
@@ -116,6 +124,7 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
             output_lengths,
             speaker_embedding,
             run_vocoder=run_vocoder,
+            **({"streams": streams} if streams is not None else {}),
         )
         return SSLReconstructionResult(
             generation=generation,
@@ -129,9 +138,10 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
         self,
         features: torch.Tensor,
         lengths: torch.Tensor,
-        speaker_embedding: torch.Tensor,
+        speaker_embedding: torch.Tensor | None = None,
         *,
         run_vocoder: bool = True,
+        streams: dict[str, ConditioningStream] | None = None,
     ) -> CosyVoiceGenerationOutput:
         """Generate from already transformed or encoded content features."""
         return self.decoder(
@@ -139,7 +149,53 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
             length=lengths,
             speaker_embedding=speaker_embedding,
             run_vocoder=run_vocoder,
+            **({"streams": streams} if streams is not None else {}),
         )
+
+    def speaker_condition(self, batch: AudioBatch) -> torch.Tensor | None:
+        """Resolve the global speaker resource only when the decoder consumes it."""
+        if not getattr(self.decoder, "requires_speaker_embedding", True):
+            return None
+        return self.get_resource(batch, "speaker").values
+
+    def conditioning_streams(
+        self, batch: AudioBatch, target_lengths: torch.Tensor | None = None
+    ) -> dict[str, ConditioningStream]:
+        """Resolve training streams from named resources already on the mel clock."""
+        conditioning = getattr(self.decoder, "stream_conditioning", None)
+        if conditioning is None:
+            return {}
+        streams = {}
+        for name in conditioning.dimensions:
+            if name == "mel":
+                continue
+            supplied = batch.resources.get(name)
+            if isinstance(supplied, ConditioningStream):
+                streams[name] = supplied
+                continue
+            encoder = self.online_encoders[name] if name in self.online_encoders else None
+            encode_prefixes = getattr(encoder, "encode_prefixes", None)
+            if supplied is None and callable(encode_prefixes):
+                mel_lengths = self.decoder.mel_output_lengths(batch.lengths, int(batch.sample_rates[0]))
+                if target_lengths is not None:
+                    mel_lengths = torch.minimum(mel_lengths, target_lengths)
+                ratio = self.decoder.flow.token_mel_ratio
+                mel_lengths = mel_lengths // ratio * ratio
+                prefix_lengths = conditioning.sample_prefix_lengths(mel_lengths)
+                with torch.no_grad():
+                    resource = encode_prefixes(
+                        batch,
+                        prefix_lengths,
+                        self.decoder.mel_config.sample_rate / self.decoder.mel_config.hop_size,
+                    )
+                resource = self._normalize_resource(resource)
+                streams[name] = ConditioningStream(resource.values, resource.lengths, is_prefix=True)
+                continue
+            resource = self.get_resource(batch, name)
+            if resource.lengths is None:
+                raise ValueError(f"Frame-wise conditioning resource {name!r} requires lengths.")
+            streams[name] = ConditioningStream(resource.values, resource.lengths)
+        return streams
 
     @staticmethod
     def save_generation(generation: CosyVoiceGenerationOutput, path: PathLike) -> None:
@@ -154,16 +210,19 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
             generation.audio.sample_rate,
         )
 
-    def forward(self, batch: AudioBatch, *, run_vocoder: bool = True) -> SSLReconstructionResult:
+    def forward(
+        self, batch: AudioBatch, *, run_vocoder: bool = True, streams: dict[str, ConditioningStream] | None = None
+    ) -> SSLReconstructionResult:
         content = self.get_resource(batch, "content")
         if content.lengths is None:
             raise ValueError("Content features require valid lengths for SSL reconstruction.")
-        speaker_embedding = self.get_resource(batch, "speaker").values
+        speaker_embedding = self.speaker_condition(batch)
         return self.generate_features(
             content.values,
             content.lengths,
             speaker_embedding,
             run_vocoder=run_vocoder,
+            **({"streams": streams} if streams is not None else {}),
         )
 
     @torch.inference_mode()
@@ -174,17 +233,21 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
         sample_rate: int | None = None,
         run_vocoder: bool = True,
         to_file: PathLike | None = None,
+        streams: dict[str, ConditioningStream] | None = None,
     ) -> SSLReconstructionResult:
         """Reconstruct a single audio file or in-memory waveform tensor."""
-        if "content" not in self.online_encoders or "speaker" not in self.online_encoders:
-            raise RuntimeError("Audio reconstruction requires `content` and `speaker` online encoders.")
-
+        if "content" not in self.online_encoders:
+            raise RuntimeError("Audio reconstruction requires a `content` online encoder.")
         content_encoder = self.online_encoders["content"]
-        speaker_encoder = self.online_encoders["speaker"]
         content_sample_rate = getattr(content_encoder, "sample_rate", None)
-        speaker_sample_rate = getattr(speaker_encoder, "sample_rate", None)
-        if content_sample_rate is None or content_sample_rate != speaker_sample_rate:
-            raise ValueError("Content and speaker encoders must declare the same input sample rate.")
+        if content_sample_rate is None:
+            raise ValueError("Content encoder must declare its input sample rate.")
+        if getattr(self.decoder, "requires_speaker_embedding", True):
+            if "speaker" not in self.online_encoders:
+                raise RuntimeError("Audio reconstruction requires a `speaker` online encoder.")
+            speaker_sample_rate = getattr(self.online_encoders["speaker"], "sample_rate", None)
+            if content_sample_rate != speaker_sample_rate:
+                raise ValueError("Content and speaker encoders must declare the same input sample rate.")
 
         device = getattr(content_encoder, "device", torch.device("cpu"))
         waveform = load_audio_input(
@@ -204,7 +267,7 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
             sample_rates=torch.tensor([content_sample_rate], device=device),
         )
         self.eval()
-        result = self(batch, run_vocoder=run_vocoder)
+        result = self(batch, run_vocoder=run_vocoder, **({"streams": streams} if streams is not None else {}))
         if to_file is not None:
             self.save_generation(result.generation, to_file)
         return result

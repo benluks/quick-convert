@@ -71,7 +71,13 @@ spear = ["transformers>=4.50.1,<5"]
 pase = ["PASE @ git+https://github.com/santi-pdp/pase.git@2a41e63e54fa8673efd12c16cdcdd5ad4f0f125e", "torchvision==0.21.0"]
 w2vbert = ["transformers"] # Compatibility alias for existing environments.
 s3tokenizer = ["s3tokenizer>=0.3.0"]
-dac = ["descript-audio-codec"]
+# Pin the relaxed AudioTools dependency so DAC and ONNX prefixes can coexist.
+dac = [
+    "descript-audio-codec==1.0.0",
+    "descript-audiotools @ git+https://github.com/descriptinc/audiotools.git@348ebf2034ce24e2a91a553e3171cb00c0c71678",
+    "wandb==0.25.0",
+    "protobuf<7",
+]
 espnet-wavlm-joint = [
     "espnet==202511",
     "espnet-model-zoo>=0.1.7",
@@ -97,6 +103,7 @@ whisper = ["openai-whisper>=20231117"]
 sentencepiece = ["sentencepiece>=0.2.0"]
 wer = ["jiwer>=3.0"]
 asr = ["jiwer>=3.0", "sentencepiece>=0.2.0"] # Compatibility bundle.
+campplus-frames = ["onnx>=1.17.0,<1.19", "onnxruntime>=1.26.0", "huggingface-hub>=0.28.1"]
 cosyvoice = [
     "conformer>=0.3.2",
     "diffusers>=0.29.0",
