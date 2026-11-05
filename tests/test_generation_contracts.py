@@ -57,7 +57,7 @@ def test_generated_audio_returns_unpadded_waveforms():
 
 
 def test_generated_audio_rejects_lengths_beyond_padded_tensor():
-    with pytest.raises(ValueError, match="exceeds the padded waveform size"):
+    with pytest.raises(ValueError, match="Waveform length exceeds the padded time dimension"):
         GeneratedAudio(
             waveforms=torch.zeros(1, 5),
             lengths=torch.tensor([6]),
