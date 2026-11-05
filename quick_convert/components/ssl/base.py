@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 
 from quick_convert.utils.device import configure_device
+from quick_convert.utils.sequence_validation import validate_padded_lengths
 
 
 if TYPE_CHECKING:
@@ -43,22 +44,9 @@ class ContentFeatures:
             )
         if not isinstance(self.lengths, torch.Tensor):
             raise TypeError("Content feature lengths must be a tensor.")
-        if self.lengths.ndim != 1:
-            raise ValueError(f"Content feature lengths must be one-dimensional, got {tuple(self.lengths.shape)}.")
-        if self.lengths.shape[0] != self.values.shape[0]:
-            raise ValueError(
-                "Content feature lengths must contain one value per batch item: "
-                f"got {self.lengths.shape[0]} lengths for batch size {self.values.shape[0]}."
-            )
         if self.lengths.dtype not in {torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8}:
             raise TypeError(f"Content feature lengths must use an integer dtype, got {self.lengths.dtype}.")
-        if torch.any(self.lengths < 0):
-            raise ValueError("Content feature lengths cannot be negative.")
-        if torch.any(self.lengths > self.values.shape[1]):
-            raise ValueError(
-                "A content feature length exceeds the padded time dimension: "
-                f"maximum is {self.values.shape[1]}, got {int(self.lengths.max())}."
-            )
+        validate_padded_lengths(self.values, self.lengths, name="Content feature")
         if self.feature_dim != self.values.shape[-1]:
             raise ValueError(
                 f"feature_dim={self.feature_dim} does not match the values' final dimension ({self.values.shape[-1]})."
