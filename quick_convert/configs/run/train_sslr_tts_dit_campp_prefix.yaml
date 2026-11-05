@@ -39,20 +39,26 @@ system:
 train_dataset:
   manifest_path: ${dataset_path}/speaker_split/train_tts_checked.csv
   target_sr: 16000
-  load: [audio]
+  load: [audio, tts_path, reference_path]
   resource_providers:
-    - _target_: quick_convert.data.resources.TemplateResourceProvider
+    - _target_: quick_convert.data.resources.PathResourceProvider
       name: tts_path
-      template: ${tts_data_path}/{path.parent.parent.parent.name}/{path.parent.parent.name}/{path.parent.name}/{path.stem}.flac
+      kind: audio
+      sample_rate: 16000
+      path_template: ${tts_data_path}/{path.parent.parent.parent.name}/{path.parent.parent.name}/{path.parent.name}/{path.stem}.flac
     - _target_: quick_convert.data.resources.SameSpeakerReferenceProvider
       manifest_path: ${train_dataset.manifest_path}
       seed: ${reference_seed}
+      kind: audio
+      sample_rate: ${data.target_sr}
 val_dataset:
   manifest_path: ${dataset_path}/speaker_split/val_tts_checked.csv
   target_sr: 16000
-  load: [audio]
+  load: [audio, tts_path, reference_path]
   resource_providers:
     - ${train_dataset.resource_providers.0}
     - _target_: quick_convert.data.resources.SameSpeakerReferenceProvider
       manifest_path: ${val_dataset.manifest_path}
       seed: ${reference_seed}
+      kind: audio
+      sample_rate: ${data.target_sr}

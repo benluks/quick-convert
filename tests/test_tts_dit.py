@@ -113,7 +113,7 @@ def test_paired_run_routes_content_through_tts_audio_resource():
         assert cfg.system.online_encoders.content.layer == -1
         assert cfg.system.feature_transform is None
         assert cfg.system.decoder.flow.pre_lookahead_layer is None
-        assert cfg.train_dataset.load == ["audio"]
+        assert cfg.train_dataset.load == ["audio", "tts_path", "reference_path"]
         assert cfg.val_dataset.target_sr == 16000
         encoder = instantiate(cfg.system.decoder.content_encoder)
         assert encoder.output_size() == 256
@@ -127,7 +127,8 @@ def test_paired_run_routes_content_through_tts_audio_resource():
                 path=Path("/original/LibriSpeech/train-clean-100/19/198/19-198-0000.flac"),
                 split="train",
             )
-            assert provider(sample).value == "/tmp/tts/train-clean-100/19/198/19-198-0000.flac"
+            assert str(provider.resolve(sample)) == "/tmp/tts/train-clean-100/19/198/19-198-0000.flac"
+            assert provider.kind == "audio" and provider.sample_rate == 16000
 
 
 def test_training_module_resolves_paired_content_and_original_targets(monkeypatch):

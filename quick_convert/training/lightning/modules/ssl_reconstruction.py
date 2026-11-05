@@ -3,21 +3,19 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from os import PathLike
 from pathlib import Path
 
 import torch
 from torch import nn
-from torch.nn.utils.rnn import pad_sequence
 
 from quick_convert.components.decoders import ConditioningStream, CosyVoiceDecoderOutput, CosyVoiceSpectrogramGenerator
 from quick_convert.components.layers import LayerWeightedSum
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.mixins.resource import ResolvedResource
-from quick_convert.data.types import AudioBatch
+from quick_convert.data import AudioBatch
 from quick_convert.systems.reconstruction import SSLReconstructionSystem
-from quick_convert.utils.audio import load_audio_input
 from quick_convert.utils.masking import make_padding_mask
 
 from ..logging.media_logger import ReconstructedAudio
@@ -137,35 +135,30 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             raise ValueError("Content features require valid lengths for SSL reconstruction.")
         return self.system.encode_features(content.values, content.lengths)
 
-    def _audio_resource_batch(self, batch, name, sample_rate, max_samples=None):
-        """Load paired audio without replacing the original target batch."""
-        paths = batch.resources.get(name)
-        if paths is None or isinstance(paths, (str, Path)) or len(paths) != len(batch):
-            raise ValueError(f"Paired audio requires one {name} per example.")
-        waveforms = []
-        for path, source in zip(paths, batch.paths, strict=True):
-            if Path(path).resolve() == Path(source).resolve():
-                raise ValueError(f"The {name} recording must differ from the target recording.")
-            waveform = load_audio_input(path, target_sample_rate=sample_rate, mono=True)[0, :max_samples]
-            if waveform.numel() == 0:
-                raise ValueError(f"Paired recording {path!r} is empty.")
-            waveforms.append(waveform)
+    def _paired_audio(self, batch, name, sample_rate, max_samples=None):
+        """Apply pairing and prefix policy to an already loaded audio resource."""
+        audio = batch.resources.get(name)
+        if not isinstance(audio, AudioBatch) or audio.waveforms is None or len(audio) != len(batch):
+            raise ValueError(f"Paired audio requires a loaded {name!r} audio resource per example.")
+        if audio.lengths is None or audio.sample_rates is None or torch.any(audio.sample_rates != sample_rate):
+            raise ValueError(f"Configure audio resource {name!r} with sample_rate={sample_rate}.")
+        if any(
+            Path(path).resolve() == Path(target).resolve()
+            for path, target in zip(audio.paths, batch.paths, strict=True)
+        ):
+            raise ValueError(f"The {name} recording must differ from the target recording.")
         device = batch.waveforms.device
-        lengths = torch.tensor([waveform.numel() for waveform in waveforms], device=device)
-        return AudioBatch(
-            utt_ids=list(batch.utt_ids),
-            paths=[Path(path) for path in paths],
-            splits=list(batch.splits),
-            resources={},
-            waveforms=pad_sequence(waveforms, batch_first=True).to(device),
-            lengths=lengths,
-            sample_rates=torch.full_like(lengths, sample_rate),
+        return replace(
+            audio,
+            waveforms=audio.waveforms[:, :max_samples].to(device),
+            lengths=(audio.lengths if max_samples is None else audio.lengths.clamp_max(max_samples)).to(device),
+            sample_rates=audio.sample_rates.to(device),
         )
 
     def _content_resource(self, batch):
         if self.content_audio_resource is not None:
             encoder = self.system.online_encoders["content"]
-            batch = self._audio_resource_batch(batch, self.content_audio_resource, encoder.sample_rate)
+            batch = self._paired_audio(batch, self.content_audio_resource, encoder.sample_rate)
         return self.system.get_resource(batch, "content")
 
     def _conditioning_streams(self, batch, target_lengths=None):
@@ -178,7 +171,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         max_samples = int(sample_rate * self.reference_seconds)
         if max_samples < 1:
             raise ValueError("reference_seconds must contain at least one sample.")
-        reference = self._audio_resource_batch(batch, "reference_path", sample_rate, max_samples)
+        reference = self._paired_audio(batch, "reference_path", sample_rate, max_samples)
         streams = self.system.conditioning_streams(reference)
         if "mel" in self.decoder.stream_conditioning.dimensions:
             mels, mel_lengths = self.decoder._compute_mels(reference.waveforms, reference.lengths, sample_rate)

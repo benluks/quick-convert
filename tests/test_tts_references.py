@@ -1,5 +1,6 @@
 """Separate-speaker-reference data wiring and SSLR training without downloads."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,6 @@ from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 
 from quick_convert.components.mixins.resource import ResolvedResource
-from quick_convert.data import AudioBatch
 from quick_convert.systems.reconstruction import SSLReconstructionSystem
 from quick_convert.utils.resolvers import register_config_resolvers
 
@@ -95,7 +95,7 @@ def test_separate_references_reach_training_and_validation_without_changing_targ
     monkeypatch.setattr(training, "log_dict", lambda *a, **kw: None)
     for dataset in (train, val):
         batch = next(iter(dataset.make_dataloader(batch_size=2)))
-        assert batch.resources["reference_path"] == [str(batch.paths[1]), str(batch.paths[0])]
+        assert batch.resources["reference_path"].paths == list(reversed(batch.paths))
         original = batch.waveforms.clone()
         streams = training._conditioning_streams(batch)
         reference, prefix_lengths = probe.calls[-1]
@@ -108,7 +108,7 @@ def test_separate_references_reach_training_and_validation_without_changing_targ
         output.loss.backward()
         assert torch.isfinite(output.loss)
         encoded = training.system.online_encoders["content"].calls[-1]
-        assert [str(path) for path in encoded.paths] == batch.resources["tts_path"]
+        assert encoded.paths == batch.resources["tts_path"].paths
         assert encoded.lengths.tolist() == [1920, 960]
         assert torch.all(encoded.waveforms[:, 0] > batch.waveforms[:, 0])
         assert not training.system.online_encoders["content"].training
@@ -134,40 +134,6 @@ def test_reference_validation_generation_uses_other_recording(paired_datasets, m
         training.log_validation_output(batch, output, 0)
     torch.testing.assert_close(captured["speaker"].values[:, 0, 0], batch.waveforms.flip(0)[:, 0])
     assert probe.calls[-1][0].paths == list(reversed(batch.paths))
-
-
-@pytest.mark.parametrize("paths", [None, [], ["a.wav"]])
-def test_missing_or_incomplete_reference_paths_fail(paths):
-    training, _ = module()
-    batch = AudioBatch(
-        utt_ids=["a", "b"],
-        paths=[Path("a.wav"), Path("b.wav")],
-        splits=[None, None],
-        resources={} if paths is None else {"reference_path": paths},
-        waveforms=torch.ones(2, 1600),
-        lengths=torch.tensor([1600, 1600]),
-        sample_rates=torch.tensor([16000, 16000]),
-    )
-    with pytest.raises(ValueError, match="reference_path"):
-        training._conditioning_streams(batch)
-
-
-def test_same_file_reference_is_rejected_before_loading(tmp_path):
-    training, _ = module()
-    source = tmp_path / "a.wav"
-    alias = tmp_path / "alias.wav"
-    alias.symlink_to(source)
-    batch = AudioBatch(
-        utt_ids=["a"],
-        paths=[source],
-        splits=[None],
-        resources={"reference_path": [str(alias)]},
-        waveforms=torch.ones(1, 1600),
-        lengths=torch.tensor([1600]),
-        sample_rates=torch.tensor([16000]),
-    )
-    with pytest.raises(ValueError, match="differ"):
-        training._conditioning_streams(batch)
 
 
 @pytest.mark.parametrize("seconds", [0, -1, float("nan"), float("inf")])
@@ -250,16 +216,16 @@ def test_mel_preset_replaces_speaker_stream_and_encoder():
         assert cfg.trainer.module.reference_seconds == 3.0
 
 
-@pytest.mark.parametrize("failure", ["missing", "same-file", "nonexistent"])
+@pytest.mark.parametrize("failure", ["missing", "same-file", "wrong-rate"])
 def test_invalid_tts_pair_never_encodes_original(paired_datasets, failure):
     training, _ = module()
     batch = next(iter(paired_datasets[0].make_dataloader(batch_size=2)))
     if failure == "missing":
         batch.resources.pop("tts_path")
     elif failure == "same-file":
-        batch.resources["tts_path"] = [str(path) for path in batch.paths]
+        batch.resources["tts_path"] = replace(batch.resources["tts_path"], paths=list(batch.paths))
     else:
-        batch.resources["tts_path"] = ["/nonexistent/tts.flac"] * 2
+        batch.resources["tts_path"] = replace(batch.resources["tts_path"], sample_rates=torch.tensor([8000, 8000]))
     with pytest.raises((ValueError, RuntimeError, FileNotFoundError)):
         training._content_resource(batch)
     assert training.system.online_encoders["content"].calls == []

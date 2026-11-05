@@ -3,7 +3,7 @@
 import hashlib
 from pathlib import Path
 
-from .base import BaseResourceProvider, ResourceRef
+from .base import BaseResourceProvider, ResourceKind, ResourceRef
 
 
 class SameSpeakerReferenceProvider(BaseResourceProvider):
@@ -11,11 +11,26 @@ class SameSpeakerReferenceProvider(BaseResourceProvider):
 
     The manifest supplies ``path``, ``split``, ``utt_id`` and a speaker column.
     Candidates are grouped by split and speaker, excluding the source path.
-    This provider resolves paths only; consumers own audio loading and cropping.
+    By default return a text path for existing consumers. With kind="audio",
+    return a lazy audio reference for dataset loading and collation.
+    sample_rate optionally selects the loaded audio rate; cropping remains consumer policy.
     """
 
-    def __init__(self, manifest_path: str, speaker_column: str = "spkid", seed: int = 0):
+    def __init__(
+        self,
+        manifest_path: str,
+        speaker_column: str = "spkid",
+        seed: int = 0,
+        kind: ResourceKind = "text",
+        sample_rate: int | None = None,
+    ):
         super().__init__("reference_path")
+        if kind not in {"text", "audio"}:
+            raise ValueError("Reference resources must use kind='text' or kind='audio'.")
+        if sample_rate is not None and (kind != "audio" or sample_rate <= 0):
+            raise ValueError("sample_rate requires an audio reference and must be positive.")
+        self.kind = kind
+        self.sample_rate = sample_rate
         if not isinstance(seed, int) or isinstance(seed, bool):
             raise ValueError("Reference seed must be an integer.")
         from quick_convert.data.manifest_dataset import ManifestDataset
@@ -44,4 +59,8 @@ class SameSpeakerReferenceProvider(BaseResourceProvider):
             path = self.references[key]
         except KeyError as error:
             raise KeyError(f"Sample {sample.utt_id!r} is absent from the reference manifest.") from error
+        if Path(path).resolve() == Path(sample.path).resolve():
+            raise ValueError("The reference recording must differ from the target recording.")
+        if self.kind == "audio":
+            return ResourceRef(self.name, "audio", path=Path(path), sample_rate=self.sample_rate)
         return ResourceRef(self.name, "text", value=str(path))

@@ -2,6 +2,7 @@ from dataclasses import replace
 
 import torch
 
+from ..audio import load_audio_resource
 from ..base import ResourceRef
 
 
@@ -11,7 +12,7 @@ def load_torch(ref, device="cpu"):
     return torch.load(ref.path, map_location=device, weights_only=True)
 
 
-LOADER_REGISTRY = {"torch_tensor": load_torch, "token_ids": load_torch}
+LOADER_REGISTRY = {"torch_tensor": load_torch, "token_ids": load_torch, "audio": load_audio_resource}
 
 
 def load_resource(ref: ResourceRef, **kwargs):
@@ -19,7 +20,8 @@ def load_resource(ref: ResourceRef, **kwargs):
 
     The built-in registry loads ``torch_tensor`` and ``token_ids`` resources
     with :func:`torch.load`. Text resources are expected to be supplied as
-    in-memory values by their provider.
+    in-memory values by their provider. Audio resources load as mono
+    AudioSample objects, optionally resampled to the reference sample_rate.
 
     Raises:
         ValueError: If the resource kind has no registered loader.

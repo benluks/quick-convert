@@ -72,7 +72,7 @@ class ManifestDataset(BaseDataset):
         path_column: str = "path",
         utt_id_column: str = "utt_id",
         split_column: str = "split",
-        resources: dict[str, dict[str, str | ResourceKind]] | None = None,
+        resources: dict[str, dict[str, str | int | ResourceKind]] | None = None,
         **kwargs,
     ):
 
@@ -108,9 +108,9 @@ class ManifestDataset(BaseDataset):
         super().__init__(rows=rows, **kwargs)
 
     @staticmethod
-    def _resource_from_cell(name: str, spec: dict[str, str | ResourceKind], row: dict[str, str]) -> ResourceRef:
+    def _resource_from_cell(name: str, spec: dict[str, str | int | ResourceKind], row: dict[str, str]) -> ResourceRef:
         kind = spec["kind"]
         cell = row[spec["column"]]
-        if kind in {"torch_tensor", "token_ids"}:
-            return ResourceRef(name=name, kind=kind, path=Path(cell))
+        if kind in {"torch_tensor", "token_ids", "audio"}:
+            return ResourceRef(name=name, kind=kind, path=Path(cell), sample_rate=spec.get("sample_rate"))
         return ResourceRef(name=name, kind=kind, value=cell)

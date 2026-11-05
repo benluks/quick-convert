@@ -38,6 +38,27 @@ do not contribute to the target loss. Missing pairs, empty recordings, and a
 reference/content path resolving to the target itself raise errors. Original
 batch audio and resources are preserved.
 
+### Audio resources and training policy
+
+The presets load `tts_path` and `reference_path` as `kind: audio` resources.
+Dataset loading produces mono recordings at the configured resource sample
+rate; collation returns an `AudioBatch` for each named resource:
+
+```python
+batch = next(iter(dataset.make_dataloader(batch_size=8)))
+content_batch = batch.resources["tts_path"]
+reference_batch = batch.resources["reference_path"]
+```
+
+Each resource batch carries paired paths, target IDs and splits, valid lengths,
+and sample rates. The original target audio is preserved. Training checks that
+paired recordings differ from their targets, verifies the required sample rate,
+and selects a reference prefix according to `reference_seconds`. It performs
+no file loading. Configure `load: [audio, tts_path, reference_path]`; older
+custom configs passing text paths must switch to audio providers and explicitly
+load the named resources. See [audio resources](../data/index.md#audio-resources)
+for the general API, also suitable for noise recordings.
+
 For duration-controlled inference, pass a positive scalar or per-example tensor
 as `duration_ratio` to `system.generate_features(..., run_vocoder=False)`.
 The ratio multiplies the source's nominal mel length. Returned mel lengths report

@@ -161,14 +161,18 @@ Attach a deterministic different recording as a named dataset resource:
 from quick_convert.data import ManifestDataset
 from quick_convert.data.resources import SameSpeakerReferenceProvider
 
-provider = SameSpeakerReferenceProvider("manifest.csv", speaker_column="spkid", seed=17)
-dataset = ManifestDataset("manifest.csv", resource_providers=[provider])
+provider = SameSpeakerReferenceProvider(
+    "manifest.csv", speaker_column="spkid", seed=17, kind="audio", sample_rate=16_000
+)
+dataset = ManifestDataset("manifest.csv", resource_providers=[provider], load=["audio", "reference_path"])
 ```
 
 The manifest supplies `utt_id`, `path`, `split` and the speaker column.
 Candidates stay within the same split and speaker and exclude the source path.
 Selection uses a stable hash and sorted candidates, without changing random
 state. A group with no different recording is rejected. The resource is named
-`reference_path`; the consumer owns loading, cropping and encoding that audio.
+`reference_path`. With `kind="audio"`, dataset loading materializes it and
+collation returns an `AudioBatch`; the consumer owns cropping and encoding.
+The default `kind="text"` retains path strings for existing callers.
 The provider requires the `manifests` profile. It adds no fields to `AudioSample`
 and does not change dataset loading policy.

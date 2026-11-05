@@ -33,6 +33,7 @@ class PathResourceProvider(TemplateResourceProvider):
         path_template: Template that resolves to the sidecar path.
         kind: Resource loading and collation strategy.
         max_length: Optional fixed padded length for tensor or token values.
+        sample_rate: Optional target sample rate for audio resources.
         must_exist: Raise :class:`FileNotFoundError` during resolution when the
             sidecar does not exist.
     """
@@ -45,10 +46,12 @@ class PathResourceProvider(TemplateResourceProvider):
         # only set `max_length` for tensor resources
         max_length=None,
         must_exist=True,
+        sample_rate: int | None = None,
     ):
         super().__init__(name=name, template=path_template, kind=kind)
         self.max_length = max_length
         self.must_exist = must_exist
+        self.sample_rate = sample_rate
 
     def __call__(self, sample):
         path = Path(self.resolve(sample))
@@ -56,4 +59,11 @@ class PathResourceProvider(TemplateResourceProvider):
         if self.must_exist and not path.exists():
             raise FileNotFoundError(f"Missing resource {self.name}: {path}")
 
-        return ResourceRef(name=self.name, kind=self.kind, path=path, value=None, max_length=self.max_length)
+        return ResourceRef(
+            name=self.name,
+            kind=self.kind,
+            path=path,
+            value=None,
+            max_length=self.max_length,
+            sample_rate=self.sample_rate,
+        )

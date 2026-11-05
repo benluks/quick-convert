@@ -143,7 +143,7 @@ class AudioBatch(MetadataBatch):
                 Optional fixed waveform length to pad to. It must not be
                 shorter than any waveform in the batch.
         """
-        has_audio = all(s.waveform is not None for s in samples)
+        has_audio = all(getattr(s, "waveform", None) is not None for s in samples)
         resources = collate_resources(samples)
         resource_refs = []
         for index, sample in enumerate(samples):
@@ -155,6 +155,8 @@ class AudioBatch(MetadataBatch):
                     value = resources[ref.name][index]
                     if value.dtype == ref.value.dtype:
                         ref = replace(ref, value=value.reshape(ref.value.shape))
+                if ref.kind == "audio" and isinstance(ref.value, AudioSample):
+                    ref = replace(ref, value=resources[ref.name][index])
                 refs.append(ref)
             resource_refs.append(ResourceCollection.from_refs(refs))
 
@@ -224,7 +226,7 @@ class AudioBatch(MetadataBatch):
             resources = ResourceCollection.from_refs(
                 load_resource(ref) if ref.value is None else ref for ref in resources
             )
-            sample = sample.load_audio(target_sr=target_sr, mono=mono)
+            sample = replace(sample, resources=resources).load_audio(target_sr=target_sr, mono=mono)
 
             samples.append(sample)
 
