@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 
 from quick_convert.utils.audio import load_audio
+from quick_convert.utils.sequence_validation import validate_padded_lengths
 
 from .resources import ResourceCollection, TemplateResourceProvider, collate_resources, load_resource
 
@@ -27,14 +28,7 @@ class GeneratedAudio:
     def __post_init__(self) -> None:
         if self.waveforms.ndim != 2:
             raise ValueError(f"Expected waveforms with shape (batch, time), got {tuple(self.waveforms.shape)}.")
-        if self.lengths.shape != (self.waveforms.shape[0],):
-            raise ValueError(
-                f"Expected lengths with shape ({self.waveforms.shape[0]},), got {tuple(self.lengths.shape)}."
-            )
-        if torch.any(self.lengths < 0):
-            raise ValueError("Waveform lengths must be non-negative.")
-        if torch.any(self.lengths > self.waveforms.shape[1]):
-            raise ValueError("A waveform length exceeds the padded waveform size.")
+        validate_padded_lengths(self.waveforms, self.lengths, name="Waveform")
         if self.sample_rate <= 0:
             raise ValueError("sample_rate must be positive.")
 
