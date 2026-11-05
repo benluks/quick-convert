@@ -106,6 +106,34 @@ def test_cosyvoice_generation_preserves_input_lengths_and_reports_outputs():
     assert output.audio.sample_rate == 24_000
 
 
+@pytest.mark.parametrize("training", [False, True])
+@pytest.mark.parametrize(
+    "lengths", [torch.tensor([7, 6]), torch.tensor([0, 3]), torch.tensor([-1, 3]), torch.tensor([3.0, 2.0])]
+)
+def test_decoder_training_and_inference_reject_invalid_content_lengths(training, lengths):
+    decoder = make_decoder()
+    original = lengths.clone()
+    with pytest.raises((ValueError, TypeError), match="padded time|positive|non-negative|integer dtype"):
+        if training:
+            decoder.compute_loss(torch.zeros(2, 5, 4), lengths, torch.zeros(2, 20), torch.tensor([20, 20]), 24000)
+        else:
+            decoder(torch.zeros(2, 5, 4), lengths, torch.zeros(2, 2))
+    torch.testing.assert_close(lengths, original)
+
+
+@pytest.mark.parametrize("training", [False, True])
+def test_decoder_checks_configured_feature_dimension_before_projection(training):
+    decoder = make_decoder()
+    decoder.feature_dim = 4
+    with pytest.raises(ValueError, match="feature dimension"):
+        if training:
+            decoder.compute_loss(
+                torch.zeros(2, 5, 6), torch.tensor([5, 3]), torch.zeros(2, 20), torch.tensor([20, 20]), 24000
+            )
+        else:
+            decoder(torch.zeros(2, 5, 6), torch.tensor([5, 3]), torch.zeros(2, 2))
+
+
 def test_cosyvoice_construction_does_not_load_vocoder(monkeypatch):
     audio_module = ModuleType("quick_convert.external.matcha.utils.audio")
     audio_module.mel_spectrogram = object()

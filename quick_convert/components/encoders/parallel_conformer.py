@@ -30,6 +30,8 @@ class ParallelConformerEncoder(nn.Module):
         rope_base:   Base frequency for RoPE (default 10000).
     """
 
+    PRESERVES_FRAME_RATE = True
+
     def __init__(
         self,
         input_dim: int = 1024,

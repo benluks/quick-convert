@@ -86,6 +86,45 @@ Legacy `(values, lengths)` tuples and wrappers with a non-callable `.values`
 attribute and optional `.lengths` remain supported, without metadata inference.
 Other objects, including dictionaries, remain ordinary resource values.
 
+### Adapt content representations
+
+Reconstruction and VQ-ASR share the mechanics for applying feature transforms,
+calculating valid lengths, and invoking RVQ. Systems retain ownership of their
+modules and task-specific output selection: reconstruction uses `z_q`, while
+ASR may use latents and apply its post-quantization network and CTC head.
+
+Content inputs are floating-point `[batch, time, feature]` tensors, optionally
+with a layer axis before fusion. Transforms must produce three-dimensional
+features and implement `output_lengths(input_lengths)`; `nn.Identity` preserves
+lengths automatically. Nonempty model sequences require positive integer
+lengths that fit their storage. RVQ uses `[batch, feature, time]` internally;
+systems expose batch/time/feature layout again afterward.
+
+Existing tensor APIs still work. To check source metadata explicitly:
+
+```python
+content = system.get_resource(batch, "content")
+result = system.encode_features(content.values, content.lengths, metadata=content.metadata)
+```
+
+Batch-based entry points and reconstruction training pass this metadata
+automatically. Declared feature dimensions must match source storage; these
+systems accept frame-level continuous or quantized vectors, not token IDs.
+The source mapping is never rewritten as if it described transformed features.
+
+`PRESERVES_FRAME_RATE = True` explicitly declares unchanged temporal spacing
+for a module. Identity, layer fusion, the first-party time-preserving Conformers,
+and RVQ retain a known source rate. Through other transforms the rate becomes
+unknown; output lengths alone do not establish a clock. Reconstruction checks
+a retained rate against the decoder's declared input rate. Precomputed tensors
+without metadata remain supported without guessing a source rate.
+
+CosyVoice training and generation validate the same content shape, feature
+dimension, and length rules. Generation trims excess padding but no longer
+silently shortens lengths that exceed storage. Such inputs now raise an error;
+callers must supply accurate lengths. Empty conditioning prefixes retain their
+separate contract. Module state-dict paths and existing result types are unchanged.
+
 ## Add an optional backend
 
 - Put the dependency in a meaningful optional profile.

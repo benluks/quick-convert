@@ -42,6 +42,8 @@ class RVQOutput:
 class BaseResidualVectorQuantizer(nn.Module, ABC):
     """Interface shared by residual vector quantizer implementations."""
 
+    PRESERVES_FRAME_RATE = True
+
     input_dim: int
     n_codebooks: int
     codebook_size: int

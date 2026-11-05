@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 import torch
 from torch import nn
@@ -11,8 +13,10 @@ from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQ
 from quick_convert.components.mixins.resource import OnlineResourceMixin
 from quick_convert.components.ssl import ContentEncoder
 from quick_convert.data import AudioBatch
+from quick_convert.systems._content import module_output_lengths, quantize_content, transform_content
 from quick_convert.systems.base import InferenceSystem
 from quick_convert.utils.masking import make_padding_mask
+from quick_convert.utils.sequence_validation import validate_feature_sequence
 
 
 @dataclass
@@ -74,47 +78,27 @@ class VQASRSystem(OnlineResourceMixin, InferenceSystem):
                 f"VQASRSystem requires a single active codebook; configured quantizer has n_codebooks={n_codebooks}."
             )
 
-    @staticmethod
-    def _module_output_lengths(module: nn.Module, lengths: torch.Tensor, role: str) -> torch.Tensor:
-        if isinstance(module, nn.Identity):
-            return lengths
-        output_lengths = getattr(module, "output_lengths", None)
-        if not callable(output_lengths):
-            raise TypeError(f"VQ-ASR {role} modules must expose output_lengths(input_lengths).")
-        return output_lengths(lengths)
-
-    def encode_features(self, values: torch.Tensor, lengths: torch.Tensor) -> VQASRResult:
-        """Run VQ-ASR from batched content features and their valid lengths."""
-        features = self.layer_fusion(values)
-        feature_lengths = self._module_output_lengths(self.layer_fusion, lengths, "layer_fusion")
-
-        if feature_lengths.shape != (features.shape[0],):
-            raise ValueError(
-                f"Expected one content length per batch item, got {tuple(feature_lengths.shape)} "
-                f"for batch size {features.shape[0]}."
-            )
-        if torch.any(feature_lengths > features.shape[1]):
-            raise ValueError("A content length exceeds the padded feature time dimension.")
-
-        max_length = int(feature_lengths.max().item())
-        features = features[:, :max_length]
-        padding_mask = make_padding_mask(feature_lengths, max_length=max_length)
-
-        quantizer_output: RVQOutput = self.quantizer(features.transpose(1, 2), padding_mask)
+    def encode_features(
+        self, values: torch.Tensor, lengths: torch.Tensor, *, metadata: Mapping[str, Any] | None = None
+    ) -> VQASRResult:
+        """Run VQ-ASR from content tensors and optional source metadata."""
+        features, feature_lengths = transform_content(values, lengths, self.layer_fusion, metadata=metadata, trim=True)
+        quantizer_output, quantized_lengths = quantize_content(features, feature_lengths, self.quantizer)
         representation = quantizer_output.latents if self.use_latents else quantizer_output.z_q
         representation = representation.transpose(1, 2)
-        quantized_lengths = self.quantizer.output_lengths(feature_lengths)
 
         contextual = representation
         output_lengths = quantized_lengths
         if self.post_quantization_network is not None:
+            padding_mask = make_padding_mask(quantized_lengths, max_length=representation.shape[1])
             contextual = self.post_quantization_network(representation, padding_mask)
-            output_lengths = self._module_output_lengths(
+            output_lengths = module_output_lengths(
                 self.post_quantization_network,
                 quantized_lengths,
                 "post_quantization_network",
             )
 
+        validate_feature_sequence(contextual, output_lengths, name="Post-quantization content")
         output_mask = make_padding_mask(output_lengths, max_length=contextual.shape[1])
         head_output = self.ctc_head.predict(
             contextual,
@@ -136,4 +120,4 @@ class VQASRSystem(OnlineResourceMixin, InferenceSystem):
         content = self.get_resource(batch, "content")
         if content.lengths is None:
             raise ValueError("VQ-ASR content features require valid lengths.")
-        return self.encode_features(content.values, content.lengths)
+        return self.encode_features(content.values, content.lengths, metadata=content.metadata)
