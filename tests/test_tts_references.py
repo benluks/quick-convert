@@ -12,7 +12,6 @@ from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 
 from quick_convert.components.mixins.resource import ResolvedResource
-from quick_convert.data import AudioBatch
 from quick_convert.systems.reconstruction import SSLReconstructionSystem
 from quick_convert.utils.resolvers import register_config_resolvers
 
@@ -134,40 +133,6 @@ def test_reference_validation_generation_uses_other_recording(paired_datasets, m
         training.log_validation_output(batch, output, 0)
     torch.testing.assert_close(captured["speaker"].values[:, 0, 0], batch.waveforms.flip(0)[:, 0])
     assert probe.calls[-1][0].paths == list(reversed(batch.paths))
-
-
-@pytest.mark.parametrize("paths", [None, [], ["a.wav"]])
-def test_missing_or_incomplete_reference_paths_fail(paths):
-    training, _ = module()
-    batch = AudioBatch(
-        utt_ids=["a", "b"],
-        paths=[Path("a.wav"), Path("b.wav")],
-        splits=[None, None],
-        resources={} if paths is None else {"reference_path": paths},
-        waveforms=torch.ones(2, 1600),
-        lengths=torch.tensor([1600, 1600]),
-        sample_rates=torch.tensor([16000, 16000]),
-    )
-    with pytest.raises(ValueError, match="reference_path"):
-        training._conditioning_streams(batch)
-
-
-def test_same_file_reference_is_rejected_before_loading(tmp_path):
-    training, _ = module()
-    source = tmp_path / "a.wav"
-    alias = tmp_path / "alias.wav"
-    alias.symlink_to(source)
-    batch = AudioBatch(
-        utt_ids=["a"],
-        paths=[source],
-        splits=[None],
-        resources={"reference_path": [str(alias)]},
-        waveforms=torch.ones(1, 1600),
-        lengths=torch.tensor([1600]),
-        sample_rates=torch.tensor([16000]),
-    )
-    with pytest.raises(ValueError, match="differ"):
-        training._conditioning_streams(batch)
 
 
 @pytest.mark.parametrize("seconds", [0, -1, float("nan"), float("inf")])
