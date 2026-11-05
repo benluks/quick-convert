@@ -23,9 +23,9 @@ from quick_convert.components.mixins.resource import OnlineResourceMixin
 from quick_convert.components.speaker.aggregation import SpeakerEmbeddingAggregation, audio_durations
 from quick_convert.data import AudioBatch, GeneratedAudio
 from quick_convert.systems._content import content_frame_rate, quantize_content, transform_content
-from quick_convert.systems.anonymization.targets import PreparedTarget, ReferenceSpeech
 from quick_convert.systems.base import InferenceSystem
-from quick_convert.systems.reference import ReferenceCondition, prepare_reference_audio
+from quick_convert.systems.conversion.reference import ReferenceCondition, prepare_reference_audio
+from quick_convert.systems.conversion.targets import PreparedTarget, ReferenceSpeech, SourceVoice
 from quick_convert.types import AudioInput
 from quick_convert.utils.audio import load_audio_input
 
@@ -41,7 +41,7 @@ class SSLReconstructionResult:
     encoder_output: RVQOutput | None = None
 
 
-class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
+class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
     """Inference-ready SSL speech reconstruction independent of Lightning."""
 
     def __init__(
@@ -81,10 +81,16 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
         )
 
     @torch.inference_mode()
-    def prepare_target(self, target: ReferenceSpeech | PreparedTarget) -> PreparedTarget:
+    def prepare_target(self, target: ReferenceSpeech | SourceVoice | PreparedTarget) -> PreparedTarget:
         """Prepare the saved decoder's native reference or named streams."""
         if self.training:
             raise RuntimeError("Call eval() before preparing targets.")
+        if isinstance(target, SourceVoice):
+            return PreparedTarget(None, self.target_space, "ssl-source-v1")
+        if isinstance(target, PreparedTarget) and target.representation == "ssl-source-v1":
+            if target.space != self.target_space or target.conditioning is not None:
+                raise ValueError("Prepared source target belongs to a different model or representation.")
+            return target
         conditioning = getattr(self.decoder, "stream_conditioning", None)
         needs_embedding = self.decoder.requires_speaker_embedding
         if isinstance(target, PreparedTarget):
@@ -195,6 +201,13 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
         if self.training:
             raise RuntimeError("Call eval() before converting speech.")
         target = self.prepare_target(target)
+        if target.representation == "ssl-source-v1":
+            if inference_cfg_rate is not None:
+                raise ValueError("SourceVoice does not accept an inference_cfg_rate override.")
+            generation = self(batch, run_vocoder=True).generation
+            if generation.audio is None:
+                raise RuntimeError("Conversion requires generated audio.")
+            return generation.audio
         content = self.get_resource(batch, "content")
         if content.lengths is None:
             raise ValueError("Content features require valid lengths.")

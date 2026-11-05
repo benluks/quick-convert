@@ -11,7 +11,7 @@ from test_grouped_conversion import System, sample, targets
 from quick_convert.data import BaseDataset
 from quick_convert.pipelines.conversion import SpeechConversionPipeline
 from quick_convert.pipelines.conversion_records import conversion_output_dir, read_journal
-from quick_convert.systems.anonymization.targets import ReferenceSpeech
+from quick_convert.systems.conversion.targets import ReferenceSpeech
 from quick_convert.utils.resolvers import register_config_resolvers
 
 

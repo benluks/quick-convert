@@ -2,15 +2,17 @@
 
 defaults:
   - /global: default
-  - /pipeline: anonymization
-  - /anonymizer: knnvc
+  - /pipeline: conversion
+  - /system/conversion@system: knnvc
   - /dataset: clac
   - _self_
 
 target_id: "1069"
-run:
-  target_speaker_root: /cfs/collections/librispeech/LibriSpeech/train-clean-100
-  pattern: "*/*.flac"
 
-pipeline:
-  target_speaker: ${target_id}
+target_speaker_root: ${oc.env:QUICK_CONVERT_REFERENCE_ROOT,/cfs/collections/librispeech/LibriSpeech/train-clean-100}
+pattern: "*/*.flac"
+target:
+  _target_: quick_convert.pipelines.conversion.reference_speech_from_directory
+  root: ${target_speaker_root}
+  speaker_id: ${target_id}
+  pattern: ${pattern}

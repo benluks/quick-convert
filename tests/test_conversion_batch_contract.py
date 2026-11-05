@@ -4,16 +4,13 @@ import pytest
 import torch
 
 from quick_convert.data import AudioBatch, AudioSample
-from quick_convert.systems.anonymization import BaseAnonymizer
+from quick_convert.systems.conversion.base import generate_audio_batch
 
 
-class LengthChangingAnonymizer(BaseAnonymizer[str]):
+class LengthChangingConversion:
     sample_rate = sr = 16_000
 
-    def set_target(self, target):
-        self.target = target
-
-    def anonymize(self, audio, *, sample_rate=None, **kwargs):
+    def convert(self, audio, *, sample_rate=None, **kwargs):
         if isinstance(audio, Path):
             length = int(audio.stem)
         else:
@@ -29,7 +26,7 @@ def test_default_batch_adapter_preserves_generated_lengths_for_paths() -> None:
         ]
     )
 
-    generated = LengthChangingAnonymizer().anonymize_batch(batch)
+    generated = generate_audio_batch(batch, LengthChangingConversion().convert, sample_rate=16000)
 
     assert generated.waveforms.shape == (2, 7)
     assert generated.lengths.tolist() == [7, 4]
@@ -55,13 +52,13 @@ def test_default_batch_adapter_uses_unpadded_loaded_audio() -> None:
         ]
     )
 
-    generated = LengthChangingAnonymizer().anonymize_batch(batch)
+    generated = generate_audio_batch(batch, LengthChangingConversion().convert, sample_rate=16000)
 
     assert generated.lengths.tolist() == [7, 4]
 
 
-class StereoAnonymizer(LengthChangingAnonymizer):
-    def anonymize(self, audio, *, sample_rate=None, **kwargs):
+class StereoConversion(LengthChangingConversion):
+    def convert(self, audio, *, sample_rate=None, **kwargs):
         return torch.zeros(2, 8)
 
 
@@ -69,4 +66,4 @@ def test_default_batch_adapter_rejects_multichannel_output() -> None:
     batch = AudioBatch.from_samples([AudioSample(utt_id="sample", path=Path("8.wav"))])
 
     with pytest.raises(ValueError, match="must generate mono waveforms"):
-        StereoAnonymizer().anonymize_batch(batch)
+        generate_audio_batch(batch, StereoConversion().convert, sample_rate=16000)

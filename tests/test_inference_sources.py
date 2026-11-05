@@ -277,13 +277,12 @@ def test_dependency_planner_inspects_the_saved_system_without_instantiation(tmp_
 
 
 def test_existing_system_bases_inherit_the_shared_loader():
-    from quick_convert.systems.anonymization import BaseAnonymizer
     from quick_convert.systems.asr import VQASRSystem
     from quick_convert.systems.asr.base import ASRSystem
-    from quick_convert.systems.reconstruction import SSLReconstructionSystem
+    from quick_convert.systems.conversion import SSLReconstructionConversionSystem
     from quick_convert.systems.ser.base import SERSystem
 
-    for cls in (BaseAnonymizer, ASRSystem, VQASRSystem, SSLReconstructionSystem, SERSystem):
+    for cls in (ASRSystem, VQASRSystem, SSLReconstructionConversionSystem, SERSystem):
         assert cls.from_run.__func__ is InferenceSystem.from_run.__func__
 
 

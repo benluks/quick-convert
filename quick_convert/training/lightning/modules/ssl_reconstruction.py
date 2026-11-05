@@ -15,7 +15,7 @@ from quick_convert.components.layers import LayerWeightedSum
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.mixins.resource import ResolvedResource
 from quick_convert.data import AudioBatch
-from quick_convert.systems.reconstruction import SSLReconstructionSystem
+from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 from quick_convert.utils.masking import make_padding_mask
 
 from ..logging.media_logger import ReconstructedAudio
@@ -37,7 +37,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
     def __init__(
         self,
         optimization: Optimization,
-        system: SSLReconstructionSystem | None = None,
+        system: SSLReconstructionConversionSystem | None = None,
         decoder: CosyVoiceSpectrogramGenerator | None = None,
         feature_transform: nn.Module | None = None,
         *,
@@ -55,7 +55,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         if system is None:
             if decoder is None:
                 raise ValueError("SSLReconstructionTrainingModule requires `system` or `decoder`.")
-            system = SSLReconstructionSystem(
+            system = SSLReconstructionConversionSystem(
                 decoder=decoder,
                 feature_transform=feature_transform,
                 online_encoders=online_encoders,

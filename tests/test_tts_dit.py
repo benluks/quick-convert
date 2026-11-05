@@ -11,7 +11,7 @@ from test_stream_conditioning import Flow
 from quick_convert.components.decoders import ConditioningStream, CosyVoiceSpectrogramGenerator, StreamConditioning
 from quick_convert.components.encoders.upsample_conformer import UpsampleConformerEncoder
 from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
-from quick_convert.systems.reconstruction import SSLReconstructionSystem
+from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 
 
 def decoder():
@@ -57,7 +57,7 @@ def test_real_dit_paired_loss_generation_and_checkpoint(monkeypatch):
     assert model.flow.pre_lookahead_layer is None
     clone = decoder()
     clone.load_state_dict(model.state_dict(), strict=True)
-    system = SSLReconstructionSystem(clone).eval()
+    system = SSLReconstructionConversionSystem(clone).eval()
     result = system.generate_features(
         features.detach(),
         lengths,
@@ -140,7 +140,7 @@ def test_training_module_resolves_paired_content_and_original_targets(monkeypatc
     ).SSLReconstructionTrainingModule
 
     model = decoder()
-    system = SSLReconstructionSystem(model)
+    system = SSLReconstructionConversionSystem(model)
     module = SSLReconstructionTrainingModule(system=system, optimization=None)
     monkeypatch.setattr(module, "log_dict", lambda *a, **kw: None)
     batch = AudioBatch(

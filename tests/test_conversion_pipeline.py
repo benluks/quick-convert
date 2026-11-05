@@ -1,16 +1,20 @@
 import torch
 
 from quick_convert.data import AudioBatch, AudioSample, GeneratedAudio
-from quick_convert.pipelines.anonymization.pipeline import AnonymizationPipeline
+from quick_convert.pipelines.conversion import SpeechConversionPipeline
+from quick_convert.systems.conversion import PreparedTarget, SpeakerIdentity
 
 
-class BatchAnonymizer:
+class BatchConverter:
     sample_rate = 24_000
 
     def __init__(self):
         self.batches = []
 
-    def anonymize_batch(self, batch):
+    def prepare_target(self, target):
+        return PreparedTarget(target.speaker_id, "fake", "identity", speaker_id=target.speaker_id)
+
+    def convert_batch(self, batch, *, target):
         self.batches.append(batch)
         return GeneratedAudio(
             waveforms=torch.tensor([[1.0] * 8, [2.0] * 8]),
@@ -32,7 +36,7 @@ class BatchDataset:
         return [self.batch]
 
 
-def test_anonymization_uses_batch_contract_and_trims_outputs(tmp_path, monkeypatch):
+def test_conversion_uses_batch_contract_and_trims_outputs(tmp_path, monkeypatch):
     import torchaudio
 
     samples = [
@@ -41,7 +45,7 @@ def test_anonymization_uses_batch_contract_and_trims_outputs(tmp_path, monkeypat
     ]
     batch = AudioBatch.from_samples(samples)
     dataset = BatchDataset(batch)
-    anonymizer = BatchAnonymizer()
+    system = BatchConverter()
     saved = []
     save = torchaudio.save
 
@@ -51,8 +55,9 @@ def test_anonymization_uses_batch_contract_and_trims_outputs(tmp_path, monkeypat
 
     monkeypatch.setattr(torchaudio, "save", record_save)
 
-    AnonymizationPipeline(
-        anonymizer=anonymizer,
+    SpeechConversionPipeline(
+        system=system,
+        target=SpeakerIdentity("0"),
         dataset=dataset,
         out_dir=tmp_path / "output",
         batch_size=2,
@@ -60,6 +65,6 @@ def test_anonymization_uses_batch_contract_and_trims_outputs(tmp_path, monkeypat
     ).run()
 
     assert dataset.loader_kwargs == {"batch_size": 2, "num_workers": 3}
-    assert anonymizer.batches == [batch]
+    assert system.batches == [batch]
     assert [waveform.shape for _, waveform, _ in saved] == [(1, 8), (1, 5)]
     assert [sample_rate for _, _, sample_rate in saved] == [24_000, 24_000]

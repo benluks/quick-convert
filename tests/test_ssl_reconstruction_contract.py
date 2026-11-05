@@ -9,7 +9,7 @@ from quick_convert.components.layers import LayerWeightedSum
 from quick_convert.components.layers.rvq import RVQLosses, RVQOutput
 from quick_convert.components.mixins.resource import ResolvedResource
 from quick_convert.data import AudioBatch
-from quick_convert.systems.reconstruction import SSLReconstructionSystem
+from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 
 
 pytest.importorskip("lightning")
@@ -58,7 +58,7 @@ class FakeDecoder(nn.Module):
 
 
 def test_ssl_reconstruction_training_module_accepts_an_explicit_system():
-    system = SSLReconstructionSystem(
+    system = SSLReconstructionConversionSystem(
         decoder=FakeDecoder(),
         feature_transform=LayerWeightedSum(num_layers=2),
         encoder=FakeRVQEncoder(),
@@ -125,7 +125,7 @@ def test_ssl_reconstruction_training_step_uses_the_wrapped_system(monkeypatch):
 def test_ssl_training_keeps_teachers_and_frozen_vocoder_in_eval():
     decoder = FakeDecoder()
     decoder.vocoder = nn.Sequential(nn.BatchNorm1d(4), nn.Dropout()).requires_grad_(False)
-    system = SSLReconstructionSystem(
+    system = SSLReconstructionConversionSystem(
         decoder=decoder,
         online_encoders={"content": nn.Dropout()},
         feature_transform=LayerWeightedSum(2),

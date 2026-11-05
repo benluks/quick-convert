@@ -18,15 +18,12 @@ yet share enough lifecycle behavior to justify a common base class.
 | --- | --- | --- | --- |
 | Feature precomputation | `extractor.extract_batch(AudioBatch)` | one feature object per input sample | tensor files and `manifest.jsonl` |
 | Evaluation | `system.get_labels(AudioBatch)` | one prediction per input sample | per-utterance CSV and aggregate JSON |
-| Anonymization | `anonymizer.anonymize_batch(AudioBatch)` | `GeneratedAudio` with one waveform per input | waveform files |
+| Speech conversion | `system.convert_batch(AudioBatch, target=prepared)` | `GeneratedAudio` with one waveform per input | audio, provenance, and manifests |
 
-Anonymizers expose a lightweight library API: `anonymize()` accepts either a
-file path or a waveform tensor and returns a waveform tensor. A tensor may
-provide its `sample_rate`; when omitted, it is assumed to already use the
-anonymizer's declared input rate. Files carry their own sample-rate metadata.
-Users do not need to construct dataset samples or batches for single-item use.
-The implementations live under `quick_convert.systems.anonymization`; the
-pipeline only coordinates datasets, targets, and persisted outputs.
+Conversion systems live under `quick_convert.systems.conversion`. A system
+prepares explicit voice conditioning; `SpeechConversionPipeline` coordinates
+datasets, target selection, output files, and resuming. Anonymization is a target
+selection and evaluation policy over conversion, rather than a separate model hierarchy.
 
 ## Execution lifecycle
 
@@ -52,18 +49,15 @@ Generated waveform batches use `GeneratedAudio`, which contains padded
 waveforms, their valid lengths, and their common sample rate. This is the output
 contract required for correct batched waveform persistence.
 
-## Anonymization batching
+## Conversion batching
 
-Anonymization systems expose `anonymize_batch(AudioBatch) -> GeneratedAudio`.
-The base implementation is an exact sequential adapter over the lightweight
-single-item API: it records each generated waveform's length before padding.
-Backends that support native batching may override this method without changing
-the pipeline contract.
+Systems expose `convert_batch(AudioBatch, target=prepared) -> GeneratedAudio`.
+KNN-VC and ASR-BN share an exact sequential adapter over their single-item
+`convert()` methods. It records lengths before padding and uses unpadded source
+samples. A batch size greater than one enables data orchestration without implying
+vectorized backend inference. SSL conversion retains its native batch path.
 
-`AnonymizationPipeline` always iterates over a dataloader and writes each
-waveform only up to its reported valid length. A `batch_size` greater than one
-therefore enables batched data orchestration today, but does not imply that a
-specific model performs vectorized inference.
+The pipeline persists only each waveform's reported valid length.
 
 ## Appropriate shared infrastructure
 

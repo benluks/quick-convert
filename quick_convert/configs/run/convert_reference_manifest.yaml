@@ -26,7 +26,7 @@ pipeline:
   system: ${system}
   dataset: ${dataset}
   target:
-    _target_: quick_convert.systems.anonymization.targets.ReferenceSpeech
+    _target_: quick_convert.systems.conversion.targets.ReferenceSpeech
     paths: ${target_paths}
     prompt_seconds: 3.0
     prompt_builder:

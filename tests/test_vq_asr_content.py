@@ -14,7 +14,7 @@ from quick_convert.dependencies import dependency_plan
 from quick_convert.inference import load_inference_system
 from quick_convert.inference.source import CHECKPOINT_METADATA_KEY, inference_description
 from quick_convert.systems.asr import VQASRSystem
-from quick_convert.systems.reconstruction import SSLReconstructionSystem
+from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 from quick_convert.utils.device import override_devices
 from quick_convert.utils.masking import make_padding_mask
 from quick_convert.utils.resolvers import register_config_resolvers
@@ -71,7 +71,7 @@ def test_online_vq_matches_saved_bottleneck_and_decoder_backward_preserves_state
             make_padding_mask(content.lengths, max_length=3),
         )
     decoder = nn.Linear(4, 1)
-    system = SSLReconstructionSystem(decoder=decoder, online_encoders={"content": adapter})
+    system = SSLReconstructionConversionSystem(decoder=decoder, online_encoders={"content": adapter})
     system.train()
     adapter.train()
     assert all(not module.training for module in adapter.modules())
@@ -155,10 +155,12 @@ def test_reconstruction_checkpoint_restores_nested_source_on_requested_device(tm
         },
         source_path,
     )
-    system = SSLReconstructionSystem(decoder=nn.Linear(4, 1), online_encoders={"content": VQASRContentEncoder(source)})
+    system = SSLReconstructionConversionSystem(
+        decoder=nn.Linear(4, 1), online_encoders={"content": VQASRContentEncoder(source)}
+    )
     config = {
         "system": {
-            "_target_": "quick_convert.systems.reconstruction.SSLReconstructionSystem",
+            "_target_": "quick_convert.systems.conversion.SSLReconstructionConversionSystem",
             "decoder": {"_target_": "torch.nn.Linear", "in_features": 4, "out_features": 1},
             "online_encoders": {
                 "content": {

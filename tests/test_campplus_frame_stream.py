@@ -11,7 +11,7 @@ from quick_convert.components.decoders import ConditioningStream, StreamConditio
 from quick_convert.components.mixins.resource import ResolvedResource
 from quick_convert.components.speaker import CosyVoiceCAMPPlusFrameEncoder
 from quick_convert.data import AudioBatch
-from quick_convert.systems.reconstruction import SSLReconstructionSystem
+from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 
 
 @pytest.fixture
@@ -126,7 +126,7 @@ def test_system_samples_prefix_before_contextual_encoder_and_does_not_resample_i
         def forward(self, batch):
             raise AssertionError("must not encode complete training waveforms")
 
-    system = SSLReconstructionSystem(Decoder(), online_encoders={"frame_speaker": ContextualEncoder()})
+    system = SSLReconstructionConversionSystem(Decoder(), online_encoders={"frame_speaker": ContextualEncoder()})
     batch = audio_batch(torch.ones(2, 3200), torch.tensor([3200, 1920]))
     streams = system.conditioning_streams(batch, torch.tensor([10, 6]))
     assert streams["frame_speaker"].is_prefix

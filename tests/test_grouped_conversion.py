@@ -8,7 +8,7 @@ from quick_convert.data import AudioSample, BaseDataset, GeneratedAudio
 from quick_convert.data.resources import ResourceCollection, ResourceRef
 from quick_convert.pipelines.conversion import SpeechConversionPipeline
 from quick_convert.pipelines.targets import DatasetReferenceTargets
-from quick_convert.systems.anonymization.targets import PreparedTarget
+from quick_convert.systems.conversion.targets import PreparedTarget
 
 
 def sample(utt_id, label, split="test"):

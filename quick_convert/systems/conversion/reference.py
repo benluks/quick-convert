@@ -8,7 +8,7 @@ import torch
 from quick_convert.components.decoders.cosyvoice_reference import CosyVoiceReference
 from quick_convert.components.decoders.streams import ConditioningStream
 from quick_convert.data import AudioBatch
-from quick_convert.systems.anonymization.targets import ReferenceSpeech
+from quick_convert.systems.conversion.targets import ReferenceSpeech
 
 
 @dataclass(frozen=True)

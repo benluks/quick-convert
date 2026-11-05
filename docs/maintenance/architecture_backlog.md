@@ -10,8 +10,10 @@ ownership, [Design philosophy](../design_philosophy.md) for rationale, and the
 Systems own inference; training modules own objectives and optimization;
 pipelines own workflows and persistence. Saved inference artifacts are separate
 from resumable Lightning checkpoints. The supported task model is configured at
-`system`, and trained module weights retain their `system.*` prefix. Historical
-imports and checkpoint keys have explicit compatibility paths.
+`system`, and trained module weights retain their `system.*` prefix. Known saved model targets and checkpoint keys have explicit loading migrations.
+Conversion systems now share `systems/conversion` and one dataset pipeline;
+anonymization is target selection and evaluation policy. Removed conversion
+imports require the migration described in the voice-conversion guide.
 
 Resource loading supports tensors, tokens, and audio. Reconstruction and VQ-ASR
 share content-adaptation mechanics while retaining task-specific outputs.

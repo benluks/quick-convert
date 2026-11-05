@@ -31,6 +31,13 @@ def override_devices(
 ) -> None:
     if isinstance(cfg, DictConfig):
         if cfg.get("_target_") in {
+            "quick_convert.systems.conversion.knnvc.KNNVCConversionSystem",
+            "quick_convert.systems.conversion.asrbn.ASRBNConversionSystem",
+            "quick_convert.systems.conversion.KNNVCConversionSystem",
+            "quick_convert.systems.conversion.ASRBNConversionSystem",
+        }:
+            cfg["device"] = device
+        if cfg.get("_target_") in {
             "quick_convert.inference.load_inference_system",
             "quick_convert.inference.load_system_from_run",
             "quick_convert.inference.load_inference_artifact",
