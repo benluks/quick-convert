@@ -133,4 +133,24 @@ separate contract. Module state-dict paths and existing result types are unchang
 - Add an isolated import or installation check when the dependency graph is fragile.
 - Document downloads, cache behavior, and known profile conflicts.
 
-Before opening a PR, follow the verification commands in the repository `AGENTS.md`.
+## Verification and test ownership
+
+Before opening a PR, follow the verification commands in repository `AGENTS.md`.
+The default suite uses synthetic data and lightweight backends; checkpoint-backed
+and framework integrations remain separately exercised optional profiles.
+
+Extend the existing test for a behavior rather than adding another smoke test
+for a path it already exercises:
+
+| Contract | Canonical coverage |
+| --- | --- |
+| Run composition and reference pipeline targets | `tests/test_reference_configs.py` |
+| Model sequence adaptation and RVQ selection | `tests/test_temporal_length_contracts.py` |
+| Decoder input validation in training and generation | `tests/test_generation_contracts.py` |
+| Waveform-to-mel extraction and target alignment | `tests/test_mel_contract.py` |
+
+Keep a separate test when it protects a different boundary: package imports,
+legacy checkpoint loading, tensor gradients, and real model execution are not
+substitutes for one another. Parameterize differing inputs when the behavioral
+contract is the same. A smaller test count is useful only if meaningful failure
+coverage is retained.

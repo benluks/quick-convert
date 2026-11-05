@@ -153,14 +153,6 @@ def test_training_projection_masks_padding_and_preserves_backward(monkeypatch):
     assert lengths.tolist() == [25, 16]
 
 
-@pytest.mark.parametrize("lengths", [torch.tensor([0]), torch.tensor([51]), torch.tensor([50.0]), torch.tensor([[50]])])
-def test_training_rejects_invalid_content_lengths(lengths):
-    with pytest.raises(ValueError, match="Content"):
-        decoder().compute_loss(
-            torch.ones(1, 50, 4), lengths, tone(16000)[None], torch.tensor([16000]), 16000, torch.ones(1, 2)
-        )
-
-
 def test_mel_contract_survives_weights_only_restore_without_metadata_download(tmp_path):
     original = decoder()
     original._set_mel_metadata({"mel_config": asdict(SPEC), "revision": "pinned-commit"})

@@ -35,3 +35,6 @@ See the [CosyVoice mel and vocoder contract](cosyvoice.md) for reconstruction fe
 
 The [Upsample Conformer encoder](upsample-conformer.md) exposes configurable
 width, depth and temporal upsampling through a first-party adapter.
+
+For backend-specific setup and contracts, use [DAC](dac.md),
+[native codecs](../guides/native-codecs.md), and the content-encoder guide above.

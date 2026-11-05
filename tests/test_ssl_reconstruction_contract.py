@@ -57,26 +57,6 @@ class FakeDecoder(nn.Module):
         return CosyVoiceDecoderOutput(loss=kwargs["features"].new_tensor(0.5))
 
 
-def test_ssl_reconstruction_encoder_uses_quantized_output_and_preserves_lengths():
-    module = SSLReconstructionTrainingModule(
-        decoder=FakeDecoder(),
-        feature_transform=LayerWeightedSum(num_layers=2),
-        encoder=FakeRVQEncoder(),
-        optimization=Optimization(lr_scheduler=None),
-    )
-    content = ResolvedResource(
-        values=torch.ones(2, 3, 2, 4),
-        lengths=torch.tensor([3, 2]),
-    )
-
-    features, lengths, encoder_output = module._encode_content(content)
-
-    assert torch.equal(features, torch.full((2, 3, 4), 11.0))
-    assert torch.equal(lengths, content.lengths)
-    assert encoder_output is not None
-    assert not torch.equal(features, encoder_output.latents.transpose(1, 2))
-
-
 def test_ssl_reconstruction_training_module_accepts_an_explicit_system():
     system = SSLReconstructionSystem(
         decoder=FakeDecoder(),
@@ -135,6 +115,10 @@ def test_ssl_reconstruction_training_step_uses_the_wrapped_system(monkeypatch):
     output = module._shared_step(batch, "val")
 
     assert module.decoder.loss_calls == 1
+    torch.testing.assert_close(output.features, torch.full((2, 3, 4), 11.0))
+    torch.testing.assert_close(output.lengths, batch.resources["content"].lengths)
+    assert output.encoder_output is not None
+    assert not torch.equal(output.features, output.encoder_output.latents.transpose(1, 2))
     torch.testing.assert_close(output.loss, torch.tensor(0.75))
 
 
@@ -151,7 +135,6 @@ def test_ssl_training_keeps_teachers_and_frozen_vocoder_in_eval():
     module.train()
     assert module.feature_transform.training
     assert module.decoder.training
-    assert not module.online_encoders["content"].training
     assert not module.online_encoders["content"].training
     assert not decoder.vocoder.training
     assert not any(p.requires_grad for p in module.online_encoders.parameters())
