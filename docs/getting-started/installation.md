@@ -14,23 +14,14 @@ Run `uv run quick-convert --help` to confirm that the installed run configuratio
 
 ## Optional profiles
 
-Install only the backends required by your workflow:
+Ask the dependency planner which extras the selected workflow needs:
 
-| Profile | Use it for |
-|---|---|
-| `manifests` | CSV manifest splitting |
-| `transformers` | W2V-BERT and WavLM models |
-| `sentencepiece` | Tokenizer training and inference |
-| `wer` | JIWER word-error rate |
-| `asr` | Convenience bundle for SentencePiece and WER |
-| `training` | Lightning, W&B, TensorBoard, and training plots |
-| `cosyvoice` | CosyVoice reconstruction and HiFT vocoding |
-| `whisper` | Whisper ASR evaluation |
-| `emotion2vec` | emotion2vec features |
-| `mpm` | Masked Prosody Model features |
-| `espnet-wavlm-joint` | ESPnet WavLM speaker embeddings |
-| `pyannote` | Experimental pyannote WeSpeaker integration |
-| `dac` | Experimental Descript Audio Codec encoder |
+```bash
+uv run quick-convert requirements train_vq_asr_librispeech
+```
+
+See [dependency planning](../config/dependencies.md) for profile selection,
+compatibility constraints, and environment checks.
 
 For the VQ-ASR reference workflow:
 
@@ -38,7 +29,7 @@ For the VQ-ASR reference workflow:
 uv sync --extra transformers --extra asr --extra training --extra manifests
 ```
 
-Some profiles intentionally conflict because their upstream packages require incompatible dependency versions. See the [dependency profile notes](../maintenance/dependency_extras.md).
+Some profiles intentionally conflict because their upstream packages require incompatible dependency versions. uv enforces those declared conflicts during installation.
 
 ## What installation does not include
 

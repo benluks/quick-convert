@@ -1,48 +1,50 @@
-# Architecture cleanup backlog
+# Architecture maintenance
 
-This page records architectural questions that should survive individual cleanup
-branches. Items here are investigation prompts, not decisions or permission to
-perform broad refactors without reviewing the current behavior first.
+This page contains remaining work, not an alternative description of the
+current architecture. Use [Core concepts](../getting-started/concepts.md) for
+ownership, [Design philosophy](../design_philosophy.md) for rationale, and the
+[extension guide](../extending/index.md) for contracts.
 
-## Training systems and inference-ready models
+## Established boundaries
 
-The current implementation and proposed boundary are mapped in
-[`training_architecture.md`](training_architecture.md).
+Systems own inference; training modules own objectives and optimization;
+pipelines own workflows and persistence. Saved inference artifacts are separate
+from resumable Lightning checkpoints. The supported task model is configured at
+`system`, and trained module weights retain their `system.*` prefix. Historical
+imports and checkpoint keys have explicit compatibility paths.
 
-The supported training path now separates inference artifacts from resumable
-Lightning checkpoints and configures the task model at top-level `system`.
-Future architecture work should:
+Resource loading supports tensors, tokens, and audio. Reconstruction and VQ-ASR
+share content-adaptation mechanics while retaining task-specific outputs.
+Source metadata is checked without pretending it describes transformed values.
+See [data and resources](../data/index.md), [content adaptation](../extending/index.md#adapt-content-representations),
+and [inference loading](../guides/inference.md) for usage.
 
-- inventory task-level implementations that still live under `pipelines` and
-  decide which belong under `systems`;
-- keep pipelines responsible for orchestration rather than model architecture;
-- preserve resumable training checkpoints separately from portable inference
-  artifacts; and
-- verify the design against the supported VQ-ASR and SSL-reconstruction paths
-  before generalizing it.
+The earlier training and CosyVoice migration checklists have been retired:
+completed steps and obsolete descriptions remain available in Git history.
 
-Lightning modules now wrap plain systems. Framework adapters and runners live
-under `quick_convert.training`, while the training workflow remains a pipeline.
-Former import paths are retained as compatibility aliases.
+## Remaining work
 
-## LLM cleanup completion gate
+- Review residual task implementations under `pipelines` against the existing
+  system boundary before moving them; do not introduce a universal pipeline
+  base without shared lifecycle behavior.
+- Review vendored CosyVoice and Matcha scope using a transitive import graph.
+  Preserve required files, licenses, source revisions, and local modifications.
+- Review the global `cosyvoice`/`matcha` package aliases and coexistence with
+  separately installed packages before changing vendored import behavior.
+- Review the default long-recording speaker-embedding policy for repeatability;
+  keep stochastic inference opt-in.
+- Verify pretrained Whisper, emotion2vec, and MPM inference in environments with
+  the required checkpoints. Local synthetic tests do not establish that result.
+- Review or retire the legacy web interface.
+- Consolidate tests when stronger behavior coverage subsumes a weaker check.
+  Retain distinct data, gradient, checkpoint, compatibility, and model-backed
+  integration boundaries.
 
-The stacked cleanup branches are complete when all of the following are true:
+Backend-independent decoder protocols, alternate mel ownership, and moving the
+vocoder outside the spectrogram generator remain design options, not committed
+migrations. Revisit them only when an actual caller needs a different boundary.
 
-- each branch is strictly based on its immediate predecessor and has no
-  unresolved merge conflicts;
-- the reference manifest, W2V-BERT precompute, VQ-ASR, SSL-reconstruction, and
-  tokenizer workflows compose from their checked-in Hydra configurations;
-- core CI and the applicable isolated integration workflows pass at the tip of
-  the stack;
-- public documentation describes the current package paths and the
-  pipeline/system/component boundary;
-- compatibility behavior is covered where configs, checkpoints, or public
-  imports moved; and
-- remaining experimental, integration, and legacy profiles are explicitly
-  classified rather than mistaken for supported reference workflows.
+## Operational notes
 
-Open research features and explicitly classified optional integrations do not
-block this gate. Merging the stack into `main` is a separate repository action:
-the code can be ready before those merges are performed, but the repository is
-not the published finished state until the stack lands.
+[Downstream notification](downstream-notification.md) documents the optional
+private pipeline trigger. It does not establish downstream integration success.

@@ -1,41 +1,40 @@
 # Quick Convert
 
-Quick Convert is a composable speech-privacy research library with Python APIs and Hydra-driven workflows for data, feature extraction, training, evaluation, anonymization, and inference.
+Quick Convert combines Python APIs with Hydra-driven speech privacy workflows.
+Start with the overview, choose a task guide, and use references for details.
 
-## Choose a path
+## Start here
 
-### Run a supported workflow
+1. [Install](getting-started/installation.md) the base package and required backends.
+2. Read [Core concepts](getting-started/concepts.md) for structure and interactions.
+3. Run the [VQ-ASR quickstart](quickstart.md), or choose a [supported workflow](guides/workflows.md).
 
-1. [Install Quick Convert](getting-started/installation.md)
-2. Learn the [core concepts](getting-started/concepts.md)
-3. Follow the [VQ-ASR quickstart](quickstart.md) or choose from the
-   [supported workflows](guides/workflows.md)
+## Task guides
 
-### Use the Python library
+| Goal | Guide |
+| --- | --- |
+| Work directly in Python | [Python API](library/python-api.md) |
+| Prepare data and named resources | [Data](data/index.md) |
+| Load or export a model | [Inference](guides/inference.md) |
+| Convert speech | [Voice conversion](guides/voice-conversion.md), [outputs and resuming](guides/conversion-outputs.md) |
+| Use reference audio | [Reference conditioning](guides/reference-conditioning.md), [paired reconstruction](guides/paired-reconstruction.md) |
+| Work with codec representations | [Native codecs](guides/native-codecs.md) |
+| Fit or inspect acoustic features | [Fitting](guides/fitting.md), [frame diagnostics](guides/frame-diagnostics.md) |
+| Evaluate speaker verification | [ASV](guides/asv.md) |
 
-- [Python API guide](library/python-api.md)
-- [Load trained systems for inference](guides/inference.md)
-- [Reference prompts and conditioning streams](guides/reference-conditioning.md)
-- [Reference speech conversion](guides/voice-conversion.md)
-- [Conversion outputs and resuming](guides/conversion-outputs.md)
-- [Paired reconstruction and VQ-ASR content](guides/paired-reconstruction.md)
-- [Native codec representations](guides/native-codecs.md)
-- [Frame prediction diagnostics](guides/frame-diagnostics.md)
-- [Data and resources](data/index.md)
-- [Configuration reference](config/reference.md)
+## Extension and reference
 
-### Extend the library
+| Question | Reference |
+| --- | --- |
+| Why are responsibilities separated this way? | [Design philosophy](design_philosophy.md) |
+| How do I add or change a piece? | [Extension guide](extending/index.md) |
+| What are the model and feature contracts? | [Components](components/index.md) |
+| How are configs composed and overridden? | [Configuration](config/reference.md) |
+| Which optional packages do I need? | [Dependency planning](config/dependencies.md) |
+| What does the pipeline own? | [Lifecycle and batching](pipelines/index.md) |
+| Where should API details be documented? | [Docstring policy](reference/api-docstrings.md) |
 
-- [Design philosophy](design_philosophy.md)
-- [Extension guide](extending/index.md)
-- [Components](components/index.md)
-- [API reference and docstring policy](reference/api-docstrings.md)
-
-## Supported spine
-
-Data discovers audio and attaches named resources. Components implement reusable pieces. Systems expose complete task behavior. Training adds objectives and optimization around systems. Pipelines orchestrate workflows and persistence. Inference artifacts store a resolved system config and its weights.
-
-Executable composition roots live in `quick_convert/configs/run/`. Optional model downloads and full jobs remain environment-dependent; the fast suite verifies composition and library contracts with lightweight substitutes.
-
-Maintenance records document historical migrations and deferred work. They are
-useful context, but the guides above define the supported usage surface.
+Run configs under `quick_convert/configs/run/` define supported executable
+compositions. Model downloads, full datasets, and optional integrations remain
+environment-dependent. The [architecture backlog](maintenance/architecture_backlog.md)
+tracks remaining work; it does not override current contracts in the guides.

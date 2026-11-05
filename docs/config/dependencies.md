@@ -67,3 +67,20 @@ complete profile, or choose the W2V-BERT prefix variants when DAC is not needed.
 The same-speaker reference resource provider selects the existing `manifests`
 profile; prompt assembly and the stream-packing components need only the base
 dependencies.
+
+## Profiles, compatibility, and verification
+
+`pyproject.toml` is the complete list of installable extras. `asr` bundles
+`sentencepiece` and `wer`; `w2vbert`, `lightning`, and `conditional-rvq` retain
+compatibility names for `transformers`, `training`, and `emotion2vec`.
+The declared uv conflicts include DAC/ESPnet, MPM/ESPnet, and MPM/S3Tokenizer;
+inspect the current file rather than maintaining a separate package matrix.
+
+A resolved installation plan verifies dependency metadata, not pretrained
+model behavior. Optional [acoustic](https://github.com/benluks/quick-convert/blob/main/.github/workflows/acoustic-model-smoke.yml),
+[speaker](https://github.com/benluks/quick-convert/blob/main/.github/workflows/speaker-integrations.yml), and
+[training](https://github.com/benluks/quick-convert/blob/main/.github/workflows/training-integration.yml) jobs exercise their
+own backend profiles. Pretrained MPM inference still needs checkpoint-backed
+verification; locally constructed-model tests are a different boundary.
+Remaining backend and legacy-interface work is tracked in the
+[architecture backlog](../maintenance/architecture_backlog.md).

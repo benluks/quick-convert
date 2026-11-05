@@ -8,6 +8,8 @@ Resources are named values such as `transcript`, `token_ids`, `content`, or `spe
 
 Hydra configs are installed under `quick_convert/configs/dataset/` and `quick_convert/configs/resource_providers/`.
 
+For constructor, discovery, and sample options, see the [BaseDataset reference](base_dataset.md).
+
 ## Manifests
 
 Build and split the LibriSpeech manifest within each speaker:

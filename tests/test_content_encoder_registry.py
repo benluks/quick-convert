@@ -9,11 +9,6 @@ from quick_convert.components.ssl import (
 )
 
 
-def test_content_encoder_aliases_resolve_without_instantiation():
-    assert resolve_content_encoder("w2vbert") is W2VBertContentEncoder
-    assert resolve_content_encoder("s3tokenizer") is S3TokenizerContentEncoder
-
-
 def test_dotted_content_encoder_path_resolves():
     assert (
         resolve_content_encoder("quick_convert.components.ssl.S3TokenizerContentEncoder") is S3TokenizerContentEncoder
@@ -50,5 +45,7 @@ def test_identifier_type_is_validated():
 
 
 def test_all_built_in_aliases_resolve_to_content_encoder_classes():
+    assert resolve_content_encoder("w2vbert") is W2VBertContentEncoder
+    assert resolve_content_encoder("s3tokenizer") is S3TokenizerContentEncoder
     for alias in CONTENT_ENCODER_ALIASES:
         assert issubclass(resolve_content_encoder(alias), ContentEncoder)

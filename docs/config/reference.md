@@ -35,6 +35,26 @@ Run configs commonly select objects into named slots:
 
 The slot name matters because interpolations and instantiated constructor arguments refer to it. Prefer explicit names over deeply nested generic containers.
 
+For example, the VQ-ASR run selects its dependencies with:
+
+```yaml
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: vq_asr
+  - /system/vq_asr@system: w2vbert_conformer
+  - /dataset@train_dataset: manifest
+  - /dataset@val_dataset: manifest
+  - /dataset@source_dataset: librispeech
+  - _self_
+```
+
+`@system` places the selected config in the top-level `system` slot. `_target_`
+identifies the Python class; interpolations such as `${system}` pass that object
+configuration into the trainer or pipeline. Defaults are applied in order, with
+`_self_` placing this run's own overrides last. Follow these defaults and then
+inspect interpolations to trace the assembled object graph.
+
 ## Overrides
 
 Hydra overrides use dotted paths:
@@ -84,7 +104,6 @@ extending the run does not automatically stretch an existing checkpoint's schedu
 5. Add the run to tests by relying on the existing all-run composition check.
 6. Confirm the run is present in an installed wheel and in `quick-convert --help`.
 
-See [Hydra structure](hydra_structure.md) for a guided composition example.
 
 ## Trainable online encoders
 

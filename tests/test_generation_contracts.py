@@ -108,12 +108,19 @@ def test_cosyvoice_generation_preserves_input_lengths_and_reports_outputs():
 
 @pytest.mark.parametrize("training", [False, True])
 @pytest.mark.parametrize(
-    "lengths", [torch.tensor([7, 6]), torch.tensor([0, 3]), torch.tensor([-1, 3]), torch.tensor([3.0, 2.0])]
+    "lengths",
+    [
+        torch.tensor([7, 6]),
+        torch.tensor([0, 3]),
+        torch.tensor([-1, 3]),
+        torch.tensor([3.0, 2.0]),
+        torch.tensor([[3], [2]]),
+    ],
 )
 def test_decoder_training_and_inference_reject_invalid_content_lengths(training, lengths):
     decoder = make_decoder()
     original = lengths.clone()
-    with pytest.raises((ValueError, TypeError), match="padded time|positive|non-negative|integer dtype"):
+    with pytest.raises((ValueError, TypeError), match="padded time|positive|non-negative|integer dtype|shape"):
         if training:
             decoder.compute_loss(torch.zeros(2, 5, 4), lengths, torch.zeros(2, 20), torch.tensor([20, 20]), 24000)
         else:

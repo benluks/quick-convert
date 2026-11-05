@@ -8,76 +8,39 @@ from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
-from quick_convert.utils.resolvers import class_attribute
+from quick_convert.utils.resolvers import register_config_resolvers
 
 
 CONFIG_DIR = Path(__file__).parents[1] / "quick_convert" / "configs"
-RUN_CONFIGS = sorted(path.stem for path in (CONFIG_DIR / "run").glob("*.yaml"))
+
+
+REFERENCE_PIPELINE_TARGETS = {
+    "train_vq_asr_librispeech": "quick_convert.pipelines.training.pipeline.TrainingPipeline",
+    "train_sslr_w2vbert_cmdiff": "quick_convert.pipelines.training.pipeline.TrainingPipeline",
+    "train_sslr_w2vbert_cmdiff_rvq": "quick_convert.pipelines.training.pipeline.TrainingPipeline",
+    "train_sslr_w2vbert_dit": "quick_convert.pipelines.training.pipeline.TrainingPipeline",
+    "train_bpe_tokenizer_librispeech": "quick_convert.pipelines.training.pipeline.TrainingPipeline",
+    "build_manifest_libri": "quick_convert.pipelines.build_manifest.BuildManifestPipeline",
+    "precompute_content_w2vbert_librispeech": "quick_convert.pipelines.precompute_features.PrecomputeFeaturesPipeline",
+    "eval_asr_librispeech": "quick_convert.pipelines.evaluation.pipeline.EvalPipeline",
+}
+
+
+# Keep required reference runs in the matrix even if a YAML file is removed.
+RUN_CONFIGS = sorted({path.stem for path in (CONFIG_DIR / "run").glob("*.yaml")} | REFERENCE_PIPELINE_TARGETS.keys())
 
 
 @pytest.fixture(autouse=True)
 def register_resolvers():
-    resolvers = {
-        "add": lambda x, y: int(x) + int(y),
-        "mul": lambda x, y: int(x) * int(y),
-        "floor": lambda x, y: int(int(x) / int(y)),
-        "bool": bool,
-        "len": len,
-        "class_attr": class_attribute,
-    }
-    for name, resolver in resolvers.items():
-        if not OmegaConf.has_resolver(name):
-            OmegaConf.register_new_resolver(name, resolver)
+    register_config_resolvers()
 
 
 @pytest.mark.parametrize("run_config", RUN_CONFIGS)
 def test_all_advertised_run_configs_compose(run_config):
     with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
-        compose(config_name=f"run/{run_config}", return_hydra_config=True)
-
-
-@pytest.mark.parametrize(
-    ("config_name", "pipeline_target"),
-    [
-        (
-            "run/train_vq_asr_librispeech",
-            "quick_convert.pipelines.training.pipeline.TrainingPipeline",
-        ),
-        (
-            "run/train_sslr_w2vbert_cmdiff",
-            "quick_convert.pipelines.training.pipeline.TrainingPipeline",
-        ),
-        (
-            "run/train_sslr_w2vbert_cmdiff_rvq",
-            "quick_convert.pipelines.training.pipeline.TrainingPipeline",
-        ),
-        (
-            "run/train_sslr_w2vbert_dit",
-            "quick_convert.pipelines.training.pipeline.TrainingPipeline",
-        ),
-        (
-            "run/train_bpe_tokenizer_librispeech",
-            "quick_convert.pipelines.training.pipeline.TrainingPipeline",
-        ),
-        (
-            "run/build_manifest_libri",
-            "quick_convert.pipelines.build_manifest.BuildManifestPipeline",
-        ),
-        (
-            "run/precompute_content_w2vbert_librispeech",
-            "quick_convert.pipelines.precompute_features.PrecomputeFeaturesPipeline",
-        ),
-        (
-            "run/eval_asr_librispeech",
-            "quick_convert.pipelines.evaluation.pipeline.EvalPipeline",
-        ),
-    ],
-)
-def test_reference_config_composes(config_name, pipeline_target):
-    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
-        config = compose(config_name=config_name, return_hydra_config=True)
-
-    assert config.pipeline._target_ == pipeline_target
+        config = compose(config_name=f"run/{run_config}", return_hydra_config=True)
+    if run_config in REFERENCE_PIPELINE_TARGETS:
+        assert config.pipeline._target_ == REFERENCE_PIPELINE_TARGETS[run_config]
 
 
 def test_build_manifest_resource_providers_resolve_and_instantiate():
@@ -90,26 +53,6 @@ def test_build_manifest_resource_providers_resolve_and_instantiate():
     assert [provider.name for provider in providers] == ["transcript", "spkid"]
 
 
-def test_librispeech_can_be_composed_into_a_named_dataset_slot():
-    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
-        config = compose(
-            config_name="run/train_vq_asr_librispeech",
-            return_hydra_config=True,
-        )
-
-    assert config.source_dataset._target_ == "quick_convert.data.BaseDataset"
-
-
-def test_tokenizer_training_has_an_explicit_output_directory():
-    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
-        config = compose(
-            config_name="run/train_bpe_tokenizer_librispeech",
-            return_hydra_config=True,
-        )
-
-    assert config.pipeline.out_dir == "outputs/tokenizer/librispeech_1000_tokens"
-
-
 def test_tokenizer_training_uses_the_transcript_provider():
     with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
         config = compose(
@@ -120,6 +63,7 @@ def test_tokenizer_training_uses_the_transcript_provider():
     providers = [instantiate(provider) for provider in config.train_dataset.resource_providers]
 
     assert [provider.name for provider in providers] == ["transcript"]
+    assert config.pipeline.out_dir == "outputs/tokenizer/librispeech_1000_tokens"
 
 
 def test_flat_manifest_contains_vq_asr_resources():
@@ -158,6 +102,7 @@ def test_vq_asr_config_exposes_an_inference_ready_system():
         )
 
     system = config.system
+    assert config.source_dataset._target_ == "quick_convert.data.BaseDataset"
     assert "architecture" not in config
     assert system._target_ == "quick_convert.systems.asr.VQASRSystem"
     assert config.trainer.module.system == system
@@ -195,24 +140,8 @@ def test_public_component_configs_only_pass_declared_arguments(config_path, targ
 
     assert not any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in signature.parameters.values())
     assert {key for key in config if not key.startswith("_")} <= set(signature.parameters)
-
-
-@pytest.mark.parametrize(
-    ("config_path", "target"),
-    [
-        ("components/ssl/emo2vec.yaml", "quick_convert.components.ssl.EmotionEncoder"),
-        ("components/ssl/dac.yaml", "quick_convert.components.ssl.DACContentEncoder"),
-        ("components/ssl/pros2vec.yaml", "quick_convert.components.ssl.ProsodyEncoder"),
-        ("components/speaker_encoder/espnet.yaml", "quick_convert.components.speaker.ESPnetSpeakerEncoder"),
-    ],
-)
-def test_composition_sample_rate_matches_constructor_default(config_path, target):
-    from hydra.utils import get_class
-
-    config = OmegaConf.load(CONFIG_DIR / config_path)
-    constructor_default = inspect.signature(get_class(target)).parameters["sample_rate"].default
-
-    assert config.sample_rate == constructor_default
+    if "sample_rate" in config:
+        assert config.sample_rate == signature.parameters["sample_rate"].default
 
 
 def test_w2vbert_exposes_sample_rate_as_a_fixed_capability():
@@ -222,18 +151,6 @@ def test_w2vbert_exposes_sample_rate_as_a_fixed_capability():
 
     assert "sample_rate" not in signature.parameters
     assert W2VBertContentEncoder.SAMPLE_RATE == 16_000
-
-
-def test_w2vbert_precompute_rate_matches_encoder_capability():
-    from quick_convert.components.ssl import W2VBertContentEncoder
-
-    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
-        config = compose(
-            config_name="run/precompute_content_w2vbert_librispeech",
-            return_hydra_config=True,
-        )
-
-    assert config.dataset.target_sr == W2VBertContentEncoder.SAMPLE_RATE
 
 
 @pytest.mark.parametrize(
@@ -302,7 +219,9 @@ def test_w2vbert_precompute_pipeline_instantiates_without_downloading_model(
     pipeline = instantiate(config.pipeline)
 
     assert pipeline.extractor.encoder.model_name == "facebook/w2v-bert-2.0"
-    assert pipeline.dataset.target_sr == 16_000
+    from quick_convert.components.ssl import W2VBertContentEncoder
+
+    assert pipeline.dataset.target_sr == W2VBertContentEncoder.SAMPLE_RATE
 
 
 def test_clac_uses_base_dataset_with_split_qualified_ids(monkeypatch, tmp_path):
