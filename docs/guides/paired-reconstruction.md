@@ -38,26 +38,26 @@ do not contribute to the target loss. Missing pairs, empty recordings, and a
 reference/content path resolving to the target itself raise errors. Original
 batch audio and resources are preserved.
 
-### Prepare paired audio from Python
+### Audio resources and training policy
 
-`quick_convert.data.load_paired_audio_batch` materializes a named path resource
-as a separate `AudioBatch`, independently of Lightning:
+The presets load `tts_path` and `reference_path` as `kind: audio` resources.
+Dataset loading produces mono recordings at the configured resource sample
+rate; collation returns an `AudioBatch` for each named resource:
 
 ```python
-from quick_convert.data import load_paired_audio_batch
-
-# batch.resources["tts_path"] contains one paired path per target example.
-content_batch = load_paired_audio_batch(batch, "tts_path", sample_rate=16_000)
-reference_batch = load_paired_audio_batch(batch, "reference_path", sample_rate=16_000, max_samples=16_000 * 3)
+batch = next(iter(dataset.make_dataloader(batch_size=8)))
+content_batch = batch.resources["tts_path"]
+reference_batch = batch.resources["reference_path"]
 ```
 
-The helper mixes to mono, resamples, optionally keeps a leading sample prefix,
-and pads with exact lengths on the target waveform device. IDs and splits are
-copied; paths identify the paired recordings and resources start empty. It
-requires loaded target waveforms and preserves the original target batch.
-The training module chooses the content encoder's sample rate and converts
-`reference_seconds` to a sample limit; loading and batching belong to the data
-helper. Reference stream selection and prefix policy remain in training.
+Each resource batch carries paired paths, target IDs and splits, valid lengths,
+and sample rates. The original target audio is preserved. Training checks that
+paired recordings differ from their targets, verifies the required sample rate,
+and selects a reference prefix according to `reference_seconds`. It performs
+no file loading. Configure `load: [audio, tts_path, reference_path]`; older
+custom configs passing text paths must switch to audio providers and explicitly
+load the named resources. See [audio resources](../data/index.md#audio-resources)
+for the general API, also suitable for noise recordings.
 
 For duration-controlled inference, pass a positive scalar or per-example tensor
 as `duration_ratio` to `system.generate_features(..., run_vocoder=False)`.

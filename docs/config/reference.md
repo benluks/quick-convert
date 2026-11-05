@@ -182,7 +182,9 @@ the global speaker resource when the estimator has `spk_dim: null`; explicitly
 trainable content encoders remain supported.
 
 `SameSpeakerReferenceProvider(manifest_path, speaker_column="spkid", seed=0)`
-attaches `reference_path` without loading its audio. `SpeechPromptBuilder`
+attaches `reference_path` without loading its audio. Set `kind="audio"` and
+optionally `sample_rate=16000` to let dataset resource loading and collation
+produce an audio batch; include `reference_path` in dataset `load`. `SpeechPromptBuilder`
 assembles an exact active-speech duration without changing caller audio or
 random state. See the [reference-conditioning guide](../guides/reference-conditioning.md)
 for executable presets and Python examples.

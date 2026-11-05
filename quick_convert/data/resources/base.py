@@ -29,6 +29,7 @@ ResourceKind = Literal[
     "torch_tensor",
     "text",
     "token_ids",
+    "audio",
 ]
 RESOURCE_KINDS = frozenset(ResourceKind.__args__)
 
@@ -46,6 +47,7 @@ class ResourceRef:
         path: Optional source path.
         value: Optional materialized value.
         max_length: Optional fixed padded length for tensor or token resources.
+        sample_rate: Optional target rate for audio resources; None preserves the source rate.
     """
 
     name: str
@@ -56,11 +58,17 @@ class ResourceRef:
     # Only set if using cudnn benchmark
     max_length: int | None = None
 
+    # Audio resources are mono; None preserves the file sample rate.
+    sample_rate: int | None = None
+
     def __post_init__(self) -> None:
         if self.kind not in RESOURCE_KINDS:
             raise ValueError(f"Unsupported resource kind {self.kind!r}. Supported kinds: {sorted(RESOURCE_KINDS)}")
         if self.path is None and self.value is None:
             raise ValueError(f"Resource {self.name!r} must have a path or a value.")
+        if self.sample_rate is not None:
+            if self.kind != "audio" or self.sample_rate <= 0:
+                raise ValueError("sample_rate must be positive and is only supported for audio resources.")
         if self.max_length is not None and self.kind not in {"torch_tensor", "token_ids"}:
             raise ValueError("max_length is only supported for tensor and token resources.")
 
@@ -230,7 +238,7 @@ def _collate_tensor_resources(
     return TensorResourceBatch(values=padded, lengths=lengths)
 
 
-def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors: bool = False) -> Any:
+def _collate_resource_refs(refs: list[ResourceRef], samples, squeeze_single_frame_tensors: bool = False) -> Any:
     kinds = {ref.kind for ref in refs}
     if len(kinds) != 1:
         raise ValueError(f"Cannot collate mixed resource kinds: {sorted(kinds)}")
@@ -242,6 +250,11 @@ def _collate_resource_refs(refs: list[ResourceRef], squeeze_single_frame_tensors
             f"Resource {refs[0].name!r} has inconsistent max_length values: {sorted(max_lengths, key=str)}"
         )
     max_length = refs[0].max_length
+
+    if kind == "audio":
+        from .audio import collate_audio_resources
+
+        return collate_audio_resources(refs, samples)
 
     if kind == "text":
         return [ref.value for ref in refs]
@@ -266,7 +279,8 @@ def collate_resources(
 
     Text values become lists. Tensor and token values become padded
     :class:`TensorResourceBatch` objects containing ``values`` and valid
-    ``lengths``. Every sample must contain the same resource names.
+    ``lengths``. Loaded audio values become AudioBatch objects.
+    Every sample must contain the same resource names.
 
     Args:
         batch: Samples whose ``resources`` collections should be collated.
@@ -287,7 +301,7 @@ def collate_resources(
                 raise ValueError(f"Sample {item.utt_id!r} is missing resource {name!r}")
             refs.append(item.resources[name])
 
-        collated[name] = _collate_resource_refs(refs, squeeze_single_frame_tensors=squeeze_single_frame_tensors)
+        collated[name] = _collate_resource_refs(refs, batch, squeeze_single_frame_tensors=squeeze_single_frame_tensors)
 
     return collated
 
