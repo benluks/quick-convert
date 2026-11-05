@@ -15,9 +15,7 @@ def validate_padded_lengths(
 ) -> None:
     """Require one nonnegative valid length per item, bounded by padded time."""
     if lengths.shape != (values.shape[0],):
-        raise ValueError(
-            f"{name} lengths must have shape ({values.shape[0]},), got {tuple(lengths.shape)}."
-        )
+        raise ValueError(f"{name} lengths must have shape ({values.shape[0]},), got {tuple(lengths.shape)}.")
     if torch.any(lengths < 0):
         raise ValueError(f"{name} lengths must be non-negative.")
     if torch.any(lengths > values.shape[time_dim]):
