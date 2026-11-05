@@ -27,6 +27,8 @@ class ConformerEncoder(nn.Module):
         pos_emb_base:     Base frequency for RoPE.
     """
 
+    PRESERVES_FRAME_RATE = True
+
     def __init__(
         self,
         input_dim: int = 256,
@@ -101,6 +103,8 @@ class ConformerEncoderSSL(nn.Module):
         bias:             Use bias in projections.
         pos_emb_base:     Base frequency for RoPE.
     """
+
+    PRESERVES_FRAME_RATE = True
 
     def __init__(
         self,

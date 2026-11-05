@@ -10,6 +10,8 @@ class LayerWeightedSum(nn.Module):
     dimension beforehand
     """
 
+    PRESERVES_FRAME_RATE = True
+
     def __init__(self, num_layers: int, projection: nn.Linear | None = None) -> None:
         super().__init__()
         self.weights = nn.Parameter(torch.zeros(1, num_layers))

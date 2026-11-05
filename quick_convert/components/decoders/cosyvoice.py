@@ -13,6 +13,7 @@ from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
 from quick_convert.data import GeneratedAudio
 from quick_convert.utils.device import DeviceLike, configure_device
 from quick_convert.utils.masking import make_padding_mask
+from quick_convert.utils.sequence_validation import validate_feature_sequence
 
 from .cosyvoice_reference import CosyVoiceReference, reference_flow_loss
 from .stream_flow import content_and_speaker, independent_prefix_loss, stream_flow_loss, stream_flow_sample
@@ -67,6 +68,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         self.device = configure_device(device)
         self.flow = flow
         self.content_encoder = content_encoder
+        self.feature_dim = feature_dim
         if content_encoder is not None:
             if feature_dim != content_encoder.input_size:
                 raise ValueError("feature_dim must match the content encoder input_size.")
@@ -332,14 +334,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         Thin wrapper around donor compute_loss.
         """
 
-        if features.ndim != 3 or lengths.shape != (features.shape[0],):
-            raise ValueError("Content features must have shape [batch, time, dim] with one length per sample.")
-        if (
-            lengths.dtype not in (torch.int32, torch.int64)
-            or torch.any(lengths <= 0)
-            or torch.any(lengths > features.shape[1])
-        ):
-            raise ValueError("Content lengths must be positive integers and fit feature storage.")
+        validate_feature_sequence(features, lengths, feature_dim=getattr(self, "feature_dim", None))
         self._validate_speaker_embedding(speaker_embedding)
         if streams is not None and self.stream_conditioning is None:
             raise ValueError("Named streams require stream_conditioning configuration.")
@@ -447,6 +442,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         duration_ratio: float | torch.Tensor = 1.0,
     ) -> CosyVoiceGenerationOutput:
         """Generate with optional per-call CFG; None retains the saved guidance rate."""
+        validate_feature_sequence(feature, length, feature_dim=getattr(self, "feature_dim", None))
         self._validate_speaker_embedding(speaker_embedding)
         if inference_cfg_rate is not None:
             if not math.isfinite(inference_cfg_rate) or inference_cfg_rate < 0:
@@ -455,15 +451,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
             raise ValueError("Use named stream prefixes instead of CosyVoiceReference in stream mode.")
         generation_kwargs = {} if inference_cfg_rate is None else {"inference_cfg_rate": inference_cfg_rate}
         length = length.clone()
-
-        # because of different feature extractions, sometimes lengths can be
-        # 1 frame shorter than the features' actual shape, so we trim to the
-        # smaller of the 2 values
-        max_length_idx = length.argmax()
-        min_max_length = min(feature.shape[1], length[max_length_idx])
-
-        feature = feature[:, :min_max_length]
-        length[max_length_idx] = min_max_length
+        feature = feature[:, : int(length.max())]
 
         if reference is not None:
             reference = self._project_reference(reference, feature.shape[0], feature.shape[-1])

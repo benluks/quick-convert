@@ -133,7 +133,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
     def _encode_content(self, content: ResolvedResource) -> tuple[torch.Tensor, torch.Tensor, RVQOutput | None]:
         if content.lengths is None:
             raise ValueError("Content features require valid lengths for SSL reconstruction.")
-        return self.system.encode_features(content.values, content.lengths)
+        return self.system.encode_features(content.values, content.lengths, metadata=content.metadata)
 
     def _paired_audio(self, batch, name, sample_rate, max_samples=None):
         """Apply pairing and prefix policy to an already loaded audio resource."""

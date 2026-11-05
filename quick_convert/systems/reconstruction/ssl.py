@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import math
 import warnings
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from os import PathLike
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import torch
@@ -19,12 +22,12 @@ from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQ
 from quick_convert.components.mixins.resource import OnlineResourceMixin
 from quick_convert.components.speaker.aggregation import SpeakerEmbeddingAggregation, audio_durations
 from quick_convert.data import AudioBatch, GeneratedAudio
+from quick_convert.systems._content import content_frame_rate, quantize_content, transform_content
 from quick_convert.systems.anonymization.targets import PreparedTarget, ReferenceSpeech
 from quick_convert.systems.base import InferenceSystem
 from quick_convert.systems.reference import ReferenceCondition, prepare_reference_audio
 from quick_convert.types import AudioInput
 from quick_convert.utils.audio import load_audio_input
-from quick_convert.utils.masking import make_padding_mask
 
 
 @dataclass
@@ -133,7 +136,7 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
             content = self.get_resource(batch, "content")
             if content.lengths is None:
                 raise ValueError("Reference content requires valid lengths.")
-            features, lengths, _ = self.encode_features(content.values, content.lengths)
+            features, lengths, _ = self.encode_features(content.values, content.lengths, metadata=content.metadata)
             reference = self.decoder.prepare_reference(
                 features,
                 lengths,
@@ -195,7 +198,7 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
         content = self.get_resource(batch, "content")
         if content.lengths is None:
             raise ValueError("Content features require valid lengths.")
-        features, lengths, _ = self.encode_features(content.values, content.lengths)
+        features, lengths, _ = self.encode_features(content.values, content.lengths, metadata=content.metadata)
         kwargs = target.conditioning.decoder_kwargs(len(batch), device=features.device, dtype=features.dtype)
         generation = self.decoder(
             feature=features,
@@ -218,49 +221,25 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
             vocoder.eval()
         return self
 
-    @staticmethod
-    def _output_lengths(module: nn.Module, lengths: torch.Tensor, role: str) -> torch.Tensor:
-        if isinstance(module, nn.Identity):
-            return lengths
-        output_lengths = getattr(module, "output_lengths", None)
-        if not callable(output_lengths):
-            raise TypeError(f"SSL reconstruction {role} modules must expose output_lengths(input_lengths).")
-        return output_lengths(lengths)
-
     def encode_features(
         self,
         values: torch.Tensor,
         lengths: torch.Tensor,
+        *,
+        metadata: Mapping[str, Any] | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, RVQOutput | None]:
-        """Transform content tensors without requiring Quick Convert batch types."""
-        features = self.feature_transform(values)
-        transformed_lengths = self._output_lengths(self.feature_transform, lengths, "feature_transform")
-
-        if transformed_lengths.shape != (features.shape[0],):
+        """Adapt continuous content to decoder features, optionally checking source metadata."""
+        rate = content_frame_rate(metadata, self.feature_transform, self.encoder)
+        expected_rate = getattr(getattr(self.decoder, "flow", None), "input_frame_rate", None)
+        if rate is not None and expected_rate is not None and not math.isclose(rate, expected_rate, rel_tol=1e-6):
             raise ValueError(
-                f"Expected one content length per batch item, got {tuple(transformed_lengths.shape)} "
-                f"for batch size {features.shape[0]}."
+                f"Adapted content frame rate {rate} differs from decoder input frame rate {expected_rate}."
             )
-        if torch.any(transformed_lengths > features.shape[1]):
-            raise ValueError(
-                "A transformed content length exceeds the padded feature time dimension: "
-                f"maximum is {features.shape[1]}, got {int(transformed_lengths.max())}."
-            )
-
+        features, transformed_lengths = transform_content(values, lengths, self.feature_transform, metadata=metadata)
         if self.encoder is None:
             return features, transformed_lengths, None
-
-        padding_mask = make_padding_mask(transformed_lengths, max_length=features.shape[1])
-        encoder_output = self.encoder(features.transpose(1, 2), padding_mask)
-        encoded_lengths = self.encoder.output_lengths(transformed_lengths)
-
-        if torch.any(encoded_lengths > encoder_output.z_q.shape[2]):
-            raise RuntimeError(
-                "An encoder output length exceeds the quantized time dimension: "
-                f"maximum is {encoder_output.z_q.shape[2]}, got {int(encoded_lengths.max())}."
-            )
-
-        return encoder_output.z_q.transpose(1, 2), encoded_lengths, encoder_output
+        output, encoded_lengths = quantize_content(features, transformed_lengths, self.encoder)
+        return output.z_q.transpose(1, 2), encoded_lengths, output
 
     def generate_features(
         self,
@@ -271,9 +250,10 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
         run_vocoder: bool = True,
         streams: dict[str, ConditioningStream] | None = None,
         duration_ratio: float | torch.Tensor = 1.0,
+        content_metadata: Mapping[str, Any] | None = None,
     ) -> SSLReconstructionResult:
         """Generate from plain content and speaker tensors."""
-        features, output_lengths, encoder_output = self.encode_features(values, lengths)
+        features, output_lengths, encoder_output = self.encode_features(values, lengths, metadata=content_metadata)
         generation = self.decode_features(
             features,
             output_lengths,
@@ -384,6 +364,7 @@ class SSLReconstructionSystem(OnlineResourceMixin, InferenceSystem):
             content.values,
             content.lengths,
             speaker_embedding,
+            content_metadata=content.metadata,
             run_vocoder=run_vocoder,
             **({"streams": streams} if streams is not None else {}),
         )
