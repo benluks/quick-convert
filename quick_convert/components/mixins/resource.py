@@ -1,18 +1,28 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, fields
 from typing import Any
 
 import torch
 from torch import nn
 
+from quick_convert.components.ssl.base import ContentFeatures
+from quick_convert.data.resources.base import TensorResourceBatch
 from quick_convert.data.types import AudioBatch
 
 
 @dataclass
 class ResolvedResource:
+    """Materialized resource with optional lengths and representation metadata.
+
+    Metadata describes the source representation, not any later transformation.
+    Missing metadata is unknown; it must not be inferred from tensor shapes.
+    """
+
     values: Any
     lengths: torch.Tensor | None = None
+    metadata: Mapping[str, Any] | None = None
 
 
 class OnlineResourceMixin:
@@ -69,7 +79,26 @@ class OnlineResourceMixin:
 
     @staticmethod
     def _normalize_resource(resource: Any, *, detach: bool = True) -> ResolvedResource:
+        """Adapt built-in results and legacy wrappers without changing gradient policy."""
         if isinstance(resource, ResolvedResource):
+            return ResolvedResource(
+                values=OnlineResourceMixin._maybe_detach(resource.values, detach),
+                lengths=resource.lengths,
+                metadata=dict(resource.metadata) if resource.metadata is not None else None,
+            )
+
+        if isinstance(resource, ContentFeatures):
+            return ResolvedResource(
+                values=OnlineResourceMixin._maybe_detach(resource.values, detach),
+                lengths=resource.lengths,
+                metadata={
+                    field.name: getattr(resource, field.name)
+                    for field in fields(ContentFeatures)
+                    if field.name not in {"values", "lengths"}
+                },
+            )
+
+        if isinstance(resource, TensorResourceBatch):
             return ResolvedResource(
                 values=OnlineResourceMixin._maybe_detach(resource.values, detach),
                 lengths=resource.lengths,
@@ -80,7 +109,10 @@ class OnlineResourceMixin:
         if isinstance(resource, torch.Tensor):
             return ResolvedResource(values=OnlineResourceMixin._maybe_detach(resource, detach), lengths=None)
 
-        if hasattr(resource, "values"):
+        # Compatibility for third-party encoders exposing value attributes.
+        # Methods such as dict.values are not resource wrappers. Encoders with
+        # metadata should return ContentFeatures or ResolvedResource explicitly.
+        if hasattr(resource, "values") and not callable(resource.values):
             return ResolvedResource(
                 values=OnlineResourceMixin._maybe_detach(resource.values, detach),
                 lengths=getattr(resource, "lengths", None),
