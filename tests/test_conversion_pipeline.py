@@ -68,3 +68,14 @@ def test_conversion_uses_batch_contract_and_trims_outputs(tmp_path, monkeypatch)
     assert system.batches == [batch]
     assert [waveform.shape for _, waveform, _ in saved] == [(1, 8), (1, 5)]
     assert [sample_rate for _, _, sample_rate in saved] == [24_000, 24_000]
+
+
+def test_source_voice_uses_resynthesis_output_policy(tmp_path):
+    from quick_convert.pipelines.conversion import target_description
+    from quick_convert.pipelines.conversion_records import conversion_output_dir
+    from quick_convert.systems.conversion import SourceVoice
+
+    description = target_description(SourceVoice())
+    output = conversion_output_dir(tmp_path, {"system": "source-test"}, description)
+    assert description == {"mode": "resynthesize"}
+    assert "/resynthesize-" in output

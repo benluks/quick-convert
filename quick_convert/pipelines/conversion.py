@@ -77,7 +77,7 @@ def target_description(target):
     if isinstance(target, SpeakerIdentity):
         return {"mode": "identity", "speaker_id": target.speaker_id}
     if isinstance(target, SourceVoice):
-        return {"mode": "source"}
+        return {"mode": "resynthesize"}
     if isinstance(target, DatasetReferenceTargets):
         return {
             "mode": target.mode,
