@@ -9,6 +9,7 @@ from quick_convert.components.layers.rvq import RVQLosses, RVQOutput
 from quick_convert.components.mixins.resource import ResolvedResource
 from quick_convert.components.ssl.base import ContentFeatures
 from quick_convert.data import AudioBatch, GeneratedAudio
+from quick_convert.data.resources.base import TensorResourceBatch
 from quick_convert.systems.reconstruction import SSLReconstructionResult, SSLReconstructionSystem
 
 
@@ -185,6 +186,7 @@ def test_online_encoder_is_frozen_and_detached_by_default(wrapped):
 
     assert not encoder.scale.requires_grad
     assert not resource.values.requires_grad
+    assert (resource.metadata is not None) is wrapped
 
 
 @pytest.mark.parametrize("wrapped", [False, True])
@@ -205,6 +207,11 @@ def test_trainable_online_encoder_preserves_gradients_and_updates(wrapped):
     assert encoder.scale.requires_grad
     assert encoder.scale.grad is not None
     assert encoder.scale.grad.norm() > 0
+    if wrapped:
+        assert resource.metadata["model_name"] == "tiny"
+        assert resource.metadata["frame_hz"] is None
+    else:
+        assert resource.metadata is None
 
     optimizer.step()
 
@@ -225,6 +232,25 @@ def test_precomputed_resources_remain_detached_with_trainable_online_encoder():
     resource = system.get_resource(batch, "content")
 
     assert not resource.values.requires_grad
+
+
+def test_precomputed_content_matches_online_values_and_takes_precedence(monkeypatch):
+    encoder = TrainableContentEncoder(wrapped=True)
+    system = SSLReconstructionSystem(decoder=FakeDecoder(), online_encoders={"content": encoder})
+    batch = make_audio_batch()
+    online = system.get_resource(batch, "content")
+    batch.resources["content"] = TensorResourceBatch(online.values, online.lengths)
+
+    def unexpected_encode(batch):
+        raise AssertionError("Loaded content must take precedence over the online encoder.")
+
+    monkeypatch.setattr(encoder, "forward", unexpected_encode)
+    precomputed = system.get_resource(batch, "content")
+
+    torch.testing.assert_close(precomputed.values, online.values)
+    torch.testing.assert_close(precomputed.lengths, online.lengths)
+    assert online.metadata["model_name"] == "tiny"
+    assert precomputed.metadata is None
 
 
 @pytest.mark.parametrize("backend_inference", [False, True])

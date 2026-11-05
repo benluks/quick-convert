@@ -56,6 +56,36 @@ Prefer a named resource provider over extending `AudioSample` for experiment-spe
 - Let dataset `load` policy control materialization.
 - Define collation behavior for new value types.
 
+### Resolve resources inside a system
+
+Systems using `OnlineResourceMixin.get_resource(batch, name)` receive a
+`ResolvedResource` with `values`, optional `lengths`, and optional `metadata`.
+Loaded resources take precedence over online encoders. Online encoders are
+frozen by default; only explicitly selected trainable encoders retain gradients.
+Loaded tensor resources are detached even when an online encoder is trainable.
+
+`ContentFeatures` results preserve their representation descriptors in metadata:
+`feature_dim`, `representation_type`, `temporal_granularity`, `backend`,
+`model_name`, `layer`, and `frame_hz`. This describes the source representation;
+consumers must account for later transforms separately. `TensorResourceBatch`
+and plain tensors have no representation metadata, and resolution does not
+invent it. A `None` field such as `frame_hz` remains `None`.
+
+For an existing system and batch:
+
+```python
+content = system.get_resource(batch, "content")
+values, lengths = content.values, content.lengths
+frame_hz = content.metadata.get("frame_hz") if content.metadata is not None else None
+```
+
+Custom encoders may return `ResolvedResource(values, lengths, metadata=...)`
+to supply their own metadata mapping. Resolution copies the mapping so edits
+to its keys do not mutate the source; nested custom values are shared.
+Legacy `(values, lengths)` tuples and wrappers with a non-callable `.values`
+attribute and optional `.lengths` remain supported, without metadata inference.
+Other objects, including dictionaries, remain ordinary resource values.
+
 ## Add an optional backend
 
 - Put the dependency in a meaningful optional profile.
