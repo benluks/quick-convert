@@ -65,8 +65,14 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         if reference_seconds is not None:
             if not math.isfinite(reference_seconds) or reference_seconds <= 0:
                 raise ValueError("reference_seconds must be finite and positive.")
-            if getattr(self.decoder, "content_encoder", None) is None:
-                raise ValueError("Separate SSLR references require the duration-controlled decoder.")
+            if (
+                getattr(self.decoder, "content_encoder", None) is None
+                or getattr(self.decoder, "stream_conditioning", None) is None
+                or "content" not in self.system.online_encoders
+            ):
+                raise ValueError(
+                    "Separate SSLR references require duration-controlled stream conditioning and an online content encoder."
+                )
         self.reference_seconds = reference_seconds
         if content_audio_resource is not None:
             if not content_audio_resource or "content" not in self.system.online_encoders:
@@ -161,10 +167,10 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             batch = self._paired_audio(batch, self.content_audio_resource, encoder.sample_rate)
         return self.system.get_resource(batch, "content")
 
-    def _conditioning_streams(self, batch, target_lengths=None):
+    def _conditioning_kwargs(self, batch, target_lengths=None):
         """Extract prefixes from selected references, retaining original targets."""
         if self.reference_seconds is None:
-            return self.system.conditioning_streams(batch, target_lengths)
+            return {"streams": self.system.conditioning_streams(batch, target_lengths)}
         if batch.sample_rates is None or torch.any(batch.sample_rates != batch.sample_rates[0]):
             raise ValueError("Reference conditioning requires a common source sample rate.")
         sample_rate = int(batch.sample_rates[0])
@@ -179,7 +185,8 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             streams["mel"] = ConditioningStream(
                 mels.transpose(1, 2)[:, : int(prefix_lengths.max())], prefix_lengths, is_prefix=True
             )
-        return streams
+        features, lengths, _ = self._encode_content(self.system.get_resource(reference, "content"))
+        return {"streams": streams, "prefix_content": (features, lengths)}
 
     def _shared_step(
         self,
@@ -199,14 +206,12 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             sampling_rate=batch.sample_rates[0],
             speaker_embedding=speaker_embedding,
             **(
-                {
-                    "streams": self._conditioning_streams(
-                        batch,
-                        None
-                        if getattr(self.decoder, "content_encoder", None) is not None
-                        else self.decoder.flow.output_lengths(lengths),
-                    )
-                }
+                self._conditioning_kwargs(
+                    batch,
+                    None
+                    if getattr(self.decoder, "content_encoder", None) is not None
+                    else self.decoder.flow.output_lengths(lengths),
+                )
                 if getattr(self.decoder, "stream_conditioning", None) is not None
                 else {}
             ),
@@ -292,12 +297,13 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
 
         stream_kwargs = {}
         if getattr(self.decoder, "stream_conditioning", None) is not None:
-            streams = self._conditioning_streams(
+            stream_kwargs = self._conditioning_kwargs(
                 batch,
                 None
                 if getattr(self.decoder, "content_encoder", None) is not None
                 else self.decoder.flow.output_lengths(output.lengths),
             )
+            streams = stream_kwargs["streams"]
             if "mel" in self.decoder.stream_conditioning.dimensions and "mel" not in streams:
                 mels, mel_lengths = self.decoder._compute_mels(
                     batch.waveforms, batch.lengths, sampling_rate=batch.sample_rates[0]

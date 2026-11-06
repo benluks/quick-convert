@@ -97,7 +97,8 @@ def test_separate_references_reach_training_and_validation_without_changing_targ
         batch = next(iter(dataset.make_dataloader(batch_size=2)))
         assert batch.resources["reference_path"].paths == list(reversed(batch.paths))
         original = batch.waveforms.clone()
-        streams = training._conditioning_streams(batch)
+        conditioning = training._conditioning_kwargs(batch)
+        streams = conditioning["streams"]
         reference, prefix_lengths = probe.calls[-1]
         assert reference.lengths.tolist() == [1600, 1280]
         assert prefix_lengths.tolist() == [4, 3]
@@ -107,7 +108,9 @@ def test_separate_references_reach_training_and_validation_without_changing_targ
         output = training._shared_step(batch, "val")
         output.loss.backward()
         assert torch.isfinite(output.loss)
-        encoded = training.system.online_encoders["content"].calls[-1]
+        encoded, encoded_reference = training.system.online_encoders["content"].calls[-2:]
+        assert encoded_reference.paths == reference.paths
+        torch.testing.assert_close(encoded_reference.lengths, reference.lengths)
         assert encoded.paths == batch.resources["tts_path"].paths
         assert encoded.lengths.tolist() == [1920, 960]
         assert torch.all(encoded.waveforms[:, 0] > batch.waveforms[:, 0])
@@ -124,8 +127,11 @@ def test_reference_validation_generation_uses_other_recording(paired_datasets, m
     output = training._shared_step(batch, "val")
     captured = {}
 
-    def decode(*args, streams, **kwargs):
+    def decode(*args, streams, prefix_content, **kwargs):
         captured.update(streams)
+        values, lengths = prefix_content
+        assert lengths.tolist() == [5, 4]
+        torch.testing.assert_close(values[:, 0, 0], batch.waveforms.flip(0)[:, 0])
         # Stop after observing the validation generation inputs; no vocoder download.
         raise RuntimeError("observed-reference")
 
@@ -161,7 +167,8 @@ def test_mel_reference_training_and_validation_preserve_selected_reference(paire
     reference_audio = torch.stack((batch.waveforms[1, :1600], batch.waveforms[0, :1280].new_zeros(1600)))
     reference_audio[1, :1280] = batch.waveforms[0, :1280]
     reference_mels, _ = training.decoder._compute_mels(reference_audio, torch.tensor([1600, 1280]), 16000)
-    streams = training._conditioning_streams(batch)
+    conditioning = training._conditioning_kwargs(batch)
+    streams = conditioning["streams"]
     assert set(streams) == {"mel"}
     assert streams["mel"].is_prefix
     assert streams["mel"].lengths.tolist() == [4, 3]
@@ -178,13 +185,13 @@ def test_mel_reference_training_and_validation_preserve_selected_reference(paire
     output.loss.backward()
     assert torch.isfinite(output.loss)
     torch.testing.assert_close(observed[0].values, streams["mel"].values)
-    generated = training.system.generate_features(
+    generated = training.system.decode_features(
         output.features.detach(),
         output.lengths,
-        streams=streams,
+        **conditioning,
         duration_ratio=torch.tensor([4 / 6, 8 / 3]),
         run_vocoder=False,
-    ).generation
+    )
     assert generated.mel_lengths.tolist() == [4, 8]
     assert torch.isfinite(generated.mel).all()
 
@@ -285,13 +292,13 @@ def test_dac_adapter_handles_raw_tts_flac_and_mel_prefix_training(paired_dataset
         parameter.grad is not None and parameter.grad.abs().sum() > 0
         for parameter in training.decoder.content_encoder.parameters()
     )
-    generated = training.system.generate_features(
-        content.values,
-        content.lengths,
-        streams=training._conditioning_streams(batch),
+    generated = training.system.decode_features(
+        output.features.detach(),
+        output.lengths,
+        **training._conditioning_kwargs(batch),
         duration_ratio=torch.tensor([4 / 6, 8 / 3]),
         run_vocoder=False,
-    ).generation
+    )
     assert generated.mel_lengths.tolist() == [4, 8]
     assert torch.isfinite(generated.mel).all()
 

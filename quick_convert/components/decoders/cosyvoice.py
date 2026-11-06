@@ -317,6 +317,15 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
             reference = replace(reference, features=self.input_projection(reference.features))
         return reference
 
+    def _encode_prefix_content(self, prefix_content):
+        prompt, prompt_lengths = prefix_content
+        validate_feature_sequence(prompt, prompt_lengths, feature_dim=getattr(self, "feature_dim", None))
+        if self.input_projection is not None and getattr(self, "content_encoder", None) is None:
+            prompt = self.input_projection(prompt)
+        prefix_lengths = self.requested_mel_lengths(prompt_lengths)
+        prefix_h, _ = self._content_and_speaker(prompt, prompt_lengths, None, prefix_lengths)
+        return prefix_h, prefix_lengths
+
     def compute_loss(
         self,
         features: torch.Tensor,
@@ -328,7 +337,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         mask: torch.Tensor = None,
         reference: CosyVoiceReference | None = None,
         streams: dict[str, ConditioningStream] | None = None,
-        # cond: Optional[torch.Tensor] = None,
+        prefix_content: tuple[torch.Tensor, torch.Tensor] | None = None,
     ):
         """
         Thin wrapper around donor compute_loss.
@@ -340,6 +349,10 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
             raise ValueError("Named streams require stream_conditioning configuration.")
         if self.stream_conditioning is not None and reference is not None:
             raise ValueError("Use named stream prefixes instead of CosyVoiceReference in stream mode.")
+        if prefix_content is not None and (
+            self.stream_conditioning is None or getattr(self, "content_encoder", None) is None
+        ):
+            raise ValueError("Independent prefix content requires duration-controlled stream conditioning.")
         input_rate = getattr(self.flow, "input_frame_rate", None)
         ratio = getattr(self.flow, "token_mel_ratio", None)
         if input_rate is not None and ratio is not None:
@@ -396,9 +409,20 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
                 supplied["mel"] = ConditioningStream(targets, mel_lengths)
             if getattr(self, "content_encoder", None) is not None:
                 h, spks = self._content_and_speaker(features, lengths, speaker_embedding, mel_lengths)
+                prefix_h, prefix_lengths = (
+                    (None, None) if prefix_content is None else self._encode_prefix_content(prefix_content)
+                )
                 return CosyVoiceDecoderOutput(
                     loss=independent_prefix_loss(
-                        self.flow, self.stream_conditioning, h, spks, targets, mel_lengths, supplied
+                        self.flow,
+                        self.stream_conditioning,
+                        h,
+                        spks,
+                        targets,
+                        mel_lengths,
+                        supplied,
+                        prefix_h=prefix_h,
+                        prefix_lengths=prefix_lengths,
                     )
                 )
             conditions, loss_mask = self.stream_conditioning.training_conditions(supplied, mel_lengths, targets)
@@ -479,12 +503,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
             prefix_h = None
             prefix_lengths = None
             if prefix_content is not None:
-                prompt, prompt_lengths = prefix_content
-                validate_feature_sequence(prompt, prompt_lengths, feature_dim=getattr(self, "feature_dim", None))
-                if self.input_projection is not None and getattr(self, "content_encoder", None) is None:
-                    prompt = self.input_projection(prompt)
-                prefix_lengths = self.requested_mel_lengths(prompt_lengths)
-                prefix_h, _ = self._content_and_speaker(prompt, prompt_lengths, None, prefix_lengths)
+                prefix_h, prefix_lengths = self._encode_prefix_content(prefix_content)
             prefixes, prefix_lengths = self.stream_conditioning.prefix_conditions(
                 prefix_streams, h, lengths=prefix_lengths
             )

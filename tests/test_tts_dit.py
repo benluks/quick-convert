@@ -81,10 +81,13 @@ def test_independent_prefix_scores_every_target_frame(monkeypatch):
     import quick_convert.components.decoders.stream_flow as module
 
     def loss(flow, h, spks, targets, lengths, conditions, score):
-        assert lengths.tolist() == [7, 8]
+        assert lengths.tolist() == [8, 10]
         assert score.sum(1).tolist() == [2, 6]
-        assert h[0, :5].count_nonzero() == 0
-        torch.testing.assert_close(targets[0, 5:7], torch.ones(2, 2))
+        torch.testing.assert_close(h[0, :6], torch.full((6, 2), 2.0))
+        torch.testing.assert_close(h[1, :4], torch.full((4, 2), 2.0))
+        torch.testing.assert_close(h[0, 6:8], torch.ones(2, 2))
+        assert conditions[0, :, -1].tolist() == [1, 1, 1, 1, 1, 0, 0, 0, 0, 0]
+        torch.testing.assert_close(targets[0, 6:8], torch.ones(2, 2))
         return targets.sum()
 
     monkeypatch.setattr(module, "stream_flow_loss", loss)
@@ -96,6 +99,8 @@ def test_independent_prefix_scores_every_target_frame(monkeypatch):
         torch.ones(2, 6, 2),
         torch.tensor([2, 6]),
         {"speaker": ConditioningStream(torch.ones(2, 5, 2), torch.tensor([5, 2]), is_prefix=True)},
+        prefix_h=torch.full((2, 6, 2), 2.0),
+        prefix_lengths=torch.tensor([6, 4]),
     )
 
 

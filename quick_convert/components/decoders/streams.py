@@ -99,7 +99,7 @@ class StreamConditioning(nn.Module):
         keep = torch.rand(lengths.shape, device=lengths.device) >= self.stream_drop_probability
         return prefix_lengths * keep
 
-    def training_conditions(self, streams, lengths, template):
+    def training_conditions(self, streams, lengths, template, *, prefix_lengths=None):
         """Sample independent prefixes and score only their shared continuation."""
         self._validate(streams, template)
         if torch.any(lengths <= 0) or torch.any(lengths > template.shape[1]):
@@ -107,14 +107,15 @@ class StreamConditioning(nn.Module):
         prefixes = {}
         for name, stream in streams.items():
             if stream.is_prefix:
-                if torch.any(stream.lengths >= lengths):
+                if prefix_lengths is None and torch.any(stream.lengths >= lengths):
                     raise ValueError("A supplied training prefix must leave at least one continuation frame.")
                 prefixes[name] = stream
             else:
                 if torch.any(stream.lengths != lengths):
                     raise ValueError(f"Training stream {name!r} must cover each target on the mel clock.")
                 prefixes[name] = ConditioningStream(stream.values, self.sample_prefix_lengths(lengths), is_prefix=True)
-        packed, prefix_lengths = self.prefix_conditions(prefixes, template)
+        align_ends = prefix_lengths is None
+        packed, prefix_lengths = self.prefix_conditions(prefixes, template, lengths=prefix_lengths)
         # Independently hide bricks inside each supplied prefix without exposing
         # auxiliary context in the continuation.
         packed = packed.clone()
@@ -122,9 +123,10 @@ class StreamConditioning(nn.Module):
         for name, dim in self.dimensions.items():
             if name in prefixes:
                 for i, size in enumerate(prefixes[name].lengths.tolist()):
+                    size = min(size, int(prefix_lengths[i]))
                     fraction = torch.empty((), device=lengths.device).uniform_(*self.context_mask_fraction).item()
                     count = min(size, math.ceil(size * fraction))
-                    start = int(prefix_lengths[i]) - size
+                    start = int(prefix_lengths[i]) - size if align_ends else 0
                     start += int(torch.randint(size - count + 1, (), device=lengths.device))
                     packed[i, start : start + count, offset : offset + dim + 1] = 0
             offset += dim + 1

@@ -310,6 +310,7 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
         run_vocoder: bool = True,
         streams: dict[str, ConditioningStream] | None = None,
         duration_ratio: float | torch.Tensor = 1.0,
+        prefix_content: tuple[torch.Tensor, torch.Tensor] | None = None,
     ) -> CosyVoiceGenerationOutput:
         """Generate from already transformed or encoded content features."""
         if getattr(self.decoder, "content_encoder", None) is None:
@@ -324,6 +325,7 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
                 {"duration_ratio": duration_ratio} if getattr(self.decoder, "content_encoder", None) is not None else {}
             ),
             **({"streams": streams} if streams is not None else {}),
+            **({"prefix_content": prefix_content} if prefix_content is not None else {}),
         )
 
     def speaker_condition(self, batch: AudioBatch) -> torch.Tensor | None:
