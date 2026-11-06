@@ -162,3 +162,42 @@ def test_evaluation_rejects_invalid_pairing(tmp_path, pred_ids, ref_ids, message
     with pytest.raises(ValueError, match=message):
         pipeline.run()
     assert not (tmp_path / "predictions.csv").exists()
+
+
+def test_ser_distance_uses_explicit_reference_system(tmp_path):
+    from quick_convert.pipelines.evaluation.metrics import MeanEuclideanDistanceMetric
+
+    class EmotionSystem:
+        def get_labels(self, batch):
+            return [[1.0, 0.0] if Path(sample.path).stem == "ref-b" else [0.0, 1.0] for sample in batch]
+
+    system = EmotionSystem()
+    pipeline = EvalPipeline(
+        dataset=BatchDataset(make_batch("a", "b")),
+        ref_dataset=BatchDataset(make_batch("b", "a", prefix="ref-")),
+        system=system,
+        metrics=[MeanEuclideanDistanceMetric()],
+        reference_systems={"ser_embedding": system},
+        out_dir=tmp_path,
+        batch_size=2,
+    )
+    assert pipeline.run()["ser_med"] == pytest.approx(2**0.5 / 2)
+    with (tmp_path / "predictions.csv").open(newline="") as file:
+        import csv
+
+        rows = list(csv.DictReader(file))
+    assert [float(row["ser_med"]) for row in rows] == pytest.approx([0, 2**0.5])
+
+
+def test_ser_distance_rejects_broadcasting():
+    from quick_convert.pipelines.evaluation.metrics import MeanEuclideanDistanceMetric
+
+    with pytest.raises(ValueError, match="matching emotion vectors"):
+        MeanEuclideanDistanceMetric().compute([1, 2], [1])
+
+
+def test_unavailable_uar_fails_explicitly():
+    from quick_convert.pipelines.evaluation.metrics.emo.uar import UAR
+
+    with pytest.raises(NotImplementedError, match="ground-truth emotion labels"):
+        UAR()

@@ -19,7 +19,8 @@ class EvalPipeline:
     record. This keeps metadata such as speaker identity generic and opt-in
     instead of assigning it a dedicated sample field. With a separate reference
     dataset, both datasets must have the same unique utterance IDs. Records
-    follow prediction order.
+    follow prediction order. ``reference_systems`` maps metric keys to systems
+    that generate reference values from the separate dataset.
     """
 
     def __init__(
@@ -32,11 +33,18 @@ class EvalPipeline:
         num_workers: int = 0,
         ref_dataset: BaseDataset | None = None,  # optional argument
         record_resources: Iterable[str] | None = None,
+        reference_systems: dict[str, object] | None = None,
     ):
         self.dataset = dataset
         self.ref_dataset = ref_dataset  # Store the reference dataset
         self.system = system
         self.metrics = list(metrics or [])
+        self.reference_systems = dict(reference_systems or {})
+        unknown_keys = self.reference_systems.keys() - {metric.key for metric in self.metrics}
+        if unknown_keys:
+            raise ValueError(f"Reference systems have no corresponding metric: {sorted(unknown_keys)}")
+        if self.reference_systems and ref_dataset is None:
+            raise ValueError("Reference systems require a separate reference dataset.")
         self.out_dir = Path(out_dir)
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -78,7 +86,8 @@ class EvalPipeline:
     def _reference_values(self, batch) -> dict[str, list]:
         refs = {}
         for metric in self.metrics:
-            values = metric.get_references(batch)
+            reference_system = self.reference_systems.get(metric.key)
+            values = metric.get_references(batch) if reference_system is None else reference_system.get_labels(batch)
             if len(values) != len(batch):
                 raise ValueError(
                     f"Reference data returned {len(values)} values for key {metric.key!r}, "

@@ -135,3 +135,14 @@ reference, even when their paths or manifest row positions differ. Evaluation
 writes predictions in prediction dataset order and raises an error on missing,
 extra, or duplicate IDs. With no separate dataset, metrics read references from
 the prediction batch.
+
+### Emotion representation distance
+
+`MeanEuclideanDistanceMetric()` compares emotion vectors and reports
+`ser_med`. Provide precomputed reference vectors in the `ser_embedding`
+resource, or pass `reference_systems={"ser_embedding": ser_system}` to
+`EvalPipeline` with a separate reference dataset. Reuse the prediction system
+as the reference system to compare vectors from the same model. Model settings
+such as `device` and `model_name` belong on `OdysseySER`. Its vectors are class
+probabilities. UAR requires categorical predictions and ground-truth emotion
+labels and is currently unavailable.
