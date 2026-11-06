@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+from ..provenance import execution_metadata, resolved_config
+
 
 def describe_component(component) -> dict | None:
     if component is None:
@@ -16,6 +18,12 @@ def describe_component(component) -> dict | None:
     return description
 
 
-def write_provenance(out_dir: Path, *, protocol: str, config: dict | None, **details) -> None:
-    payload = {"schema_version": 1, "protocol": protocol, "resolved_config": config, **details}
+def write_provenance(out_dir: Path, *, protocol: str, config: str | None, **details) -> None:
+    payload = {
+        "schema_version": 1,
+        "protocol": protocol,
+        "resolved_config": resolved_config(config),
+        "execution": execution_metadata(),
+        **details,
+    }
     (out_dir / "provenance.json").write_text(json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8")

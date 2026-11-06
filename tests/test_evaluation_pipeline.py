@@ -182,11 +182,12 @@ def test_ser_distance_uses_explicit_reference_system(tmp_path):
         out_dir=tmp_path,
         batch_size=2,
     )
-    pipeline.log_config({"seed": 17, "ref_dataset": {"manifest_path": "references.csv"}})
+    pipeline.write_config("seed: 17\nref_dataset: {manifest_path: references.csv}\n")
     assert pipeline.run()["ser_med"] == pytest.approx(2**0.5 / 2)
     provenance = json.loads((tmp_path / "provenance.json").read_text())
     assert provenance["schema_version"] == 1
     assert provenance["protocol"] == "utterance"
+    assert provenance["execution"]["working_directory"] == str(Path.cwd())
     assert provenance["pairing"] == "utt_id"
     assert provenance["resolved_config"]["ref_dataset"]["manifest_path"] == "references.csv"
     assert provenance["models"]["reference"]["ser_embedding"] == provenance["models"]["prediction"]

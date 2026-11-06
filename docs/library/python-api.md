@@ -151,7 +151,8 @@ labels and is currently unavailable.
 
 Both evaluation workflows write `provenance.json` next to `results.json`. It
 records the protocol, pairing policy, dataset and model descriptors, and
-metrics. CLI runs also include the resolved Hydra configuration, including any
-configured seed and dataset paths. Direct Python runs record the information
-available from their supplied objects. The sidecar records declared inputs
+metrics, plus the same code revision, package version, and working directory
+fields as conversion. CLI runs also include the resolved Hydra configuration
+with any configured seed and dataset paths. Direct Python runs record the
+information available from their supplied objects. The sidecar records declared inputs
 and settings. It does not fingerprint model weights or dataset contents.

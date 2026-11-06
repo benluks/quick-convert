@@ -64,7 +64,7 @@ class ASVEvaluator:
             enrollment_aggregation if enrollment_aggregation is not None else SpeakerEmbeddingAggregation()
         )
 
-    def log_config(self, config: dict) -> None:
+    def write_config(self, config: str) -> None:
         """Capture the resolved configuration supplied by the CLI runner."""
         self._resolved_config = config
 

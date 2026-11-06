@@ -58,7 +58,7 @@ class EvalPipeline:
         if self.ref_dataset is None:
             print("No reference dataset provided. Falling back to predictions for evaluation.")
 
-    def log_config(self, config: dict) -> None:
+    def write_config(self, config: str) -> None:
         """Capture the resolved configuration supplied by the CLI runner."""
         self._resolved_config = config
 
