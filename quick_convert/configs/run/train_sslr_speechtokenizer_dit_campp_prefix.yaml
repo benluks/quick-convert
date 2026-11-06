@@ -1,8 +1,12 @@
 # @package _global_
+
 defaults:
-  - train_sslr_w2vbert_dit_campp_prefix
-  - override /components/ssl@system.online_encoders.content: speechtokenizer_quantized
+  - /recipe: sslr_dit_campp_prefix
+  - /components/ssl@system.online_encoders.content: speechtokenizer_quantized
   - _self_
+
+# Preserve the existing experiment name and output directory.
+exp_name: train_sslr_w2vbert_dit_campp_prefix_${dataset_name}
 
 # Capabilities of the standard speechtokenizer_hubert_avg checkpoint.
 data:
