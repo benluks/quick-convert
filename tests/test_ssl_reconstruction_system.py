@@ -291,6 +291,7 @@ def test_native_reference_conversion_prepares_content_mels_and_global_embedding(
     from quick_convert.components.decoders.cosyvoice_reference import CosyVoiceReference
     from quick_convert.components.reference_prompt import SpeechPromptBuilder
     from quick_convert.components.speaker.aggregation import SpeakerEmbeddingAggregation
+    from quick_convert.systems.conversion.reference import ReferenceCondition
     from quick_convert.systems.conversion.targets import ReferenceSpeech
 
     class NativeDecoder(FakeDecoder):
@@ -305,6 +306,8 @@ def test_native_reference_conversion_prepares_content_mels_and_global_embedding(
             assert reference.features.shape == (2, 3, 4)
             assert reference.mel_lengths.tolist() == [3, 3]
             torch.testing.assert_close(speaker_embedding, torch.full((2, 5), 7 / 3))
+            reference.features.zero_()
+            speaker_embedding.zero_()
             return super().forward(
                 feature=feature, length=length, speaker_embedding=speaker_embedding, run_vocoder=run_vocoder
             )
@@ -344,7 +347,19 @@ def test_native_reference_conversion_prepares_content_mels_and_global_embedding(
         lengths=torch.tensor([1600, 1600]),
         sample_rates=torch.tensor([16000, 16000]),
     )
-    assert len(system.convert_batch(batch, target=target)) == 2
+    calls = []
+    original = ReferenceCondition.decoder_kwargs
+
+    def record_kwargs(condition, batch_size, **kwargs):
+        calls.append(batch_size)
+        return original(condition, batch_size, **kwargs)
+
+    monkeypatch.setattr(ReferenceCondition, "decoder_kwargs", record_kwargs)
+    features = target.conditioning.reference.features.clone()
+    for _ in range(2):
+        assert len(system.convert_batch(batch, target=target)) == 2
+        torch.testing.assert_close(target.conditioning.reference.features, features)
+    assert calls == [2, 2]
 
 
 def test_source_voice_conversion_uses_source_reconstruction():

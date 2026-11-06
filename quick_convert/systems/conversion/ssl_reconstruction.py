@@ -80,6 +80,16 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
             sample_rates=torch.tensor([sample_rate], device=device),
         )
 
+    def _validate_prepared_target(self, target: PreparedTarget) -> None:
+        if target.representation == "ssl-source-v1":
+            if target.space != self.target_space or target.conditioning is not None:
+                raise ValueError("Prepared source target belongs to a different model or representation.")
+            return
+        if target.space != self.target_space or target.representation != "ssl-reference-v1":
+            raise ValueError("Prepared target belongs to a different model or representation.")
+        if not isinstance(target.conditioning, ReferenceCondition):
+            raise ValueError("Expected prepared reference conditioning.")
+
     @torch.inference_mode()
     def prepare_target(self, target: ReferenceSpeech | SourceVoice | PreparedTarget) -> PreparedTarget:
         """Prepare the saved decoder's native reference or named streams."""
@@ -87,17 +97,10 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
             raise RuntimeError("Call eval() before preparing targets.")
         if isinstance(target, SourceVoice):
             return PreparedTarget(None, self.target_space, "ssl-source-v1")
-        if isinstance(target, PreparedTarget) and target.representation == "ssl-source-v1":
-            if target.space != self.target_space or target.conditioning is not None:
-                raise ValueError("Prepared source target belongs to a different model or representation.")
-            return target
-        conditioning = getattr(self.decoder, "stream_conditioning", None)
-        needs_embedding = self.decoder.requires_speaker_embedding
         if isinstance(target, PreparedTarget):
-            if target.space != self.target_space or target.representation != "ssl-reference-v1":
-                raise ValueError("Prepared target belongs to a different model or representation.")
-            if not isinstance(target.conditioning, ReferenceCondition):
-                raise ValueError("Expected prepared reference conditioning.")
+            self._validate_prepared_target(target)
+            if target.representation == "ssl-source-v1":
+                return target
             probe = next(self.parameters(), torch.empty(0))
             kwargs = target.conditioning.decoder_kwargs(1, device=probe.device, dtype=probe.dtype)
             return replace(
@@ -110,6 +113,8 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
             )
         if not isinstance(target, ReferenceSpeech):
             raise TypeError("Expected ReferenceSpeech or PreparedTarget.")
+        conditioning = getattr(self.decoder, "stream_conditioning", None)
+        needs_embedding = self.decoder.requires_speaker_embedding
         if not needs_embedding and target.aggregation is not None:
             raise ValueError("Stream targets without a global embedding do not support embedding aggregation.")
         if target.allow_missing_streams and conditioning is None:
@@ -200,7 +205,10 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
         """Generate source content with the prepared target conditions."""
         if self.training:
             raise RuntimeError("Call eval() before converting speech.")
-        target = self.prepare_target(target)
+        if isinstance(target, PreparedTarget):
+            self._validate_prepared_target(target)
+        else:
+            target = self.prepare_target(target)
         if target.representation == "ssl-source-v1":
             if inference_cfg_rate is not None:
                 raise ValueError("SourceVoice does not accept an inference_cfg_rate override.")
