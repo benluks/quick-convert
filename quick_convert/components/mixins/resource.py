@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from typing import Any
 
 import torch
@@ -91,17 +91,14 @@ class OnlineResourceMixin:
             return ResolvedResource(
                 values=OnlineResourceMixin._maybe_detach(resource.values, detach),
                 lengths=resource.lengths,
-                metadata={
-                    field.name: getattr(resource, field.name)
-                    for field in fields(ContentFeatures)
-                    if field.name not in {"values", "lengths"}
-                },
+                metadata=resource.representation_metadata(),
             )
 
         if isinstance(resource, TensorResourceBatch):
             return ResolvedResource(
                 values=OnlineResourceMixin._maybe_detach(resource.values, detach),
                 lengths=resource.lengths,
+                metadata=dict(resource.metadata) if resource.metadata is not None else None,
             )
 
         # Tensors expose a callable ``values`` method for sparse operations;
