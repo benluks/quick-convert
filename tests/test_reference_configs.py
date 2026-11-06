@@ -171,14 +171,18 @@ def test_w2vbert_precompute_pipeline_instantiates_without_downloading_model(
     monkeypatch,
     tmp_path,
 ):
+    loaded_revisions = []
+
     class FakeProcessor:
         @classmethod
         def from_pretrained(cls, *args, **kwargs):
+            loaded_revisions.append(kwargs["revision"])
             return cls()
 
     class FakeModel:
         @classmethod
         def from_pretrained(cls, *args, **kwargs):
+            loaded_revisions.append(kwargs["revision"])
             return cls()
 
         def to(self, device):
@@ -213,11 +217,13 @@ def test_w2vbert_precompute_pipeline_instantiates_without_downloading_model(
                 f"out_root={tmp_path / 'out'}",
                 f"pipeline.out_dir={tmp_path / 'features'}",
                 "device=cpu",
+                "+feature_extractor.encoder.revision=test-revision",
             ],
         )
 
     pipeline = instantiate(config.pipeline)
 
+    assert loaded_revisions == ["test-revision", "test-revision"]
     assert pipeline.extractor.encoder.model_name == "facebook/w2v-bert-2.0"
     from quick_convert.components.ssl import W2VBertContentEncoder
 

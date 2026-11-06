@@ -58,7 +58,8 @@ Some older checkpoints pickle custom training objects in their hyperparameters.
 Deserializing those files still needs the classes that originally saved them.
 Export once in that environment to produce an artifact that loads independently.
 New standard training checkpoints omit instantiated optimization objects from
-hyperparameters.
+hyperparameters. A saved W2V-BERT encoder `revision` pins both its feature
+extractor and model when restoring the system.
 
 For checkpoint-file sources, relative config paths start beside the checkpoint.
 For run-directory sources, relative config and checkpoint paths start at the
