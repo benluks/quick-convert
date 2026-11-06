@@ -35,8 +35,11 @@ quick-convert train_sslr_tts_dac_dit_mel_prefix \
 ```
 
 `reference_seconds` limits independently loaded reference audio. Training scores
-the entire original target after prepending reference context; reference frames
-do not contribute to the target loss. Missing pairs, empty recordings, and a
+the entire original target after prepending content features from that
+reference. Its CAMPPlus or mel stream starts on the same prefix clock, with
+auxiliary masking applied independently. The reference content is also present
+in validation audio generation. Reference frames are excluded from the target
+loss. Missing pairs, empty recordings, and a
 reference/content path resolving to the target itself raise errors. Original
 batch audio and resources are preserved.
 

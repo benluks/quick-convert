@@ -24,7 +24,9 @@ def content_and_speaker(flow, features, lengths, speaker):
     return h, spks
 
 
-def independent_prefix_loss(flow, conditioning, h, spks, targets, lengths, streams):
+def independent_prefix_loss(
+    flow, conditioning, h, spks, targets, lengths, streams, *, prefix_h=None, prefix_lengths=None
+):
     """Prepend independent reference context while scoring the entire target."""
     from .streams import ConditioningStream
 
@@ -34,7 +36,9 @@ def independent_prefix_loss(flow, conditioning, h, spks, targets, lengths, strea
         else ConditioningStream(stream.values, conditioning.sample_prefix_lengths(stream.lengths), is_prefix=True)
         for name, stream in streams.items()
     }
-    _, prefix_lengths = conditioning.prefix_conditions(prefixes, targets)
+    content_lengths = prefix_lengths
+    if prefix_lengths is None:
+        _, prefix_lengths = conditioning.prefix_conditions(prefixes, targets)
     total_lengths = prefix_lengths + lengths
 
     def prepend(values):
@@ -44,8 +48,21 @@ def independent_prefix_loss(flow, conditioning, h, spks, targets, lengths, strea
         )
 
     targets = prepend(targets)
-    conditions, score = conditioning.training_conditions(prefixes, total_lengths, targets)
-    return stream_flow_loss(flow, prepend(h), spks, targets, total_lengths, conditions, score)
+    conditions, score = conditioning.training_conditions(
+        prefixes, total_lengths, targets, prefix_lengths=content_lengths
+    )
+    h = prepend(h) if prefix_h is None else _prepend_content(h, lengths, prefix_h, prefix_lengths)
+    return stream_flow_loss(flow, h, spks, targets, total_lengths, conditions, score)
+
+
+def _prepend_content(h, lengths, prefix_h, prefix_lengths):
+    return pad_sequence(
+        [
+            torch.cat((prompt[:p], src[:n]))
+            for prompt, src, n, p in zip(prefix_h, h, lengths, prefix_lengths, strict=True)
+        ],
+        batch_first=True,
+    )
 
 
 def stream_flow_loss(flow, h, spks, targets, lengths, conditions, loss_mask):
@@ -74,13 +91,7 @@ def stream_flow_sample(flow, h, lengths, spks, prefixes, prefix_lengths, steps, 
     cfm = flow.decoder
     if prefix_h is None:
         prefix_h = h.new_zeros((h.shape[0], int(prefix_lengths.max()), h.shape[-1]))
-    h = pad_sequence(
-        [
-            torch.cat((prompt[:p], src[:n]))
-            for prompt, src, n, p in zip(prefix_h, h, lengths, prefix_lengths, strict=True)
-        ],
-        batch_first=True,
-    )
+    h = _prepend_content(h, lengths, prefix_h, prefix_lengths)
     total_lengths = prefix_lengths + lengths
     conditions = pad_sequence(
         [F.pad(src[:p], (0, 0, 0, int(n))) for src, p, n in zip(prefixes, prefix_lengths, lengths, strict=True)],
