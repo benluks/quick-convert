@@ -1,7 +1,7 @@
 # @package _global_
 defaults:
-  - precompute_content_dac_librispeech
-  - override /components/ssl@encoder: speechtokenizer_quantized
+  - /recipe: librispeech_codec_precompute
+  - /components/ssl@encoder: speechtokenizer_quantized
   - _self_
 
 encoder:

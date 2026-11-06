@@ -1,0 +1,20 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: precompute_features
+  - /dataset: librispeech
+  - /components/feature_extractor@feature_extractor: content
+  - _self_
+
+dataset:
+  splits:
+    - train-clean-100
+    - train-clean-360
+    - train-other-500
+    - dev-clean
+    - dev-other
+  load: true
+
+pipeline:
+  skip_existing: true
