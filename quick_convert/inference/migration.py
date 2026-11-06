@@ -4,6 +4,13 @@ from collections.abc import Mapping
 
 
 _TARGETS = {
+    "quick_convert.pipelines.training.lightning_trainer.LightningTrainer": "quick_convert.training.lightning.trainer.LightningTrainer",
+    "quick_convert.pipelines.training.sentencepiece_trainer.TokenizerTrainer": "quick_convert.training.tokenizer.TokenizerTrainer",
+    "quick_convert.pipelines.training.modules.tokenizer.bpe.SentencePieceBPETrainer": "quick_convert.training.tokenizers.sentencepiece.SentencePieceBPETrainer",
+    "quick_convert.pipelines.training.modules.vq_asr.VQASRTrainingModule": "quick_convert.training.lightning.modules.vq_asr.VQASRTrainingModule",
+    "quick_convert.pipelines.training.modules.ssl_reconstruction.SSLReconstructionTrainingModule": "quick_convert.training.lightning.modules.ssl_reconstruction.SSLReconstructionTrainingModule",
+    "quick_convert.pipelines.training.optim.base.Optimization": "quick_convert.training.lightning.optim.Optimization",
+    "quick_convert.pipelines.training.optim.base.LinearWarmup": "quick_convert.training.lightning.optim.LinearWarmup",
     "quick_convert.systems.conversion.ssl.SSLReconstructionConversionSystem": "quick_convert.systems.conversion.ssl_reconstruction.SSLReconstructionConversionSystem",
     "quick_convert.systems.reconstruction.SSLReconstructionSystem": "quick_convert.systems.conversion.ssl_reconstruction.SSLReconstructionConversionSystem",
     "quick_convert.systems.reconstruction.ssl.SSLReconstructionSystem": "quick_convert.systems.conversion.ssl_reconstruction.SSLReconstructionConversionSystem",

@@ -50,6 +50,10 @@ system = load_inference_system(
 )
 ```
 
+Loading a training module through `from_run()` migrates known historical Hydra
+targets within its saved module config, including the optimizer and warmup.
+Direct Hydra instantiation of historical YAML still uses its recorded imports.
+
 Some older checkpoints pickle custom training objects in their hyperparameters.
 Deserializing those files still needs the classes that originally saved them.
 Export once in that environment to produce an artifact that loads independently.

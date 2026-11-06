@@ -99,3 +99,34 @@ def test_old_hub_backend_targets_restore_weights_and_override_device(monkeypatch
     torch.testing.assert_close(restored.model.weight, model.weight)
     if old_class == "KNNVCAnonymizer":
         assert calls[0]["device"] == "cpu"
+
+
+def test_historical_training_yaml_migrates_nested_targets():
+    saved = OmegaConf.create("""
+    trainer:
+      _target_: quick_convert.pipelines.training.lightning_trainer.LightningTrainer
+      module:
+        _target_: quick_convert.pipelines.training.modules.vq_asr.VQASRTrainingModule
+        optimization:
+          _target_: quick_convert.pipelines.training.optim.base.Optimization
+          warmup:
+            _target_: quick_convert.pipelines.training.optim.base.LinearWarmup
+    reconstruction:
+      _target_: quick_convert.pipelines.training.modules.ssl_reconstruction.SSLReconstructionTrainingModule
+    tokenizer_trainer:
+      _target_: quick_convert.pipelines.training.sentencepiece_trainer.TokenizerTrainer
+      tokenizer:
+        _target_: quick_convert.pipelines.training.modules.tokenizer.bpe.SentencePieceBPETrainer
+    """)
+    migrated = OmegaConf.create(migrate_system_config(OmegaConf.to_container(saved)))
+    assert migrated.trainer._target_ == "quick_convert.training.lightning.trainer.LightningTrainer"
+    assert migrated.trainer.module._target_ == "quick_convert.training.lightning.modules.vq_asr.VQASRTrainingModule"
+    assert migrated.trainer.module.optimization._target_ == "quick_convert.training.lightning.optim.Optimization"
+    assert migrated.trainer.module.optimization.warmup._target_ == "quick_convert.training.lightning.optim.LinearWarmup"
+    assert migrated.reconstruction._target_ == (
+        "quick_convert.training.lightning.modules.ssl_reconstruction.SSLReconstructionTrainingModule"
+    )
+    assert migrated.tokenizer_trainer._target_ == "quick_convert.training.tokenizer.TokenizerTrainer"
+    assert migrated.tokenizer_trainer.tokenizer._target_ == (
+        "quick_convert.training.tokenizers.sentencepiece.SentencePieceBPETrainer"
+    )

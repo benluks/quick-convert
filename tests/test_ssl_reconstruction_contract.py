@@ -241,6 +241,10 @@ def test_from_run_migrates_old_system_targets_and_parameter_keys(tmp_path, slot)
             parameter.fill_(0.73)
     config = {"trainer": {"module": module_config}}
     if slot == "legacy":
+        module_config["_target_"] = (
+            "quick_convert.pipelines.training.modules.ssl_reconstruction.SSLReconstructionTrainingModule"
+        )
+        module_config["optimization"]["_target_"] = "quick_convert.pipelines.training.optim.base.Optimization"
         config = {"pipeline": config}
     OmegaConf.save(OmegaConf.create(config), tmp_path / "config.yaml")
     (tmp_path / "checkpoints").mkdir()
