@@ -64,6 +64,11 @@ and output directories are preserved. The system choices for the prefix runs
 are `dit_cosyvoice` and `cmdiff_cosyvoice`, respectively. Causal masked diffusion
 presets retain their `_cfs` manifest suffix through `data_file_suffix`.
 
+The W2V-BERT DiT stream presets share `recipe/sslr_w2vbert_dit_streams.yaml`.
+The DAC and SpeechTokenizer LibriSpeech precompute presets share
+`recipe/librispeech_codec_precompute.yaml` and select their encoders and output
+paths in their respective run files.
+
 ## Overrides
 
 Hydra overrides use dotted paths:

@@ -2,18 +2,7 @@
 
 # Minimal executable stream example; add named mel-clock resources for more controls.
 defaults:
-  - train_sslr_w2vbert_dit
+  - /recipe: sslr_w2vbert_dit_streams
   - _self_
 
 exp_name: train_sslr_w2vbert_dit_streams_${dataset_name}
-
-system:
-  decoder:
-    stream_conditioning:
-      _target_: quick_convert.components.decoders.StreamConditioning
-      dimensions:
-        mel: 80
-    flow:
-      decoder:
-        estimator:
-          cond_dim: 81  # 80 mel channels + one availability indicator

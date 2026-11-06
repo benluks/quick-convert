@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - sslr_manifest_training
+  - /system/conversion@system: w2vbert_dit_cosyvoice
+  - _self_
+
+system:
+  decoder:
+    stream_conditioning:
+      _target_: quick_convert.components.decoders.StreamConditioning
+      dimensions:
+        mel: 80
+    flow:
+      decoder:
+        estimator:
+          cond_dim: 81  # 80 mel channels + one availability indicator
