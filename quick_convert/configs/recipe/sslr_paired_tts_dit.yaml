@@ -1,0 +1,63 @@
+# @package _global_
+
+defaults:
+  - sslr_manifest_training
+  - /system/conversion@system: dit_cosyvoice
+  - _self_
+
+# Original-audio manifests, paired with mirrored TTS FLAC recordings.
+tts_data_path: ???
+reference_seconds: 3.0
+reference_seed: 0
+
+trainer:
+  module:
+    reference_seconds: ${reference_seconds}
+    content_audio_resource: tts_path
+
+data:
+  target_sr: 16000
+
+system:
+  feature_transform: null
+  decoder:
+    feature_dim: 1024
+    stream_conditioning:
+      # Reference audio is independent of the continuation; allow longer context.
+      prefix_fraction: [0.5, 1.0]
+    content_encoder:
+      _target_: quick_convert.components.encoders.upsample_conformer.UpsampleConformerEncoder
+      input_size: ${..feature_dim}
+      output_size: 256
+      num_blocks: 6
+    flow:
+      input_frame_rate: 50
+      token_mel_ratio: 1
+      pre_lookahead_layer: null
+
+train_dataset:
+  manifest_path: ${dataset_path}/speaker_split/train_tts_checked.csv
+  target_sr: 16000
+  load: [audio, tts_path, reference_path]
+  resource_providers:
+    - _target_: quick_convert.data.resources.PathResourceProvider
+      name: tts_path
+      kind: audio
+      sample_rate: 16000
+      path_template: ${tts_data_path}/{path.parent.parent.parent.name}/{path.parent.parent.name}/{path.parent.name}/{path.stem}.flac
+    - _target_: quick_convert.data.resources.SameSpeakerReferenceProvider
+      manifest_path: ${train_dataset.manifest_path}
+      seed: ${reference_seed}
+      kind: audio
+      sample_rate: ${data.target_sr}
+val_dataset:
+  manifest_path: ${dataset_path}/speaker_split/val_tts_checked.csv
+  target_sr: 16000
+  load: [audio, tts_path, reference_path]
+  resource_providers:
+    - ${train_dataset.resource_providers.0}
+    - _target_: quick_convert.data.resources.SameSpeakerReferenceProvider
+      manifest_path: ${val_dataset.manifest_path}
+      seed: ${reference_seed}
+      kind: audio
+      sample_rate: ${data.target_sr}
