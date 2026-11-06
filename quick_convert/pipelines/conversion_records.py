@@ -5,10 +5,8 @@ import json
 import logging
 import os
 import re
-import subprocess
 from collections.abc import Mapping
 from datetime import UTC, datetime
-from importlib.metadata import version
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from urllib.parse import quote
@@ -17,6 +15,7 @@ from uuid import uuid4
 import yaml
 from omegaconf import OmegaConf
 
+from quick_convert.pipelines.provenance import execution_metadata, resolved_config
 from quick_convert.utils.paths import checkpoint_run_config
 
 
@@ -199,30 +198,6 @@ def read_journal(path: Path) -> list[dict]:
     return rows
 
 
-def _code_revision():
-    try:
-        return subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=Path(__file__).parents[2], capture_output=True, text=True, check=True
-        ).stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        return None
-
-
-def _code_dirty():
-    try:
-        return bool(
-            subprocess.run(
-                ["git", "status", "--porcelain", "--untracked-files=no"],
-                cwd=Path(__file__).parents[2],
-                capture_output=True,
-                text=True,
-                check=True,
-            ).stdout.strip()
-        )
-    except (OSError, subprocess.CalledProcessError):
-        return None
-
-
 class ConversionRecords:
     """Durable per-output records with atomic, derived YAML snapshots.
 
@@ -259,7 +234,7 @@ class ConversionRecords:
         if self.metadata.get("inference_cfg_rate") is not None:
             self.identity["inference_cfg_rate"] = self.metadata["inference_cfg_rate"]
         if config:
-            configured = yaml.safe_load(config)
+            configured = resolved_config(config)
             system = dict(configured.get("system") or configured.get("anonymizer") or {})
             # Device selection and loader batch sizes do not define a variant.
             system.pop("map_location", None)
@@ -269,11 +244,10 @@ class ConversionRecords:
         self.records = {}
         self.targets = {}
         self.generated = self.skipped = 0
-        self.code_revision = _code_revision()
-        self.code_dirty = _code_dirty()
+        self.execution = execution_metadata()
         self.created = datetime.now(UTC).isoformat()
         self.status = "running"
-        self.config_hash = digest(yaml.safe_load(self.config))
+        self.config_hash = digest(resolved_config(self.config))
 
     def __enter__(self):
         self.out_dir.mkdir(parents=True, exist_ok=True)
@@ -293,8 +267,8 @@ class ConversionRecords:
             if not (self.out_dir / filename).exists():
                 (self.out_dir / filename).touch()
         if self.config:
-            atomic_yaml(self.out_dir / "config.yaml", yaml.safe_load(self.config))
-            atomic_yaml(self.out_dir / "configs" / f"{self.config_hash}.yaml", yaml.safe_load(self.config))
+            atomic_yaml(self.out_dir / "config.yaml", resolved_config(self.config))
+            atomic_yaml(self.out_dir / "configs" / f"{self.config_hash}.yaml", resolved_config(self.config))
         self.refresh()
         logger.info(
             "Conversion records: %s; SpeechScope manifest: %s",
@@ -437,8 +411,8 @@ class ConversionRecords:
             "run_id": self.run_id,
             "model": self.model,
             "created_at": datetime.now(UTC).isoformat(),
-            "git_commit": self.code_revision,
-            "git_dirty": self.code_dirty,
+            "git_commit": self.execution["git_commit"],
+            "git_dirty": self.execution["git_dirty"],
             "config_sha256": self.config_hash,
         }
         append_record(self.out_dir / "conversions.jsonl", row)
@@ -528,10 +502,7 @@ class ConversionRecords:
                 "execution": {
                     "converted": self.generated,
                     "skipped": self.skipped,
-                    "git_commit": self.code_revision,
-                    "git_dirty": self.code_dirty,
-                    "package_version": version("quick-convert"),
-                    "working_directory": str(Path.cwd()),
+                    **self.execution,
                 },
                 "files": {
                     "config": "config.yaml" if self.config else None,

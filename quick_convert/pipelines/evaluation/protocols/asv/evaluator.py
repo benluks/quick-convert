@@ -13,6 +13,7 @@ from quick_convert.components.speaker import SpeakerEmbeddingAggregation, Speake
 from quick_convert.components.speaker.aggregation import audio_durations
 from quick_convert.data import BaseDataset
 
+from ...provenance import describe_component, write_provenance
 from .scoring import evaluate_trials
 from .trials import ASVTrial
 
@@ -38,6 +39,7 @@ class ASVEvaluator:
         cache_every: int = 100,
         enrollment_aggregation: SpeakerEmbeddingAggregation | None = None,
     ) -> None:
+        self._resolved_config = None
         self.enroll_dataset = enroll_dataset
         self.test_dataset = test_dataset
         self.speaker_encoder = speaker_encoder
@@ -62,6 +64,10 @@ class ASVEvaluator:
             enrollment_aggregation if enrollment_aggregation is not None else SpeakerEmbeddingAggregation()
         )
 
+    def write_config(self, config: str) -> None:
+        """Capture the resolved configuration supplied by the CLI runner."""
+        self._resolved_config = config
+
     def run(self) -> dict[str, float | int]:
         results = self.evaluate(
             enroll_dataset=self.enroll_dataset,
@@ -76,6 +82,21 @@ class ASVEvaluator:
         ) as f:
             json.dump(results, f, indent=2)
 
+        write_provenance(
+            self.out_dir,
+            protocol="asv",
+            config=self._resolved_config,
+            pairing="all_enrollment_speakers_by_test_utterance",
+            datasets={
+                "enrollment": describe_component(self.enroll_dataset),
+                "test": describe_component(self.test_dataset),
+            },
+            models={"speaker_encoder": describe_component(self.speaker_encoder)},
+            metrics=[{"key": "eer", "type": "discrete_eer", "score": "cosine"}],
+            enrollment_aggregation=self.enrollment_aggregation.method,
+            speaker_id_resource=self.spkid_key,
+            embedding_cache_key=self.cache_key if self.cache_embeddings else None,
+        )
         return results
 
     @torch.inference_mode()

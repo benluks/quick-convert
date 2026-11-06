@@ -85,7 +85,9 @@ def test_fixed_conversion_records_paths_identity_and_rebuild(tmp_path):
     assert variant["metadata"]["dataset"] == "librispeech"
     target_id = variant["settings"]["target_id"]
     assert load(output / "targets.yaml")["targets"][target_id]["references"][0]["root"] == "librispeech"
-    assert load(output / "run.yaml")["status"] == "complete"
+    run = load(output / "run.yaml")
+    assert run["status"] == "complete"
+    assert {"git_commit", "git_dirty", "package_version", "working_directory"} <= run["execution"].keys()
     assert len(list((output / "configs").glob("*.yaml"))) == 1
 
     for filename in ("speechscope.yaml", "targets.yaml", "config.yaml", "target_assignments.jsonl"):

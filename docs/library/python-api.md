@@ -146,3 +146,13 @@ as the reference system to compare vectors from the same model. Model settings
 such as `device` and `model_name` belong on `OdysseySER`. Its vectors are class
 probabilities. UAR requires categorical predictions and ground-truth emotion
 labels and is currently unavailable.
+
+### Evaluation provenance
+
+Both evaluation workflows write `provenance.json` next to `results.json`. It
+records the protocol, pairing policy, dataset and model descriptors, and
+metrics, plus the same code revision, package version, and working directory
+fields as conversion. CLI runs also include the resolved Hydra configuration
+with any configured seed and dataset paths. Direct Python runs record the
+information available from their supplied objects. The sidecar records declared inputs
+and settings. It does not fingerprint model weights or dataset contents.

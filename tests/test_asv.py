@@ -47,6 +47,13 @@ def test_asv_all_pairs_and_saved_results(tmp_path):
     result = evaluator.run()
     assert result == {"eer": 0.0, "eer_threshold": 1.0, "num_target_trials": 2, "num_non_target_trials": 2}
     assert json.loads((tmp_path / "results.json").read_text()) == result
+    provenance = json.loads((tmp_path / "provenance.json").read_text())
+    assert provenance["schema_version"] == 1
+    assert provenance["protocol"] == "asv"
+    assert provenance["resolved_config"] is None
+    assert provenance["pairing"] == "all_enrollment_speakers_by_test_utterance"
+    assert provenance["enrollment_aggregation"] == evaluator.enrollment_aggregation.method
+    assert provenance["metrics"] == [{"key": "eer", "type": "discrete_eer", "score": "cosine"}]
 
 
 def test_explicit_trials(tmp_path):
