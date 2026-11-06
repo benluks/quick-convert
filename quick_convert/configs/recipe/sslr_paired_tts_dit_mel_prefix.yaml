@@ -1,0 +1,20 @@
+# @package _global_
+
+defaults:
+  - sslr_paired_tts_dit
+  - _self_
+
+system:
+  online_encoders:
+    speaker: null
+    frame_speaker: null
+  decoder:
+    stream_conditioning:
+      _target_: quick_convert.components.decoders.StreamConditioning
+      dimensions:
+        mel: 80
+    flow:
+      decoder:
+        estimator:
+          cond_dim: ${add:${system.decoder.stream_conditioning.dimensions.mel},1}
+          spk_dim: null

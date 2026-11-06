@@ -10,6 +10,8 @@ content audio, target audio, and speaker/reference audio.
 The supported roots are `train_sslr_tts_dit_campp_prefix`,
 `train_sslr_tts_dit_mel_prefix`, and `train_sslr_tts_dac_dit_mel_prefix`.
 The first two use W2V-BERT's final layer; the third uses continuous DAC features.
+All three compose the shared paired TTS DiT recipe. The CAMPPlus run adds
+frame-speaker conditioning, and the two mel-prefix runs share a mel-only recipe.
 They train a first-party Conformer content encoder and DiT decoder. The content
 sequence is resized per example to the target mel duration, so synthesized and
 original recordings need not have equal lengths.
