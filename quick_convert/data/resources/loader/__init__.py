@@ -3,7 +3,7 @@ from dataclasses import replace
 import torch
 
 from ..audio import load_audio_resource
-from ..base import ResourceRef
+from ..base import CONTENT_FEATURE_CACHE_FORMAT, ResourceRef
 
 
 def load_torch(ref, device="cpu"):
@@ -31,4 +31,10 @@ def load_resource(ref: ResourceRef, **kwargs):
 
     loader_fn = LOADER_REGISTRY[ref.kind]
     value = loader_fn(ref, **kwargs)
+    if ref.kind == "torch_tensor" and isinstance(value, dict) and value.get("format") == CONTENT_FEATURE_CACHE_FORMAT:
+        tensor = value.get("values")
+        metadata = value.get("metadata")
+        if not isinstance(tensor, torch.Tensor) or tensor.ndim < 2 or not isinstance(metadata, dict):
+            raise ValueError(f"Invalid cached content payload for resource {ref.name!r}.")
+        return replace(ref, value=tensor, metadata=metadata)
     return replace(ref, value=value)

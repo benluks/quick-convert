@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -53,6 +53,14 @@ class ContentFeatures:
             )
         if self.frame_hz is not None and self.frame_hz <= 0:
             raise ValueError(f"frame_hz must be positive when provided, got {self.frame_hz}.")
+
+    def representation_metadata(self) -> dict:
+        """Describe this representation independently of batch storage."""
+        return {
+            field.name: getattr(self, field.name)
+            for field in fields(ContentFeatures)
+            if field.name not in {"values", "lengths"}
+        }
 
 
 class ContentEncoder(nn.Module, ABC):

@@ -32,6 +32,7 @@ ResourceKind = Literal[
     "audio",
 ]
 RESOURCE_KINDS = frozenset(ResourceKind.__args__)
+CONTENT_FEATURE_CACHE_FORMAT = "quick-convert-content-v1"
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,7 @@ class ResourceRef:
 
     # Audio resources are mono; None preserves the file sample rate.
     sample_rate: int | None = None
+    metadata: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.kind not in RESOURCE_KINDS:
@@ -149,6 +151,7 @@ class ResourceCollection:
 class TensorResourceBatch:
     values: torch.Tensor
     lengths: torch.Tensor
+    metadata: dict[str, Any] | None = None
 
     def __len__(self) -> int:
         return self.values.shape[0]
@@ -201,8 +204,11 @@ def _collate_tensor_resources(
     all batches to have the same input shape.
     """
 
+    metadata = refs[0].metadata
     tensors = []
     for ref in refs:
+        if ref.metadata != metadata:
+            raise ValueError(f"Resource {ref.name!r} has inconsistent representation metadata.")
         if ref.value is None:
             raise ValueError(f"Resource {ref.name} has no loaded value. Make sure it is included in dataset.load.")
         if not isinstance(ref.value, torch.Tensor):
@@ -211,7 +217,9 @@ def _collate_tensor_resources(
                 f"{type(ref.value).__name__}, not torch.Tensor."
             )
 
-        tensors.append(_normalize_tensor_resource(ref.value))
+        # Versioned content payloads already have time on axis zero, even
+        # for a single frame with multiple layers.
+        tensors.append(ref.value if metadata is not None else _normalize_tensor_resource(ref.value))
 
     trailing_shape = tensors[0].shape[1:]
 
@@ -235,7 +243,7 @@ def _collate_tensor_resources(
     if squeeze_single_frame and padded.shape[1] == 1:
         padded = padded.squeeze(1)
 
-    return TensorResourceBatch(values=padded, lengths=lengths)
+    return TensorResourceBatch(values=padded, lengths=lengths, metadata=metadata)
 
 
 def _collate_resource_refs(refs: list[ResourceRef], samples, squeeze_single_frame_tensors: bool = False) -> Any:

@@ -86,3 +86,13 @@ as audio; select them in `load` before constructing batches.
 The usual `batch[index]` access retains loaded audio resources without keeping
 separate per-example waveform storage. Standard loading uses CPU tensors;
 Lightning handles transfer with the rest of the batch.
+
+### Cached content representations
+
+Content precomputation writes versioned tensor payloads with representation
+metadata, including the frame rate when known. Load them with the existing
+`torch_tensor` resource kind. Batches retain the metadata and reject mixtures
+of incompatible representations. Legacy bare tensors still load with unknown
+representation metadata. To regenerate an existing content cache in the new
+format, select a fresh precompute output directory. Code that reads the new
+files directly with `torch.load` can access the tensor under the `values` key.

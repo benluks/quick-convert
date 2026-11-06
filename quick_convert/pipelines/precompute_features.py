@@ -75,6 +75,9 @@ class PrecomputeFeaturesPipeline:
             "dataset": pipeline_config.get("dataset"),
             "inputs_sha256": inputs_digest,
         }
+        cache_format = getattr(self.extractor, "cache_format", None)
+        if cache_format is not None:
+            identity["cache_format"] = cache_format
         path = self.out_root / "provenance.json"
         if not path.exists():
             if (self.out_root / "manifest.jsonl").exists() or any(self.out_root.rglob("*.pt")):

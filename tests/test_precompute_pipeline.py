@@ -167,3 +167,72 @@ def test_precompute_rejects_legacy_cache_and_duplicate_destinations(tmp_path):
         pipeline.run()
     assert dataset.loaded == []
     assert not (output_dir / "provenance.json").exists()
+
+
+def test_cached_content_preserves_online_representation_contract(tmp_path):
+    from types import SimpleNamespace
+
+    from quick_convert.components.feature_extractors.content import ContentFeatureExtractor
+    from quick_convert.components.layers import LayerWeightedSum
+    from quick_convert.components.ssl.base import ContentFeatures
+    from quick_convert.data.resources import PathResourceProvider
+    from quick_convert.systems.conversion import SSLReconstructionConversionSystem
+
+    class Encoder(torch.nn.Module):
+        def forward(self, batch):
+            return ContentFeatures(
+                values=torch.arange(24, dtype=torch.float32).reshape(2, 3, 2, 2)
+                * torch.tensor([[1, 0, 0], [1, 1, 1]])[..., None, None],
+                lengths=torch.tensor([1, 3]),
+                feature_dim=2,
+                representation_type="continuous",
+                temporal_granularity="frame",
+                backend="test",
+                model_name="layered",
+                layer="all",
+                frame_hz=25.0,
+            )
+
+    dataset = make_dataset(tmp_path)
+    encoder = Encoder()
+    decoder = torch.nn.Identity()
+    decoder.flow = SimpleNamespace(input_frame_rate=25)
+    system = SSLReconstructionConversionSystem(
+        decoder, feature_transform=LayerWeightedSum(2), online_encoders={"content": encoder}
+    )
+    online_batch = next(iter(dataset.make_dataloader(batch_size=2)))
+    online = system.get_resource(online_batch, "content")
+    out_dir = tmp_path / "features"
+    PrecomputeFeaturesPipeline(dataset, ContentFeatureExtractor(encoder), out_dir, batch_size=2).run()
+
+    cached_dataset = BaseDataset(
+        rows=dataset.rows,
+        load=["content"],
+        resource_providers=[
+            PathResourceProvider("content", f"{out_dir}/{{sample.split}}/{{sample.utt_id}}.pt", "torch_tensor")
+        ],
+    )
+    cached_batch = next(iter(cached_dataset.make_dataloader(batch_size=2)))
+    cached = system.get_resource(cached_batch, "content")
+    torch.testing.assert_close(cached.values, online.values)
+    torch.testing.assert_close(cached.lengths, online.lengths)
+    assert cached.metadata == online.metadata
+    assert cached_batch[0].resources["content"].value.shape == (1, 2, 2)
+
+    def adapt(resource):
+        return system.encode_features(resource.values, resource.lengths, metadata=resource.metadata)[:2]
+
+    torch.testing.assert_close(adapt(cached), adapt(online))
+    decoder.flow.input_frame_rate = 50
+    for resource in (online, cached):
+        with pytest.raises(ValueError, match="frame rate"):
+            adapt(resource)
+
+    first, second = [out_dir / sample.split / f"{sample.utt_id}.pt" for sample in dataset.rows]
+    torch.save(torch.ones(3, 2), first)
+    with pytest.raises(ValueError, match="inconsistent representation metadata"):
+        next(iter(cached_dataset.make_dataloader(batch_size=2)))
+    torch.save(torch.ones(3, 2), second)
+    legacy = system.get_resource(next(iter(cached_dataset.make_dataloader(batch_size=2))), "content")
+    assert legacy.metadata is None
+    torch.testing.assert_close(legacy.values, torch.ones(2, 3, 2))
