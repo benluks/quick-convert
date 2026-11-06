@@ -125,3 +125,13 @@ The run directory must contain its resolved `config.yaml` and checkpoint. The re
 ## Stability boundary
 
 Public first-party interfaces under `quick_convert.data`, `quick_convert.systems`, and `quick_convert.inference` are the preferred library surface. Component modules are reusable but more architecture-specific. `quick_convert.external` is vendored implementation detail.
+
+## Evaluation with a separate reference dataset
+
+Pass `ref_dataset` to `EvalPipeline` to evaluate one recording collection
+against another. Both datasets must contain the same unique `utt_id` values.
+For example, give a converted recording the same `utt_id` as its original
+reference, even when their paths or manifest row positions differ. Evaluation
+writes predictions in prediction dataset order and raises an error on missing,
+extra, or duplicate IDs. With no separate dataset, metrics read references from
+the prediction batch.

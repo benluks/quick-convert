@@ -17,7 +17,9 @@ class EvalPipeline:
 
     ``record_resources`` names sample resources to copy into each prediction
     record. This keeps metadata such as speaker identity generic and opt-in
-    instead of assigning it a dedicated sample field.
+    instead of assigning it a dedicated sample field. With a separate reference
+    dataset, both datasets must have the same unique utterance IDs. Records
+    follow prediction order.
     """
 
     def __init__(
@@ -73,42 +75,53 @@ class EvalPipeline:
 
         return results
 
+    def _reference_values(self, batch) -> dict[str, list]:
+        refs = {}
+        for metric in self.metrics:
+            values = metric.get_references(batch)
+            if len(values) != len(batch):
+                raise ValueError(
+                    f"Reference data returned {len(values)} values for key {metric.key!r}, "
+                    f"but batch has size {len(batch)}"
+                )
+            refs[metric.key] = values
+        return refs
+
     def generate_records(self) -> list[dict]:
+        loader_kwargs = {"batch_size": self.batch_size, "num_workers": self.num_workers}
+        pred_loader = self.dataset.make_dataloader(**loader_kwargs)
 
-        # Create DataLoaders for both datasets
-        pred_loader = self.dataset.make_dataloader(batch_size=self.batch_size, num_workers=self.num_workers)
-
-        ref_loader = (
-            self.ref_dataset.make_dataloader(batch_size=self.batch_size, num_workers=self.num_workers)
-            if self.ref_dataset
-            else None
-        )
-
-        ref_iter = iter(ref_loader) if ref_loader else None
+        references_by_id = None
+        if self.ref_dataset is not None:
+            references_by_id = {}
+            for batch in self.ref_dataset.make_dataloader(**loader_kwargs):
+                refs = self._reference_values(batch)
+                for i, utt_id in enumerate(batch.utt_ids):
+                    if utt_id in references_by_id:
+                        raise ValueError(f"Duplicate reference utterance ID {utt_id!r}.")
+                    references_by_id[utt_id] = {key: values[i] for key, values in refs.items()}
 
         records = []
+        prediction_ids = set()
         for pred_batch in tqdm(pred_loader, desc="Evaluating"):
-            ref_batch = next(ref_iter) if ref_iter is not None else pred_batch
-            if len(ref_batch) != len(pred_batch):
-                raise ValueError("Mismatch between reference and prediction batches.")
+            if references_by_id is None:
+                refs = self._reference_values(pred_batch)
+            else:
+                paired_refs = []
+                for utt_id in pred_batch.utt_ids:
+                    if utt_id in prediction_ids:
+                        raise ValueError(f"Duplicate prediction utterance ID {utt_id!r}.")
+                    if utt_id not in references_by_id:
+                        raise ValueError(f"Missing reference for utterance ID {utt_id!r}.")
+                    prediction_ids.add(utt_id)
+                    paired_refs.append(references_by_id.pop(utt_id))
+                refs = {metric.key: [values[metric.key] for values in paired_refs] for metric in self.metrics}
 
-            refs = {}
             predictions = self.system.get_labels(pred_batch) if self.metrics else []
-
-            for metric in self.metrics:
-                refs[metric.key] = metric.get_references(ref_batch)
-
-            # Validate batch sizes
             if self.metrics and len(predictions) != len(pred_batch):
                 raise ValueError(
                     f"System returned {len(predictions)} predictions for a batch of size {len(pred_batch)}"
                 )
-            for key, values in refs.items():
-                if len(values) != len(pred_batch):
-                    raise ValueError(
-                        f"Reference data returned {len(values)} values for key {key!r}, "
-                        f"but batch has size {len(pred_batch)}"
-                    )
 
             # Combine reference and prediction data into records
             for i, sample in enumerate(pred_batch):
@@ -139,6 +152,11 @@ class EvalPipeline:
 
                 records.append(record)
 
+        if references_by_id:
+            example = next(iter(references_by_id))
+            raise ValueError(
+                f"{len(references_by_id)} reference utterance(s) have no prediction, including {example!r}."
+            )
         return records
 
     def add_per_utt_scores(self, records: list[dict], metric: Metric) -> None:
