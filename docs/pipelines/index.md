@@ -16,8 +16,9 @@ yet share enough lifecycle behavior to justify a common base class.
 
 | Pipeline | Inference entry point | Output contract | Persistence |
 | --- | --- | --- | --- |
-| Feature precomputation | `extractor.extract_batch(AudioBatch)` | one feature object per input sample | tensor files and `manifest.jsonl` |
-| Evaluation | `system.get_labels(AudioBatch)` | one prediction per input sample | per-utterance CSV and aggregate JSON |
+| Feature precomputation | `extractor.extract_batch(AudioBatch)` | one feature object per input sample | feature files, manifest, and cache identity |
+| Utterance evaluation | `system.get_labels(AudioBatch)` | one prediction per input sample | per-utterance CSV, aggregate JSON, and provenance |
+| Speaker verification | `speaker_encoder.encode_batch(AudioBatch)` | embeddings scored over enrollment–test trials | aggregate JSON and provenance |
 | Speech conversion | `system.convert_batch(AudioBatch, target=prepared)` | `GeneratedAudio` with one waveform per input | audio, provenance, and manifests |
 
 Conversion systems live under `quick_convert.systems.conversion`. A system
@@ -28,8 +29,8 @@ selection and evaluation policy over conversion, rather than a separate model hi
 ## Execution lifecycle
 
 The shared CLI runner composes a run config and instantiates `cfg.pipeline`.
-When supported, it calls `prepare()` before `write_config()`, then invokes
-`pipeline.run(**cfg.run)`. Preparation allows the backend to determine its final
+It calls `prepare()`, `write_config()`, and `log_config()` in that order when
+the pipeline exposes them, then invokes `pipeline.run(**cfg.run)`. Preparation allows the backend to determine its final
 run directory before the resolved configuration is persisted. Direct calls to
 `TrainingPipeline.run()` prepare automatically. See [configuration](../config/reference.md)
 for aliases and composition slots.
