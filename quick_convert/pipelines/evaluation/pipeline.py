@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 from ...data.base_dataset import BaseDataset
 from .metrics import Metric
+from .provenance import describe_component, write_provenance
 
 
 class EvalPipeline:
@@ -35,6 +36,7 @@ class EvalPipeline:
         record_resources: Iterable[str] | None = None,
         reference_systems: dict[str, object] | None = None,
     ):
+        self._resolved_config = None
         self.dataset = dataset
         self.ref_dataset = ref_dataset  # Store the reference dataset
         self.system = system
@@ -55,6 +57,10 @@ class EvalPipeline:
 
         if self.ref_dataset is None:
             print("No reference dataset provided. Falling back to predictions for evaluation.")
+
+    def log_config(self, config: dict) -> None:
+        """Capture the resolved configuration supplied by the CLI runner."""
+        self._resolved_config = config
 
     def run(self) -> dict:
         records = self.generate_records()
@@ -80,6 +86,21 @@ class EvalPipeline:
         print(json.dumps(results, indent=2))
 
         self.write_results_json(results)
+        write_provenance(
+            self.out_dir,
+            protocol="utterance",
+            config=self._resolved_config,
+            pairing="utt_id" if self.ref_dataset is not None else "same_batch",
+            datasets={
+                "prediction": describe_component(self.dataset),
+                "reference": describe_component(self.ref_dataset),
+            },
+            models={
+                "prediction": describe_component(self.system),
+                "reference": {key: describe_component(system) for key, system in self.reference_systems.items()},
+            },
+            metrics=[{**describe_component(metric), "key": metric.key} for metric in self.metrics],
+        )
 
         return results
 
