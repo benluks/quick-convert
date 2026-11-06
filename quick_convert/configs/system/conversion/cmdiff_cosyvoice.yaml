@@ -1,0 +1,19 @@
+# @package system
+
+defaults:
+  - /components/decoders@decoder: causal_masked_diff
+  - _self_
+
+_target_: quick_convert.systems.conversion.SSLReconstructionConversionSystem
+online_encoders:
+  speaker:
+    _target_: quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusSpeakerEncoder
+decoder:
+  cond_strategy: null
+  flow:
+    spk_embed_dim: 192
+    vocab_size: null
+    input_frame_rate: ${class_attr:${system.online_encoders.content._target_},FRAME_HZ}
+    token_mel_ratio: ${frame_ratio:50,${.input_frame_rate}}
+    encoder:
+      upsample_factor: ${..token_mel_ratio}

@@ -1,31 +1,13 @@
 # @package system
 
 defaults:
-  - /components/ssl@online_encoders.content: w2vbert
-  - /components/decoders@decoder: causal_masked_diff
+  - w2vbert_cmdiff_cosyvoice
   - /components/layers@encoder: rvq_ema
   - _self_
 
-_target_: quick_convert.systems.conversion.SSLReconstructionConversionSystem
-feature_transform:
-  _target_: quick_convert.components.layers.layer_fusion.LayerWeightedSum
-  num_layers: 24
-online_encoders:
-  speaker:
-    _target_: quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusSpeakerEncoder
 encoder:
   input_dim: 1024
   n_codebooks: 8
   codebook_size: 1024
   codebook_dim: 16
   quantizer_dropout: 0.0
-decoder:
-  feature_dim: 1024
-  cond_strategy: null
-  flow:
-    spk_embed_dim: 192
-    vocab_size: null
-    input_frame_rate: ${class_attr:${system.online_encoders.content._target_},FRAME_HZ}
-    token_mel_ratio: ${frame_ratio:50,${.input_frame_rate}}
-    encoder:
-      upsample_factor: ${..token_mel_ratio}
