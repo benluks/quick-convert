@@ -37,7 +37,7 @@ The default protocol compares every enrolled speaker against every test utteranc
 Matching speaker IDs define targets. Both target and non-target trials are
 required. This is a simple all-pairs protocol, not an implementation of an
 external benchmark's official trial list. Memory scales with the number of
-speaker/utterance pairs.
+trials.
 
 ## Python API and explicit trials
 
@@ -58,6 +58,12 @@ results = evaluator.evaluate(
 
 `enroll_id` identifies a speaker; `test_id` identifies an utterance. `evaluate`
 returns results; `run` uses the default protocol and also writes `results.json`.
+
+If you already have embeddings, call `evaluate_trials(enrollment, test, trials)`
+from `quick_convert.pipelines.evaluation.protocols.asv`. Pass one aggregated
+vector per enrolled speaker and one vector per test utterance. The scorer uses
+the supplied target labels, computes cosine similarity only for listed pairs,
+and returns the same EER fields as `ASVEvaluator.evaluate()`.
 
 ## Enrollment aggregation
 

@@ -9,7 +9,7 @@ from quick_convert.components.speaker import SpeakerEmbeddingAggregation
 from quick_convert.data import AudioSample, BaseDataset
 from quick_convert.data.resources import ResourceCollection, ResourceRef
 from quick_convert.pipelines.evaluation.metrics.eer import compute_eer
-from quick_convert.pipelines.evaluation.protocols.asv import ASVEvaluator
+from quick_convert.pipelines.evaluation.protocols.asv import ASVEvaluator, evaluate_trials
 from quick_convert.pipelines.evaluation.protocols.asv.trials import ASVTrial
 
 
@@ -57,6 +57,19 @@ def test_explicit_trials(tmp_path):
     assert result["eer"] == 0
     with pytest.raises(ValueError, match="Unknown"):
         evaluator.evaluate(evaluator.enroll_dataset, evaluator.test_dataset, [ASVTrial("missing", "a3", True)])
+
+
+def test_trial_scoring_accepts_embeddings_and_uses_explicit_labels():
+    enrollment = {"a": torch.tensor([2.0, 0.0]), "b": torch.tensor([1.0, 3.0])}
+    test = {"a": torch.tensor([4.0, 0.0]), "unused": torch.tensor([0.0, 1.0])}
+    trials = iter([ASVTrial("a", "a", False), ASVTrial("b", "a", True)])
+    result = evaluate_trials(enrollment, test, trials)
+    assert result == {
+        "eer": 1.0,
+        "eer_threshold": 1.0,
+        "num_target_trials": 1,
+        "num_non_target_trials": 1,
+    }
 
 
 def test_cache_requires_identity_and_rejects_changed_key(tmp_path):
