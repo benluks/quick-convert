@@ -33,6 +33,9 @@ reported discrete EER averages FAR and FRR at the observed threshold minimizing
 their difference; it does not interpolate. Equal differences select the lowest
 threshold. Results from benchmarks using interpolated EER can differ.
 
+For the metadata saved beside these results, see
+[evaluation provenance](evaluation.md#evaluation-provenance).
+
 The default protocol compares every enrolled speaker against every test utterance.
 Matching speaker IDs define targets. Both target and non-target trials are
 required. This is a simple all-pairs protocol, not an implementation of an

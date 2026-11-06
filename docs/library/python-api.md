@@ -120,7 +120,8 @@ export_inference_artifact(
 )
 ```
 
-The run directory must contain its resolved `config.yaml` and checkpoint. The resulting artifact excludes optimizer, scheduler, logger, and callback state.
+See [exporting an artifact](../guides/inference.md#exporting-an-artifact) for
+checkpoint selection and artifact contents.
 
 ## Stability boundary
 
@@ -128,31 +129,15 @@ Public first-party interfaces under `quick_convert.data`, `quick_convert.systems
 
 ## Evaluation with a separate reference dataset
 
-Pass `ref_dataset` to `EvalPipeline` to evaluate one recording collection
-against another. Both datasets must contain the same unique `utt_id` values.
-For example, give a converted recording the same `utt_id` as its original
-reference, even when their paths or manifest row positions differ. Evaluation
-writes predictions in prediction dataset order and raises an error on missing,
-extra, or duplicate IDs. With no separate dataset, metrics read references from
-the prediction batch.
+See [evaluating speech outputs](../guides/evaluation.md#evaluation-with-a-separate-reference-dataset)
+for utterance pairing, emotion distance, and result provenance.
 
 ### Emotion representation distance
 
-`MeanEuclideanDistanceMetric()` compares emotion vectors and reports
-`ser_med`. Provide precomputed reference vectors in the `ser_embedding`
-resource, or pass `reference_systems={"ser_embedding": ser_system}` to
-`EvalPipeline` with a separate reference dataset. Reuse the prediction system
-as the reference system to compare vectors from the same model. Model settings
-such as `device` and `model_name` belong on `OdysseySER`. Its vectors are class
-probabilities. UAR requires categorical predictions and ground-truth emotion
-labels and is currently unavailable.
+See [emotion representation distance](../guides/evaluation.md#emotion-representation-distance)
+for the metric and reference-system setup.
 
 ### Evaluation provenance
 
-Both evaluation workflows write `provenance.json` next to `results.json`. It
-records the protocol, pairing policy, dataset and model descriptors, and
-metrics, plus the same code revision, package version, and working directory
-fields as conversion. CLI runs also include the resolved Hydra configuration
-with any configured seed and dataset paths. Direct Python runs record the
-information available from their supplied objects. The sidecar records declared inputs
-and settings. It does not fingerprint model weights or dataset contents.
+See [evaluation provenance](../guides/evaluation.md#evaluation-provenance) for
+the recorded fields.
