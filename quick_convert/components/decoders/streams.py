@@ -133,12 +133,14 @@ class StreamConditioning(nn.Module):
         target = (positions >= prefix_lengths[:, None]) & (positions < lengths[:, None])
         return packed, target
 
-    def prefix_conditions(self, streams, template):
-        """Left-pad each stream to its sample's longest prefix; batch padding is right."""
+    def prefix_conditions(self, streams, template, *, lengths=None):
+        """Pack streams on a supplied content clock, or align their ends by default."""
         self._validate(streams, template)
-        lengths = torch.zeros(template.shape[0], device=template.device, dtype=torch.long)
-        for stream in streams.values():
-            lengths = torch.maximum(lengths, stream.lengths)
+        align_ends = lengths is None
+        if align_ends:
+            lengths = torch.zeros(template.shape[0], device=template.device, dtype=torch.long)
+            for stream in streams.values():
+                lengths = torch.maximum(lengths, stream.lengths)
         time = int(lengths.max())
         packed = []
         for name, dim in self.dimensions.items():
@@ -148,7 +150,9 @@ class StreamConditioning(nn.Module):
                 stream = streams[name]
                 for i, size in enumerate(stream.lengths.tolist()):
                     end = int(lengths[i])
-                    values[i, end - size : end] = stream.values[i, :size]
-                    available[i, end - size : end] = True
+                    size = min(size, end)
+                    start = end - size if align_ends else 0
+                    values[i, start : start + size] = stream.values[i, :size]
+                    available[i, start : start + size] = True
             packed.extend((values, available[..., None].to(template.dtype)))
         return torch.cat(packed, dim=-1), lengths

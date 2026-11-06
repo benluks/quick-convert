@@ -12,8 +12,10 @@ target = system.prepare_target(ReferenceSpeech(["/audio/reference.wav"], prompt_
 generated = system.convert_batch(source_batch, target=target)
 ```
 
-SSL reconstruction systems support reference content/mels and named conditioning
-streams. Models with a global speaker encoder aggregate reference embeddings;
+SSL reference conversion always encodes the reference prompt's content.
+Named streams such as CAMPPlus or mel provide additional conditioning on the
+reference content timeline. The decoder discards the generated reference span
+and returns only the source continuation. Models with a global speaker encoder aggregate reference embeddings;
 `SpeakerEmbeddingAggregation("duration_weighted")` weights by recording duration.
 `SpeechPromptBuilder` can assemble a speech-only prompt across recordings. Missing
 named streams raise an error unless `allow_missing_streams=True` is explicit.
