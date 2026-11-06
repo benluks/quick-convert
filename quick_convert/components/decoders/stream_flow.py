@@ -69,11 +69,16 @@ def stream_flow_loss(flow, h, spks, targets, lengths, conditions, loss_mask):
 
 
 @torch.inference_mode()
-def stream_flow_sample(flow, h, lengths, spks, prefixes, prefix_lengths, steps, cfg_rate):
+def stream_flow_sample(flow, h, lengths, spks, prefixes, prefix_lengths, steps, cfg_rate, *, prefix_h=None):
     """Generate compact prefix+source sequences; return source-only padded mels."""
     cfm = flow.decoder
+    if prefix_h is None:
+        prefix_h = h.new_zeros((h.shape[0], int(prefix_lengths.max()), h.shape[-1]))
     h = pad_sequence(
-        [F.pad(src[:n], (0, 0, int(p), 0)) for src, n, p in zip(h, lengths, prefix_lengths, strict=True)],
+        [
+            torch.cat((prompt[:p], src[:n]))
+            for prompt, src, n, p in zip(prefix_h, h, lengths, prefix_lengths, strict=True)
+        ],
         batch_first=True,
     )
     total_lengths = prefix_lengths + lengths

@@ -440,6 +440,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         inference_cfg_rate: float | None = None,
         streams: dict[str, ConditioningStream] | None = None,
         duration_ratio: float | torch.Tensor = 1.0,
+        prefix_content: tuple[torch.Tensor, torch.Tensor] | None = None,
     ) -> CosyVoiceGenerationOutput:
         """Generate with optional per-call CFG; None retains the saved guidance rate."""
         validate_feature_sequence(feature, length, feature_dim=getattr(self, "feature_dim", None))
@@ -449,6 +450,8 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
                 raise ValueError("inference_cfg_rate must be finite and nonnegative.")
         if self.stream_conditioning is not None and reference is not None:
             raise ValueError("Use named stream prefixes instead of CosyVoiceReference in stream mode.")
+        if prefix_content is not None and self.stream_conditioning is None:
+            raise ValueError("Prefix content requires named stream conditioning.")
         generation_kwargs = {} if inference_cfg_rate is None else {"inference_cfg_rate": inference_cfg_rate}
         length = length.clone()
         feature = feature[:, : int(length.max())]
@@ -473,7 +476,18 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
                     name: replace(stream, values=stream.values.to(dtype=h.dtype))
                     for name, stream in prefix_streams.items()
                 }
-            prefixes, prefix_lengths = self.stream_conditioning.prefix_conditions(prefix_streams, h)
+            prefix_h = None
+            prefix_lengths = None
+            if prefix_content is not None:
+                prompt, prompt_lengths = prefix_content
+                validate_feature_sequence(prompt, prompt_lengths, feature_dim=getattr(self, "feature_dim", None))
+                if self.input_projection is not None and getattr(self, "content_encoder", None) is None:
+                    prompt = self.input_projection(prompt)
+                prefix_lengths = self.requested_mel_lengths(prompt_lengths)
+                prefix_h, _ = self._content_and_speaker(prompt, prompt_lengths, None, prefix_lengths)
+            prefixes, prefix_lengths = self.stream_conditioning.prefix_conditions(
+                prefix_streams, h, lengths=prefix_lengths
+            )
             cfg_rate = self.flow.decoder.inference_cfg_rate if inference_cfg_rate is None else inference_cfg_rate
             mel = stream_flow_sample(
                 self.flow,
@@ -484,6 +498,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
                 prefix_lengths,
                 self.stream_inference_steps,
                 cfg_rate,
+                prefix_h=prefix_h,
             )
         else:
             if streams is not None:

@@ -484,3 +484,63 @@ def test_float32_frozen_prefixes_work_during_autocast_generation():
     assert torch.isfinite(result.mel).all()
     assert values.dtype == torch.float32
     torch.testing.assert_close(values, original)
+
+
+def test_named_reference_conversion_keeps_reference_content_in_both_guidance_branches(tmp_path, monkeypatch):
+    from quick_convert.components.mixins.resource import ResolvedResource
+    from quick_convert.data import AudioBatch
+    from quick_convert.systems.conversion import ReferenceSpeech, SSLReconstructionConversionSystem
+
+    class Content(nn.Module):
+        sample_rate = 16000
+
+        def forward(self, batch):
+            lengths = batch.lengths // 320
+            values = batch.waveforms[:, :1, None].expand(-1, int(lengths.max()), 2).clone()
+            return ResolvedResource(values, lengths)
+
+    class Auxiliary(nn.Module):
+        sample_rate = 16000
+
+        def encode_prefixes(self, batch, lengths, frame_rate):
+            return ResolvedResource(torch.full((len(batch), int(lengths.max()), 2), 9.0), lengths)
+
+    class Vocoder(nn.Module):
+        samples_per_frame = 320
+        sample_rate = 16000
+
+        def forward(self, mel):
+            return mel[:, 0].repeat_interleave(self.samples_per_frame, dim=1)
+
+    model = decoder()
+    monkeypatch.setattr(model, "_get_vocoder", lambda: Vocoder())
+    system = SSLReconstructionConversionSystem(
+        model,
+        online_encoders={"content": Content(), "speaker": nn.Identity(), "prosody": Auxiliary()},
+    ).eval()
+    # The speaker encoder is model-specific; provide a stable global vector
+    # while exercising real reference and source content extraction.
+    monkeypatch.setattr(system, "speaker_condition", lambda batch: torch.ones(len(batch), 2))
+    monkeypatch.setattr(
+        "quick_convert.systems.conversion.ssl_reconstruction.load_audio_input",
+        lambda *args, **kwargs: torch.full((1, 640), 7.0),
+    )
+    target = system.prepare_target(ReferenceSpeech([tmp_path / "ref.wav"], prompt_seconds=0.04))
+    source = AudioBatch(
+        utt_ids=["a"],
+        paths=[tmp_path / "source.wav"],
+        splits=[None],
+        resources={},
+        waveforms=torch.ones(1, 1280),
+        lengths=torch.tensor([1280]),
+        sample_rates=torch.tensor([16000]),
+    )
+
+    audio = system.convert_batch(source, target=target, inference_cfg_rate=0.5)
+    assert audio.lengths.tolist() == [1280]
+    conditioned, unconditioned = model.flow.decoder.estimator.calls[:2]
+    expected = torch.tensor([[[7, 7, 1, 1, 1, 1], [7, 7, 1, 1, 1, 1]]], dtype=torch.float32)
+    torch.testing.assert_close(conditioned[0], expected)
+    torch.testing.assert_close(unconditioned[0], expected)
+    assert conditioned[1][..., :2].count_nonzero() > 0
+    assert unconditioned[1].count_nonzero() == 0

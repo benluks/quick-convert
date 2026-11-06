@@ -89,6 +89,13 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
             raise ValueError("Prepared target belongs to a different model or representation.")
         if not isinstance(target.conditioning, ReferenceCondition):
             raise ValueError("Expected prepared reference conditioning.")
+        if (
+            getattr(self.decoder, "stream_conditioning", None) is not None
+            and target.conditioning.prefix_content is None
+        ):
+            raise ValueError(
+                "Prepared stream reference requires prefix content. Prepare it again from ReferenceSpeech."
+            )
 
     @torch.inference_mode()
     def prepare_target(self, target: ReferenceSpeech | SourceVoice | PreparedTarget) -> PreparedTarget:
@@ -109,6 +116,7 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
                     kwargs["speaker_embedding"],
                     kwargs.get("reference"),
                     kwargs.get("streams"),
+                    kwargs.get("prefix_content"),
                 ),
             )
         if not isinstance(target, ReferenceSpeech):
@@ -141,21 +149,23 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
             embedding = policy(torch.cat(embeddings), durations=durations).unsqueeze(0).detach().clone()
             aggregation = policy.method
         batch, prompt = prepare_reference_audio(target, load_batch)
+        content = self.get_resource(batch, "content")
+        if content.lengths is None:
+            raise ValueError("Reference content requires valid lengths.")
+        features, content_lengths, _ = self.encode_features(content.values, content.lengths, metadata=content.metadata)
         streams = None
         reference = None
+        prefix_content = None
         if conditioning is None:
-            content = self.get_resource(batch, "content")
-            if content.lengths is None:
-                raise ValueError("Reference content requires valid lengths.")
-            features, lengths, _ = self.encode_features(content.values, content.lengths, metadata=content.metadata)
             reference = self.decoder.prepare_reference(
                 features,
-                lengths,
+                content_lengths,
                 batch.waveforms,
                 batch.lengths,
                 sample_rate,
             )
         else:
+            prefix_content = (features, content_lengths)
             lengths = self.decoder.mel_output_lengths(batch.lengths, sample_rate)
             if torch.any(lengths <= 0):
                 raise ValueError("Reference prompt is too short for the mel clock.")
@@ -187,7 +197,7 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
                     stream = ConditioningStream(resource.values, resource.lengths, True)
                 streams[name] = stream
         return PreparedTarget(
-            ReferenceCondition(embedding, reference, streams),
+            ReferenceCondition(embedding, reference, streams, prefix_content),
             self.target_space,
             "ssl-reference-v1",
             paths,

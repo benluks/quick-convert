@@ -18,6 +18,7 @@ class ReferenceCondition:
     embedding: torch.Tensor | None = None
     reference: CosyVoiceReference | None = None
     streams: dict[str, ConditioningStream] | None = None
+    prefix_content: tuple[torch.Tensor, torch.Tensor] | None = None
 
     def decoder_kwargs(self, batch_size, *, device, dtype):
         """Copy and expand target inputs without exposing prepared storage."""
@@ -37,6 +38,12 @@ class ReferenceCondition:
                 )
                 for name, stream in self.streams.items()
             }
+        if self.prefix_content is not None:
+            values, lengths = self.prefix_content
+            kwargs["prefix_content"] = (
+                values.to(device=device, dtype=dtype).expand(batch_size, -1, -1).clone(),
+                lengths.to(device=device).expand(batch_size).clone(),
+            )
         return kwargs
 
 
