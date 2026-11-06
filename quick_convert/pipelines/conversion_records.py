@@ -378,6 +378,8 @@ class ConversionRecords:
             "representation": target.representation,
             "space": target.space,
         }
+        if target.speaker_id is not None:
+            description["speaker_id"] = target.speaker_id
         if target.prompt_segments:
             count = sum(
                 segment.end_sample - segment.start_sample - segment.overlap_samples

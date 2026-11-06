@@ -11,6 +11,8 @@ from torch import nn
 
 from quick_convert.utils.device import DeviceLike
 
+from .migration import migrate_system_config
+
 
 ARTIFACT_FORMAT = "quick-convert-inference"
 ARTIFACT_VERSION = 1
@@ -39,7 +41,7 @@ def _resolved_system_config(system_config: Mapping[str, Any] | DictConfig) -> di
     resolved = OmegaConf.to_container(config, resolve=True)
     if not isinstance(resolved, dict) or "_target_" not in resolved:
         raise ValueError("An inference artifact requires a Hydra system config with `_target_`.")
-    return resolved
+    return migrate_system_config(resolved)
 
 
 def _write_artifact(

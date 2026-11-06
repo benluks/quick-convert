@@ -92,7 +92,7 @@ checks incompatible tensor shapes.
 
 ## System classes and extensions
 
-Existing ASR, reconstruction, anonymization and SER system bases inherit
+Existing ASR, conversion and SER system bases inherit
 `InferenceSystem`. Their class methods check the restored system's type:
 
 ```python
@@ -127,3 +127,5 @@ system composition without instantiating it. Required optional backends follow
 that system, rather than its former trainer. Exported artifacts can be inspected
 using their manifest alone; run and checkpoint inspection reads the checkpoint
 on CPU.
+
+Known saved conversion-system class targets migrate during loading. See [conversion migration](voice-conversion.md#conversion-systems-and-migration) for direct-import and custom-config changes.

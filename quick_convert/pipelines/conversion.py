@@ -18,8 +18,8 @@ from quick_convert.pipelines.conversion_records import (
     file_identity,
 )
 from quick_convert.pipelines.targets import DatasetReferenceTargets, resource_label
-from quick_convert.systems.anonymization.targets import PreparedTarget, ReferenceSpeech
 from quick_convert.systems.conversion.base import SpeechConversionSystem
+from quick_convert.systems.conversion.targets import PreparedTarget, ReferenceSpeech, SourceVoice, SpeakerIdentity
 
 
 if TYPE_CHECKING:
@@ -65,8 +65,19 @@ def reference_speech_from_dataset(
     )
 
 
+def reference_speech_from_directory(
+    root: PathLike, speaker_id: str | int, pattern: str = "*/*.flac"
+) -> ReferenceSpeech:
+    """Select a speaker's recordings at the workflow boundary."""
+    return ReferenceSpeech(sorted((Path(root) / str(speaker_id)).glob(pattern)))
+
+
 def target_description(target):
     """Describe selection and references without serializing conditioning tensors."""
+    if isinstance(target, SpeakerIdentity):
+        return {"mode": "identity", "speaker_id": target.speaker_id}
+    if isinstance(target, SourceVoice):
+        return {"mode": "resynthesize"}
     if isinstance(target, DatasetReferenceTargets):
         return {
             "mode": target.mode,
@@ -88,6 +99,7 @@ def target_description(target):
     if isinstance(target, PreparedTarget):
         return {
             "mode": "prepared",
+            **({"speaker_id": target.speaker_id} if target.speaker_id is not None else {}),
             "space": target.space,
             "representation": target.representation,
             "references": [str(path.resolve()) for path in target.references],
@@ -136,7 +148,7 @@ class SpeechConversionPipeline:
         self,
         system: SpeechConversionSystem,
         dataset: BaseDataset,
-        target: ReferenceSpeech | PreparedTarget | DatasetReferenceTargets,
+        target: ReferenceSpeech | SpeakerIdentity | SourceVoice | PreparedTarget | DatasetReferenceTargets,
         out_dir: PathLike | None = None,
         *,
         batch_size: int = 1,
@@ -149,8 +161,12 @@ class SpeechConversionPipeline:
         sample_seed: int = 0,
         inference_cfg_rate: float | None = None,
     ):
-        if not isinstance(target, (ReferenceSpeech, PreparedTarget, DatasetReferenceTargets)):
-            raise TypeError("Conversion requires reference speech, a prepared target, or dataset reference groups.")
+        if not isinstance(
+            target, (ReferenceSpeech, SpeakerIdentity, SourceVoice, PreparedTarget, DatasetReferenceTargets)
+        ):
+            raise TypeError(
+                "Conversion requires reference speech, a speaker identity, source voice, a prepared target, or dataset reference groups."
+            )
         if type(batch_size) is not int or batch_size < 1:
             raise ValueError("batch_size must be a positive integer.")
         if type(num_workers) is not int or num_workers < 0:
@@ -173,6 +189,8 @@ class SpeechConversionPipeline:
         self.metadata.update(self.generation_kwargs)
         if getattr(dataset, "root", None):
             self.metadata.setdefault("source_root", str(dataset.root))
+        if isinstance(target, (SpeakerIdentity, PreparedTarget)) and target.speaker_id is not None:
+            self.metadata.setdefault("target_speaker", target.speaker_id)
         self.description = target_description(target)
         if self.metadata.get("target_speaker") is not None:
             self.description["target_speaker"] = str(self.metadata["target_speaker"])

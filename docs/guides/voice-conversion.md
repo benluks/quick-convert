@@ -4,7 +4,7 @@ Load an inference system and prepare a target once, then convert source batches:
 
 ```python
 from quick_convert.inference import load_inference_system
-from quick_convert.systems.anonymization.targets import ReferenceSpeech
+from quick_convert.systems.conversion.targets import ReferenceSpeech
 
 system = load_inference_system("/models/export")
 system.eval()
@@ -21,8 +21,7 @@ Prepared targets belong to the system instance that created them.
 
 KNN-VC supports the same preparation/conversion calls with
 `ReferenceSpeech(["/audio/reference.wav"])`. It uses a matching set and rejects
-prompt and aggregation options. Its existing anonymization interface remains
-available.
+prompt and aggregation options. Use explicit prepared targets rather than mutable `set_target()` state.
 
 For a dataset, use `SpeechConversionPipeline(system, dataset, target, out_dir)`.
 `DatasetReferenceTargets` selects fixed or seeded random speaker groups from a
@@ -36,7 +35,7 @@ The executable roots are `convert_reference_manifest`,
 
 ```bash
 quick-convert convert_reference_manifest source=/models/export \
-  manifest_path=/data/sources.yaml 'target_paths=[/audio/reference.wav]'
+  manifest_path=/data/sources.csv 'target_paths=[/audio/reference.wav]'
 quick-convert convert_reference_librispeech source=/models/export target_id=6081
 ```
 
@@ -44,3 +43,31 @@ These presets assemble a three-second speech prompt. Choose a compatible SSL
 system and configure dataset roots for your environment. For KNN-VC, use the Python
 API above or explicitly clear both prompt options. See
 [output records](conversion-outputs.md) for persistence and resuming.
+
+## Conversion systems and migration
+
+| System | Target request |
+| --- | --- |
+| `SSLReconstructionConversionSystem` | `ReferenceSpeech` or `SourceVoice` |
+| `KNNVCConversionSystem` | `ReferenceSpeech` or `SourceVoice` |
+| `ASRBNConversionSystem` | `SpeakerIdentity` |
+
+Import systems and requests from `quick_convert.systems.conversion`. For example,
+`system.prepare_target(SpeakerIdentity("1069"))` selects an ASR-BN voice;
+`system.prepare_target(SourceVoice())` requests source resynthesis on supporting
+systems. Each conversion call receives its prepared target explicitly. KNN-VC
+and ASR-BN also accept a path or waveform through `convert(audio, target=prepared,
+sample_rate=16000)`. Prepared targets are tied to the system instance.
+
+The `anonymize_*` executable names remain, using the same conversion pipeline.
+KNN-VC directory selection belongs to the workflow; set `target_speaker_root`
+(or `QUICK_CONVERT_REFERENCE_ROOT`) and `pattern` for your reference corpus.
+
+The former `systems/anonymization`, `systems/reconstruction`, and
+`pipelines/anonymization` modules are removed. Update direct Python imports and
+custom Hydra configs: use `system/conversion@system`, top-level `system` and
+`target`, and `SpeechConversionPipeline`. Saved run, checkpoint, and inference
+artifact compositions migrate known old `_target_` paths during loading;
+parameter keys are unchanged. This does not restore arbitrary pickled Python
+objects or automatically rewrite custom workflow YAML. Old output journals
+remain readable; changed target descriptions can require a fresh output directory.

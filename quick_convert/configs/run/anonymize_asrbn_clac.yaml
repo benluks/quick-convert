@@ -2,12 +2,13 @@
 
 defaults:
   - /global: default
-  - /pipeline: anonymization
-  - /anonymizer: asrbn
+  - /pipeline: conversion
+  - /system/conversion@system: asrbn
   - /dataset: clac
   - _self_
 
 target_id: "1069"
 
-pipeline:
-  target_speaker: ${target_id}
+target:
+  _target_: quick_convert.systems.conversion.SpeakerIdentity
+  speaker_id: ${target_id}

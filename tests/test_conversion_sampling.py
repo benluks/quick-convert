@@ -6,11 +6,10 @@ import torch
 import yaml
 from test_grouped_conversion import System, sample
 
-from quick_convert.data import BaseDataset, GeneratedAudio
+from quick_convert.data import BaseDataset
 from quick_convert.data.sampling import shuffled_sample_indices
-from quick_convert.pipelines.anonymization.pipeline import AnonymizationPipeline
 from quick_convert.pipelines.conversion import SpeechConversionPipeline
-from quick_convert.systems.anonymization.targets import ReferenceSpeech
+from quick_convert.systems.conversion.targets import ReferenceSpeech
 
 
 def test_sampling_is_a_reproducible_shuffled_prefix_without_global_rng_changes():
@@ -68,15 +67,3 @@ def test_pipeline_limits_before_loading_and_handles_partial_batches_and_resume(t
 
     SpeechConversionPipeline(System(), dataset, target, tmp_path, max_samples=8, sample_seed=42).run()
     assert len(list((tmp_path / "test").glob("*.wav"))) == 8
-
-
-def test_legacy_anonymization_uses_the_same_shuffled_limit(tmp_path):
-    class Anonymizer:
-        def anonymize_batch(self, batch):
-            return GeneratedAudio(batch.waveforms.clone(), batch.lengths.clone(), 16000)
-
-    dataset = BaseDataset(rows=[sample(f"u-{i}", "source") for i in range(12)])
-    AnonymizationPipeline(Anonymizer(), dataset, out_dir=tmp_path, max_samples=5, sample_seed=42, batch_size=4).run()
-    records = [json.loads(line) for line in (tmp_path / "conversions.jsonl").read_text().splitlines()]
-    assert [row["utt_id"] for row in records] == [f"u-{i}" for i in shuffled_sample_indices(12, 5, 42)]
-    assert len(list((tmp_path / "test").glob("*.wav"))) == 5

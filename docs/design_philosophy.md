@@ -8,7 +8,9 @@ Components are focused building blocks: encoders, decoders, feature extractors, 
 
 ## Systems
 
-Systems provide complete task-level capabilities through inference-oriented Python APIs. Examples include ASR, reconstruction, anonymization, and speech emotion recognition. A system can compose components or another task-level system, but it should not depend on a pipeline or training framework.
+Systems provide complete task-level capabilities through inference-oriented Python APIs. Examples include ASR, speech conversion, and speech emotion recognition. A system can compose components or another task-level system, but it should not depend on a pipeline or training framework.
+
+Anonymization selects conversion targets and defines evaluation policy. It does not require a separate system hierarchy.
 
 ## Pipelines
 

@@ -1,6 +1,6 @@
 # Conversion outputs and resuming
 
-Conversion and anonymization pipelines save trimmed WAV files under
+Speech conversion workflows save trimmed WAV files under
 `<out_dir>/<split>/<utterance_id>.wav`. IDs and splits must be plain names.
 Duplicate destinations are rejected. WAV publication is atomic.
 

@@ -258,7 +258,7 @@ def test_ssl_reconstruction_config_exposes_an_inference_ready_system(config_name
 
     system = config.system
     assert "architecture" not in config
-    assert system._target_ == "quick_convert.systems.reconstruction.SSLReconstructionSystem"
+    assert system._target_ == "quick_convert.systems.conversion.SSLReconstructionConversionSystem"
     assert config.trainer.module.system == system
     assert config.trainer._target_ == "quick_convert.training.lightning.trainer.LightningTrainer"
     assert (
@@ -280,7 +280,7 @@ def test_rvq_ssl_reconstruction_uses_plain_quantizer_encoder():
 
     system = config.system
     encoder = system.encoder
-    assert system._target_ == "quick_convert.systems.reconstruction.SSLReconstructionSystem"
+    assert system._target_ == "quick_convert.systems.conversion.SSLReconstructionConversionSystem"
     assert config.trainer.module.system == system
     assert encoder._target_ == "quick_convert.components.layers.rvq_ema.ResidualVectorQuantizerEMA"
     assert encoder.input_dim == 1024

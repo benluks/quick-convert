@@ -291,10 +291,10 @@ def test_actual_dit_stream_training_and_generation_with_upsampling(monkeypatch):
 def test_system_resolves_training_resources_but_uses_explicit_inference_prefixes():
     from quick_convert.components.mixins.resource import ResolvedResource
     from quick_convert.data import AudioBatch
-    from quick_convert.systems.reconstruction import SSLReconstructionSystem
+    from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 
     model = decoder()
-    system = SSLReconstructionSystem(model)
+    system = SSLReconstructionConversionSystem(model)
     lengths = torch.tensor([4])
     batch = AudioBatch(
         utt_ids=["a"],
@@ -321,7 +321,7 @@ def test_no_xvector_stream_model_trains_and_generates_without_speaker_resource(m
     from quick_convert.components.mixins.resource import ResolvedResource
     from quick_convert.data import AudioBatch
     from quick_convert.external.cosyvoice.flow.DiT.dit import DiT
-    from quick_convert.systems.reconstruction import SSLReconstructionSystem
+    from quick_convert.systems.conversion import SSLReconstructionConversionSystem
     from quick_convert.training.lightning.modules.ssl_reconstruction import SSLReconstructionTrainingModule
     from quick_convert.training.lightning.optim import Optimization
 
@@ -350,7 +350,7 @@ def test_no_xvector_stream_model_trains_and_generates_without_speaker_resource(m
     assert not any("spk_embed_affine_layer" in key for key in model.state_dict())
     lengths = torch.tensor([4, 2])
     monkeypatch.setattr(model, "_compute_mels", lambda *a, **kw: (torch.zeros(2, 2, 4), lengths))
-    system = SSLReconstructionSystem(model, online_encoders={"speaker": None})
+    system = SSLReconstructionConversionSystem(model, online_encoders={"speaker": None})
     assert "speaker" not in system.online_encoders
     batch = AudioBatch(
         utt_ids=["a", "b"],

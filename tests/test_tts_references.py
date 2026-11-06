@@ -13,7 +13,7 @@ from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 
 from quick_convert.components.mixins.resource import ResolvedResource
-from quick_convert.systems.reconstruction import SSLReconstructionSystem
+from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 from quick_convert.utils.resolvers import register_config_resolvers
 
 
@@ -83,7 +83,7 @@ def module():
     model = decoder()
     model.stream_conditioning.prefix_fraction = (1, 1)
     probe = PrefixProbe()
-    system = SSLReconstructionSystem(model, online_encoders={"speaker": probe, "content": ContentProbe()})
+    system = SSLReconstructionConversionSystem(model, online_encoders={"speaker": probe, "content": ContentProbe()})
     return SSLReconstructionTrainingModule(
         system=system, optimization=None, reference_seconds=0.1, content_audio_resource="tts_path"
     ), probe
@@ -143,7 +143,7 @@ def test_invalid_reference_duration(seconds):
     ).SSLReconstructionTrainingModule
     with pytest.raises(ValueError, match="reference_seconds"):
         SSLReconstructionTrainingModule(
-            system=SSLReconstructionSystem(decoder()), optimization=None, reference_seconds=seconds
+            system=SSLReconstructionConversionSystem(decoder()), optimization=None, reference_seconds=seconds
         )
 
 

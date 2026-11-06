@@ -76,7 +76,14 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
         run_dir = Path(run_dir)
 
         cfg = OmegaConf.load(run_dir / config)
-        module_cfg = cfg.pipeline.trainer.module
+        from quick_convert.inference.migration import migrate_system_config
+
+        module_cfg = OmegaConf.select(cfg, "trainer.module")
+        if module_cfg is None:
+            module_cfg = OmegaConf.select(cfg, "pipeline.trainer.module")
+        if module_cfg is None:
+            raise ValueError("Run config has no training module.")
+        module_cfg = OmegaConf.create(migrate_system_config(OmegaConf.to_container(module_cfg, resolve=True)))
 
         map_location = configure_device(map_location)
         override_devices(module_cfg, str(map_location))
@@ -94,7 +101,7 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
         )
 
         model.load_state_dict(
-            state["state_dict"],
+            model._prepare_checkpoint_state_dict(state["state_dict"]),
             strict=strict,
         )
 

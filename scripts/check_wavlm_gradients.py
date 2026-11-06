@@ -10,7 +10,7 @@ from torch import nn
 
 from quick_convert.components.ssl.wavlm import WavLMContentEncoder
 from quick_convert.data import AudioBatch, AudioSample
-from quick_convert.systems.reconstruction import SSLReconstructionSystem
+from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 
 
 def weight_digest(module):
@@ -94,7 +94,7 @@ def main():
     print(f"Input: {args.audio or 'synthetic tone + noise'}, {sample.waveform.shape[-1] / encoder.sample_rate:.2f}s")
     batch = AudioBatch.from_samples([sample])
     # Only get_resource is exercised; no reconstruction decoder is needed.
-    system = SSLReconstructionSystem(decoder=nn.Identity(), online_encoders={"content": encoder})
+    system = SSLReconstructionConversionSystem(decoder=nn.Identity(), online_encoders={"content": encoder})
     check_step(system, batch, trainable=False)
     check_step(system, batch, trainable=True)
 

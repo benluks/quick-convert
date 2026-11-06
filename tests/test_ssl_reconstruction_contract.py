@@ -9,7 +9,7 @@ from quick_convert.components.layers import LayerWeightedSum
 from quick_convert.components.layers.rvq import RVQLosses, RVQOutput
 from quick_convert.components.mixins.resource import ResolvedResource
 from quick_convert.data import AudioBatch
-from quick_convert.systems.reconstruction import SSLReconstructionSystem
+from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 
 
 pytest.importorskip("lightning")
@@ -58,7 +58,7 @@ class FakeDecoder(nn.Module):
 
 
 def test_ssl_reconstruction_training_module_accepts_an_explicit_system():
-    system = SSLReconstructionSystem(
+    system = SSLReconstructionConversionSystem(
         decoder=FakeDecoder(),
         feature_transform=LayerWeightedSum(num_layers=2),
         encoder=FakeRVQEncoder(),
@@ -125,7 +125,7 @@ def test_ssl_reconstruction_training_step_uses_the_wrapped_system(monkeypatch):
 def test_ssl_training_keeps_teachers_and_frozen_vocoder_in_eval():
     decoder = FakeDecoder()
     decoder.vocoder = nn.Sequential(nn.BatchNorm1d(4), nn.Dropout()).requires_grad_(False)
-    system = SSLReconstructionSystem(
+    system = SSLReconstructionConversionSystem(
         decoder=decoder,
         online_encoders={"content": nn.Dropout()},
         feature_transform=LayerWeightedSum(2),
@@ -215,3 +215,40 @@ def test_ssl_representation_logging_masks_padding_and_logs_layer_weights(monkeyp
     assert metrics["rvq/codebook_1/perplexity"] == 1
     assert metrics["rvq/codebook_1/utilization"] == 0.25
     module._log_representation_state(None, torch.tensor([2, 1]))
+
+
+@pytest.mark.parametrize("slot", ["current", "legacy"])
+def test_from_run_migrates_old_system_targets_and_parameter_keys(tmp_path, slot):
+    from omegaconf import OmegaConf
+
+    module_config = {
+        "_target_": "quick_convert.training.lightning.modules.ssl_reconstruction.SSLReconstructionTrainingModule",
+        "optimization": {"_target_": "quick_convert.training.lightning.optim.Optimization", "lr_scheduler": None},
+        "system": {
+            "_target_": "quick_convert.systems.reconstruction.ssl.SSLReconstructionSystem",
+            "decoder": {"_target_": "test_ssl_reconstruction_contract.FakeDecoder"},
+            "feature_transform": {"_target_": "quick_convert.components.layers.LayerWeightedSum", "num_layers": 2},
+        },
+    }
+    expected = SSLReconstructionTrainingModule(
+        optimization=Optimization(lr_scheduler=None),
+        system=SSLReconstructionConversionSystem(
+            decoder=FakeDecoder(), feature_transform=LayerWeightedSum(num_layers=2)
+        ),
+    )
+    with torch.no_grad():
+        for parameter in expected.parameters():
+            parameter.fill_(0.73)
+    config = {"trainer": {"module": module_config}}
+    if slot == "legacy":
+        config = {"pipeline": config}
+    OmegaConf.save(OmegaConf.create(config), tmp_path / "config.yaml")
+    (tmp_path / "checkpoints").mkdir()
+    torch.save(
+        {"state_dict": {k.removeprefix("system."): v for k, v in expected.state_dict().items()}},
+        tmp_path / "checkpoints/last.ckpt",
+    )
+    restored = SSLReconstructionTrainingModule.from_run(tmp_path, map_location="cpu")
+    assert set(restored.state_dict()) == set(expected.state_dict())
+    for key, value in expected.state_dict().items():
+        torch.testing.assert_close(restored.state_dict()[key], value)

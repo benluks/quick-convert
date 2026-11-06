@@ -13,7 +13,7 @@ from quick_convert.components.layers.rvq_ema import ResidualVectorQuantizerEMA
 from quick_convert.components.mixins.resource import ResolvedResource
 from quick_convert.data import AudioBatch
 from quick_convert.systems.asr import VQASRSystem
-from quick_convert.systems.reconstruction import SSLReconstructionSystem
+from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 from quick_convert.utils.masking import make_padding_mask
 
 
@@ -70,7 +70,7 @@ def test_adaptation_matches_explicit_composition_and_keeps_gradients(task, sourc
     if task == "asr":
         system = VQASRSystem(quantizer, CaptureHead(), layer_fusion=transform)
     else:
-        system = SSLReconstructionSystem(nn.Identity(), feature_transform=transform, encoder=quantizer)
+        system = SSLReconstructionConversionSystem(nn.Identity(), feature_transform=transform, encoder=quantizer)
     with torch.no_grad():
         expected = transform(values)
         if task == "asr":
@@ -110,7 +110,7 @@ def test_invalid_stage_lengths_fail_before_the_next_component(task, stage):
     if task == "asr":
         system = VQASRSystem(quantizer, CaptureHead(), layer_fusion=BadTransform())
     else:
-        system = SSLReconstructionSystem(nn.Identity(), feature_transform=BadTransform(), encoder=quantizer)
+        system = SSLReconstructionConversionSystem(nn.Identity(), feature_transform=BadTransform(), encoder=quantizer)
     with pytest.raises((ValueError, TypeError), match="padded time|integer dtype"):
         system.encode_features(torch.ones(2, 3, 4), torch.tensor([3, 2]))
 
@@ -123,7 +123,7 @@ def test_source_metadata_is_checked_before_adaptation(task, metadata):
     if task == "asr":
         system = VQASRSystem(nn.Identity(), CaptureHead())
     else:
-        system = SSLReconstructionSystem(nn.Identity())
+        system = SSLReconstructionConversionSystem(nn.Identity())
     batch = AudioBatch(
         utt_ids=["a", "b"],
         paths=[Path("a"), Path("b")],
@@ -141,7 +141,7 @@ def test_frame_rate_checks_require_explicit_preservation_and_do_not_change_sourc
     decoder = nn.Identity()
     decoder.flow = SimpleNamespace(input_frame_rate=50)
     metadata = {"frame_hz": 25.0, "feature_dim": 4}
-    system = SSLReconstructionSystem(decoder)
+    system = SSLReconstructionConversionSystem(decoder)
     values, lengths = torch.ones(2, 3, 4), torch.tensor([3, 2])
     with pytest.raises(ValueError, match="frame rate"):
         system.encode_features(values, lengths, metadata=metadata)

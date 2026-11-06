@@ -89,3 +89,24 @@ class PreparedTarget(Generic[ConditioningT]):
     prompt_segments: tuple[PromptSegment, ...] = ()
     prompt_sample_rate: int | None = None
     prompt_crossfade_seconds: float | None = None
+    speaker_id: str | None = None
+
+
+@dataclass(frozen=True)
+class SpeakerIdentity:
+    """An explicit identity in a model's speaker inventory."""
+
+    speaker_id: str
+
+    def __post_init__(self):
+        if isinstance(self.speaker_id, bool) or not isinstance(self.speaker_id, (str, int)):
+            raise TypeError("speaker_id must be a string or integer.")
+        value = str(self.speaker_id)
+        if not value.strip():
+            raise ValueError("speaker_id must not be empty.")
+        object.__setattr__(self, "speaker_id", value)
+
+
+@dataclass(frozen=True)
+class SourceVoice:
+    """Resynthesize the source without selecting a different target voice."""

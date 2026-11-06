@@ -1,0 +1,4 @@
+
+# target_speaker_id: "1069"
+_target_: quick_convert.systems.conversion.KNNVCConversionSystem
+device: ${device}

@@ -10,7 +10,7 @@ from quick_convert.components.mixins.resource import ResolvedResource
 from quick_convert.components.ssl.base import ContentFeatures
 from quick_convert.data import AudioBatch, GeneratedAudio
 from quick_convert.data.resources.base import TensorResourceBatch
-from quick_convert.systems.reconstruction import SSLReconstructionResult, SSLReconstructionSystem
+from quick_convert.systems.conversion import SSLReconstructionConversionSystem, SSLReconstructionResult
 
 
 class FakeFeatureTransform(nn.Module):
@@ -103,7 +103,7 @@ class FakeSpeakerEncoder(nn.Module):
 
 
 def make_system():
-    return SSLReconstructionSystem(
+    return SSLReconstructionConversionSystem(
         decoder=FakeDecoder(),
         feature_transform=FakeFeatureTransform(),
         encoder=FakeEncoder(),
@@ -142,7 +142,7 @@ def test_ssl_reconstruction_resolves_resources_from_audio_batches():
 
 
 def test_ssl_reconstruction_accepts_a_plain_waveform_tensor():
-    system = SSLReconstructionSystem(
+    system = SSLReconstructionConversionSystem(
         decoder=FakeDecoder(),
         feature_transform=FakeFeatureTransform(),
         online_encoders={
@@ -177,7 +177,7 @@ def make_audio_batch():
 @pytest.mark.parametrize("wrapped", [False, True])
 def test_online_encoder_is_frozen_and_detached_by_default(wrapped):
     encoder = TrainableContentEncoder(wrapped=wrapped)
-    system = SSLReconstructionSystem(
+    system = SSLReconstructionConversionSystem(
         decoder=FakeDecoder(),
         online_encoders={"content": encoder},
     )
@@ -192,7 +192,7 @@ def test_online_encoder_is_frozen_and_detached_by_default(wrapped):
 @pytest.mark.parametrize("wrapped", [False, True])
 def test_trainable_online_encoder_preserves_gradients_and_updates(wrapped):
     encoder = TrainableContentEncoder(wrapped=wrapped)
-    system = SSLReconstructionSystem(
+    system = SSLReconstructionConversionSystem(
         decoder=FakeDecoder(),
         online_encoders={"content": encoder},
         trainable_online_encoders=("content",),
@@ -220,7 +220,7 @@ def test_trainable_online_encoder_preserves_gradients_and_updates(wrapped):
 
 def test_precomputed_resources_remain_detached_with_trainable_online_encoder():
     encoder = TrainableContentEncoder()
-    system = SSLReconstructionSystem(
+    system = SSLReconstructionConversionSystem(
         decoder=FakeDecoder(),
         online_encoders={"content": encoder},
         trainable_online_encoders=("content",),
@@ -236,7 +236,7 @@ def test_precomputed_resources_remain_detached_with_trainable_online_encoder():
 
 def test_precomputed_content_matches_online_values_and_takes_precedence(monkeypatch):
     encoder = TrainableContentEncoder(wrapped=True)
-    system = SSLReconstructionSystem(decoder=FakeDecoder(), online_encoders={"content": encoder})
+    system = SSLReconstructionConversionSystem(decoder=FakeDecoder(), online_encoders={"content": encoder})
     batch = make_audio_batch()
     online = system.get_resource(batch, "content")
     batch.resources["content"] = TensorResourceBatch(online.values, online.lengths)
@@ -258,7 +258,7 @@ def test_frozen_content_can_feed_trainable_downstream_layers(backend_inference):
     encoder = TrainableContentEncoder()
     if backend_inference:
         encoder.forward = torch.inference_mode()(encoder.forward)
-    system = SSLReconstructionSystem(decoder=FakeDecoder(), online_encoders={"content": encoder})
+    system = SSLReconstructionConversionSystem(decoder=FakeDecoder(), online_encoders={"content": encoder})
     values = system.get_resource(make_audio_batch(), "content").values
     projection = nn.Linear(4, 2)
     projection(values).square().mean().backward()
@@ -273,7 +273,7 @@ def test_training_mode_preserves_frozen_encoders_and_vocoder(trainable):
     encoder.dropout = nn.Dropout(0.5)
     decoder = FakeDecoder()
     decoder.vocoder = nn.Linear(4, 4).requires_grad_(False)
-    system = SSLReconstructionSystem(
+    system = SSLReconstructionConversionSystem(
         decoder=decoder,
         online_encoders={"content": encoder},
         trainable_online_encoders=("content",) if trainable else (),
@@ -291,7 +291,7 @@ def test_native_reference_conversion_prepares_content_mels_and_global_embedding(
     from quick_convert.components.decoders.cosyvoice_reference import CosyVoiceReference
     from quick_convert.components.reference_prompt import SpeechPromptBuilder
     from quick_convert.components.speaker.aggregation import SpeakerEmbeddingAggregation
-    from quick_convert.systems.anonymization.targets import ReferenceSpeech
+    from quick_convert.systems.conversion.targets import ReferenceSpeech
 
     class NativeDecoder(FakeDecoder):
         stream_conditioning = None
@@ -318,8 +318,8 @@ def test_native_reference_conversion_prepares_content_mels_and_global_embedding(
     def load(path, **kwargs):
         return torch.full((1, 3200 if Path(path).stem == "b" else 1600), 3.0 if Path(path).stem == "b" else 1.0)
 
-    monkeypatch.setattr("quick_convert.systems.reconstruction.ssl.load_audio_input", load)
-    system = SSLReconstructionSystem(
+    monkeypatch.setattr("quick_convert.systems.conversion.ssl_reconstruction.load_audio_input", load)
+    system = SSLReconstructionConversionSystem(
         NativeDecoder(),
         online_encoders={
             "content": FakeContentEncoder(),
@@ -345,3 +345,19 @@ def test_native_reference_conversion_prepares_content_mels_and_global_embedding(
         sample_rates=torch.tensor([16000, 16000]),
     )
     assert len(system.convert_batch(batch, target=target)) == 2
+
+
+def test_source_voice_conversion_uses_source_reconstruction():
+    from quick_convert.systems.conversion import SourceVoice
+
+    system = SSLReconstructionConversionSystem(
+        decoder=FakeDecoder(), online_encoders={"content": FakeContentEncoder(), "speaker": FakeSpeakerEncoder()}
+    ).eval()
+    batch = make_audio_batch()
+    target = system.prepare_target(SourceVoice())
+    generated = system.convert_batch(batch, target=target)
+    expected = system(batch).generation.audio
+    torch.testing.assert_close(generated.waveforms, expected.waveforms)
+    torch.testing.assert_close(generated.lengths, expected.lengths)
+    with pytest.raises(ValueError, match="inference_cfg_rate"):
+        system.convert_batch(batch, target=target, inference_cfg_rate=1)

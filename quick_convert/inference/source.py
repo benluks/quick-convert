@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from copy import deepcopy
 from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
@@ -17,6 +16,8 @@ from torch import nn
 from quick_convert.utils.device import DeviceLike, configure_device, override_devices
 from quick_convert.utils.paths import checkpoint_run_config
 from quick_convert.utils.resolvers import register_config_resolvers
+
+from .migration import migrate_system_config
 
 
 SOURCE_FORMAT = "quick-convert-inference-source"
@@ -49,7 +50,7 @@ def inference_description(config: Mapping) -> dict | None:
     resolved = OmegaConf.to_container(system, resolve=True)
     if not isinstance(resolved, dict) or "_target_" not in resolved:
         raise ValueError("Inference requires a Hydra system config with `_target_`.")
-    return {"format": SOURCE_FORMAT, "version": SOURCE_VERSION, "system": resolved}
+    return {"format": SOURCE_FORMAT, "version": SOURCE_VERSION, "system": migrate_system_config(resolved)}
 
 
 def _state_from_description(description: Mapping, checkpoint: Mapping) -> InferenceState:
@@ -65,7 +66,7 @@ def _state_from_description(description: Mapping, checkpoint: Mapping) -> Infere
     from .artifact import _system_checkpoint_state
 
     weights, exclusions = _system_checkpoint_state(checkpoint)
-    return InferenceState(deepcopy(dict(config)), weights, exclusions)
+    return InferenceState(migrate_system_config(config), weights, exclusions)
 
 
 def _run_description(path: Path) -> dict:
@@ -104,7 +105,7 @@ def read_run_state(
 def restore_system(state: InferenceState, *, map_location: DeviceLike = "cpu", strict: bool = True) -> nn.Module:
     """Instantiate, restore, and freeze the same system for all source formats."""
     device = configure_device(map_location)
-    config = OmegaConf.create(state.system_config)
+    config = OmegaConf.create(migrate_system_config(state.system_config))
     override_devices(config, str(device))
     system = instantiate(config)
     if not isinstance(system, nn.Module):
@@ -166,7 +167,7 @@ def _artifact_config(source: Path, checkpoint: PathLike | None, config: PathLike
     manifest = OmegaConf.load(path)
     if manifest.get("format") != ARTIFACT_FORMAT or manifest.get("version") != ARTIFACT_VERSION:
         raise ValueError("Unsupported inference artifact format or version.")
-    return OmegaConf.to_container(manifest.system, resolve=True)
+    return migrate_system_config(OmegaConf.to_container(manifest.system, resolve=True))
 
 
 def _read_training_source(source: Path, checkpoint: PathLike | None, config: PathLike | None) -> InferenceState:
