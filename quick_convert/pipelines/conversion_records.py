@@ -16,6 +16,7 @@ import yaml
 from omegaconf import OmegaConf
 
 from quick_convert.pipelines.provenance import execution_metadata, resolved_config
+from quick_convert.utils.atomic_files import atomic_text
 from quick_convert.utils.paths import checkpoint_run_config
 
 
@@ -148,19 +149,6 @@ def conversion_output_dir(root, metadata, target, suffix="") -> str:
         / slug(metadata.get("dataset", "dataset"))
         / f"{slug(policy)}-{fingerprint}{slug(suffix) if suffix else ''}"
     )
-
-
-def atomic_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = None
-    try:
-        with NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as stream:
-            temporary = Path(stream.name)
-            stream.write(text)
-        temporary.replace(path)
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
 
 
 def atomic_yaml(path: Path, document) -> None:
