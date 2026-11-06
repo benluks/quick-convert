@@ -13,8 +13,7 @@ from quick_convert.components.speaker import SpeakerEmbeddingAggregation, Speake
 from quick_convert.components.speaker.aggregation import audio_durations
 from quick_convert.data import BaseDataset
 
-from ...metrics.eer import compute_eer
-from .scoring import cosine_score_matrix
+from .scoring import evaluate_trials
 from .trials import ASVTrial
 
 
@@ -282,60 +281,11 @@ class ASVEvaluator:
                 test_speakers,
             )
 
-        trials = list(trials)
-
-        enroll_ids = list(enroll_embeddings)
-        test_ids = list(test_embeddings)
-
-        enroll_index = {speaker: index for index, speaker in enumerate(enroll_ids)}
-
-        test_index = {utt_id: index for index, utt_id in enumerate(test_ids)}
-
-        enroll_matrix = torch.stack([enroll_embeddings[speaker] for speaker in enroll_ids])
-
-        test_matrix = torch.stack([test_embeddings[utt_id] for utt_id in test_ids])
-
-        scores = cosine_score_matrix(
-            enroll_matrix,
-            test_matrix,
+        return evaluate_trials(
+            enroll_embeddings,
+            test_embeddings,
+            tqdm(trials, desc="Scoring ASV trials", unit="trial"),
         )
-
-        target_scores = []
-        non_target_scores = []
-
-        for trial in tqdm(
-            trials,
-            desc="Scoring ASV trials",
-            unit="trial",
-        ):
-            if trial.enroll_id not in enroll_index or trial.test_id not in test_index:
-                raise ValueError(f"Unknown enrollment or test ID in trial: {trial}")
-            score = scores[
-                enroll_index[trial.enroll_id],
-                test_index[trial.test_id],
-            ]
-
-            if trial.target:
-                target_scores.append(score)
-            else:
-                non_target_scores.append(score)
-
-        if not target_scores or not non_target_scores:
-            raise ValueError("ASV evaluation requires both target and non-target trials.")
-        target_scores = torch.stack(target_scores)
-        non_target_scores = torch.stack(non_target_scores)
-
-        eer, threshold = compute_eer(
-            target_scores,
-            non_target_scores,
-        )
-
-        return {
-            "eer": eer,
-            "eer_threshold": threshold,
-            "num_target_trials": len(target_scores),
-            "num_non_target_trials": len(non_target_scores),
-        }
 
     @staticmethod
     def make_trials(
