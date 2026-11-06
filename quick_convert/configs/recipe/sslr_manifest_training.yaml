@@ -1,0 +1,28 @@
+# @package _global_
+
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: ssl_reconstruction
+  - /dataset@train_dataset: manifest
+  - /dataset@val_dataset: manifest
+  - /dataset@source_dataset: librispeech
+  - _self_
+
+dataset_name: ${hydra:runtime.choices.dataset@source_dataset}
+dataset_path: ${out_root}/${dataset_name}
+
+project_name: ${hydra:runtime.choices.trainer}
+
+data: &data
+  target_sr: ${class_attr:${system.online_encoders.content._target_},SAMPLE_RATE}
+  load:
+    - audio
+
+train_dataset:
+  <<: *data
+  manifest_path: ${dataset_path}/speaker_split/train.csv
+
+val_dataset:
+  <<: *data
+  manifest_path: ${dataset_path}/speaker_split/val.csv

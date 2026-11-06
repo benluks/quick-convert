@@ -55,6 +55,13 @@ configuration into the trainer or pipeline. Defaults are applied in order, with
 `_self_` placing this run's own overrides last. Follow these defaults and then
 inspect interpolations to trace the assembled object graph.
 
+The SSL reconstruction DiT + CAMPPlus prefix runs share
+`recipe/sslr_dit_campp_prefix.yaml`. It assembles manifest training, the DiT
+system, and frame-speaker conditioning. Each run selects its content encoder
+at `components/ssl@system.online_encoders.content` and supplies its own layer
+fusion or checkpoint-specific capabilities. Run names and output directories
+are preserved. The system choice for these three runs is now `dit_cosyvoice`.
+
 ## Overrides
 
 Hydra overrides use dotted paths:
