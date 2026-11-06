@@ -4,8 +4,9 @@ from collections.abc import Mapping
 
 
 _TARGETS = {
-    "quick_convert.systems.reconstruction.SSLReconstructionSystem": "quick_convert.systems.conversion.ssl.SSLReconstructionConversionSystem",
-    "quick_convert.systems.reconstruction.ssl.SSLReconstructionSystem": "quick_convert.systems.conversion.ssl.SSLReconstructionConversionSystem",
+    "quick_convert.systems.conversion.ssl.SSLReconstructionConversionSystem": "quick_convert.systems.conversion.ssl_reconstruction.SSLReconstructionConversionSystem",
+    "quick_convert.systems.reconstruction.SSLReconstructionSystem": "quick_convert.systems.conversion.ssl_reconstruction.SSLReconstructionConversionSystem",
+    "quick_convert.systems.reconstruction.ssl.SSLReconstructionSystem": "quick_convert.systems.conversion.ssl_reconstruction.SSLReconstructionConversionSystem",
     "quick_convert.systems.anonymization.KNNVCAnonymizer": "quick_convert.systems.conversion.knnvc.KNNVCConversionSystem",
     "quick_convert.systems.anonymization.knnvc.KNNVCAnonymizer": "quick_convert.systems.conversion.knnvc.KNNVCConversionSystem",
     "quick_convert.pipelines.anonymization.KNNVCAnonymizer": "quick_convert.systems.conversion.knnvc.KNNVCConversionSystem",

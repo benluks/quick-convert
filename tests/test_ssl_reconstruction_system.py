@@ -318,7 +318,7 @@ def test_native_reference_conversion_prepares_content_mels_and_global_embedding(
     def load(path, **kwargs):
         return torch.full((1, 3200 if Path(path).stem == "b" else 1600), 3.0 if Path(path).stem == "b" else 1.0)
 
-    monkeypatch.setattr("quick_convert.systems.conversion.ssl.load_audio_input", load)
+    monkeypatch.setattr("quick_convert.systems.conversion.ssl_reconstruction.load_audio_input", load)
     system = SSLReconstructionConversionSystem(
         NativeDecoder(),
         online_encoders={

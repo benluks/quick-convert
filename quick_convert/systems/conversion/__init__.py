@@ -21,8 +21,8 @@ __all__ = [
 
 def __getattr__(name):
     modules = {
-        "SSLReconstructionConversionSystem": "ssl",
-        "SSLReconstructionResult": "ssl",
+        "SSLReconstructionConversionSystem": "ssl_reconstruction",
+        "SSLReconstructionResult": "ssl_reconstruction",
         "KNNVCConversionSystem": "knnvc",
         "ASRBNConversionSystem": "asrbn",
     }

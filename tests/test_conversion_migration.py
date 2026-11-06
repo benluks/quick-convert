@@ -44,13 +44,22 @@ def test_old_ssl_compositions_restore_identical_weights(tmp_path, source_kind):
     assert not loaded.training
 
 
-def test_migration_copies_and_changes_only_known_target_fields():
-    config = {"nested": [composition()], "note": composition()["_target_"]}
+@pytest.mark.parametrize(
+    "old_target",
+    [
+        "quick_convert.systems.reconstruction.ssl.SSLReconstructionSystem",
+        "quick_convert.systems.conversion.ssl.SSLReconstructionConversionSystem",
+    ],
+)
+def test_migration_copies_and_changes_only_known_target_fields(old_target):
+    config = {"nested": [{"_target_": old_target}], "note": old_target}
     before = deepcopy(config)
     migrated = migrate_system_config(config)
     assert config == before
     assert migrated["note"] == config["note"]
-    assert migrated["nested"][0]["_target_"] == "quick_convert.systems.conversion.ssl.SSLReconstructionConversionSystem"
+    assert migrated["nested"][0]["_target_"] == (
+        "quick_convert.systems.conversion.ssl_reconstruction.SSLReconstructionConversionSystem"
+    )
 
 
 @pytest.mark.parametrize(
