@@ -26,6 +26,8 @@ class W2VBertContentEncoder(ContentEncoder):
         local_files_only: bool = False,
         downsample_factor: int = 0,
         max_length: int | None = None,
+        *,
+        revision: str | None = None,
     ) -> None:
         super().__init__(device=device)
         self.model_name = model_name
@@ -44,10 +46,12 @@ class W2VBertContentEncoder(ContentEncoder):
         self.processor = AutoFeatureExtractor.from_pretrained(
             model_name,
             local_files_only=local_files_only,
+            revision=revision,
         )
         self.model = AutoModel.from_pretrained(
             model_name,
             local_files_only=local_files_only,
+            revision=revision,
         ).to(self.device)
         self.model.eval()
 
