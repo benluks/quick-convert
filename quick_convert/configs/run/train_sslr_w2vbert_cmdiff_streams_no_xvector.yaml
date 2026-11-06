@@ -1,8 +1,11 @@
 # @package _global_
 
 defaults:
-  - train_sslr_w2vbert_cmdiff
+  - /recipe: sslr_manifest_training
+  - /system/conversion@system: w2vbert_cmdiff_cosyvoice
   - _self_
+
+data_file_suffix: "_cfs"
 
 exp_name: train_sslr_w2vbert_cmdiff_streams_no_xvector_${dataset_name}
 

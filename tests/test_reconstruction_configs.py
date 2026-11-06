@@ -35,13 +35,18 @@ def test_reconstruction_configs_keep_content_and_mel_clocks_distinct(monkeypatch
         ("speechtokenizer", "SpeechTokenizerQuantizedContentEncoder", None),
     ],
 )
-def test_dit_campp_recipe_selects_encoder_without_changing_conditioning(encoder, content_target, fused_layers):
+@pytest.mark.parametrize("decoder_family", ["dit", "cmdiff"])
+def test_campp_recipe_selects_encoder_without_changing_conditioning(
+    encoder, content_target, fused_layers, decoder_family
+):
     register_config_resolvers()
     directory = Path(__file__).parents[1] / "quick_convert/configs"
     with initialize_config_dir(version_base=None, config_dir=str(directory)):
-        config = compose(config_name=f"run/train_sslr_{encoder}_dit_campp_prefix", return_hydra_config=True)
+        config = compose(
+            config_name=f"run/train_sslr_{encoder}_{decoder_family}_campp_prefix", return_hydra_config=True
+        )
     choices = config.hydra.runtime.choices
-    assert choices.recipe == "sslr_dit_campp_prefix"
+    assert choices.recipe == f"sslr_{decoder_family}_campp_prefix"
     system = config.system
     assert system.online_encoders.content._target_ == f"quick_convert.components.ssl.{content_target}"
     assert system.online_encoders.speaker is None
@@ -60,3 +65,6 @@ def test_dit_campp_recipe_selects_encoder_without_changing_conditioning(encoder,
     assert dict(decoder.stream_conditioning.dimensions) == {"frame_speaker": 512}
     assert flow.decoder.estimator.cond_dim == 513
     assert flow.decoder.estimator.spk_dim is None
+    if decoder_family == "cmdiff":
+        assert flow.encoder.upsample_factor == 1
+        assert flow.decoder.estimator.in_channels == 673

@@ -21,8 +21,8 @@ data: &data
 
 train_dataset:
   <<: *data
-  manifest_path: ${dataset_path}/speaker_split/train.csv
+  manifest_path: ${dataset_path}/speaker_split/train${oc.select:data_file_suffix,''}.csv
 
 val_dataset:
   <<: *data
-  manifest_path: ${dataset_path}/speaker_split/val.csv
+  manifest_path: ${dataset_path}/speaker_split/val${oc.select:data_file_suffix,''}.csv

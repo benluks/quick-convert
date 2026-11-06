@@ -1,0 +1,16 @@
+# @package _global_
+
+defaults:
+  - sslr_manifest_training
+  - /system/conversion@system: cmdiff_cosyvoice
+  - sslr_campp_prefix
+  - _self_
+
+data_file_suffix: "_cfs"
+
+system:
+  decoder:
+    flow:
+      decoder:
+        estimator:
+          in_channels: ${add:160,${.cond_dim}}
