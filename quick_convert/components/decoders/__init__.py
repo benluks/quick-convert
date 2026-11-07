@@ -1,3 +1,5 @@
+from importlib import import_module
+
 from .cosyvoice import CosyVoiceDecoderOutput, CosyVoiceGenerationOutput, CosyVoiceSpectrogramGenerator
 from .streams import ConditioningStream, StreamConditioning
 
@@ -14,17 +16,18 @@ __all__ = [
 ]
 
 
+_OPTIONAL_EXPORTS = {
+    "CosyVoiceHiFTDecoder": ".hift_generator",
+    "KnnVCHifiGanDecoder": ".knnvc_hifigan",
+    "PSST1HifiGanDecoder": ".psst1_hifigan",
+}
+
+
 def __getattr__(name: str):
-    if name == "CosyVoiceHiFTDecoder":
-        from .hift_generator import CosyVoiceHiFTDecoder
-
-        return CosyVoiceHiFTDecoder
-    if name == "KnnVCHifiGanDecoder":
-        from .knnvc_hifigan import KnnVCHifiGanDecoder
-
-        return KnnVCHifiGanDecoder
-    if name == "PSST1HifiGanDecoder":
-        from .psst1_hifigan import PSST1HifiGanDecoder
-
-        return PSST1HifiGanDecoder
-    raise AttributeError(name)
+    try:
+        module = _OPTIONAL_EXPORTS[name]
+    except KeyError as error:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from error
+    attribute = getattr(import_module(module, __name__), name)
+    globals()[name] = attribute
+    return attribute
