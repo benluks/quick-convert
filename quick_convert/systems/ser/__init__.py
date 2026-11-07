@@ -5,13 +5,16 @@ from importlib import import_module
 from .base import SERSystem
 
 
-__all__ = ["SERSystem", "OdysseySER"]
+__all__ = ["SERSystem", "OdysseySER", "SpeechBrainSER"]
+
+_MODULES = {"OdysseySER": ".odyssey_ser", "SpeechBrainSER": ".speechbrain_ser"}
 
 
 def __getattr__(name: str):
-    if name != "OdysseySER":
+    module_name = _MODULES.get(name)
+    if module_name is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    return getattr(import_module(".odyssey_ser", __name__), name)
+    return getattr(import_module(module_name, __name__), name)
 
 
 def __dir__():

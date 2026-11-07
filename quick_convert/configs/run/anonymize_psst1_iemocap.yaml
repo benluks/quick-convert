@@ -1,0 +1,21 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /pipeline: conversion
+  - /system/conversion@system: psst1
+  - /dataset: iemocap
+  - _self_
+
+target_id: psst1
+target:
+  _target_: quick_convert.systems.conversion.GeneratedVoice
+  seed: 52
+dataset:
+  file_format: wav
+  utt_id_template: "{path.stem}"
+  pattern: "sentences/wav/*/*.wav"
+  load: [audio]
+  target_sr: 16000
+pipeline:
+  metadata:
+    target_speaker: null

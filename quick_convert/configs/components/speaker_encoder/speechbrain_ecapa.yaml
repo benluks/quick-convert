@@ -1,0 +1,4 @@
+_target_: quick_convert.components.speaker.SpeechBrainECAPASpeakerEncoder
+# Pretrained VoxCeleb ECAPA-TDNN state dict (the PSST1 export's ecapa.ckpt).
+checkpoint_path: ${oc.env:QUICK_CONVERT_PSST1_CHECKPOINT_DIR}/ecapa.ckpt
+device: ${device}

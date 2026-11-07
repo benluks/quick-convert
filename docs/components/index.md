@@ -38,3 +38,5 @@ width, depth and temporal upsampling through a first-party adapter.
 
 For backend-specific setup and contracts, use [DAC](dac.md),
 [native codecs](../guides/native-codecs.md), and the content-encoder guide above.
+
+See [PSST1](psst1.md) for the ECAPA, speaker flow, emotion compensation, and vocoder adapters.

@@ -12,6 +12,9 @@ Run `quick-convert --help` to list the composition roots installed with your ver
 | Train CosyVoice reconstruction | `transformers`, `cosyvoice`, `training` | `train sslr_w2vbert_cmdiff data_root=/data` | resolved config and Lightning checkpoints |
 | Evaluate Whisper ASR | `whisper`, `wer` | `evaluate asr_librispeech data_root=/data` | evaluation results beneath the configured output directory |
 | Anonymize CLAC with KNN-VC | backend-specific dependencies | `anonymize knnvc_clac` | converted audio beneath the configured output directory |
+| Precompute ECAPA x-vectors for the PSST1 flow | `speechbrain` | `precompute spk_ecapa_librispeech data_root=/data` | x-vector sidecar tensors |
+| Train the [PSST1](../components/psst1.md) flow | `training` | `train psst1_flow_librispeech data_root=/data` | Lightning checkpoints and `flow.pt` |
+| Anonymize IEMOCAP with [PSST1](../components/psst1.md) | `speechbrain`, `yaapt`, `speechbrain-ser` | `anonymize psst1_iemocap` | anonymized audio beneath the configured output directory |
 | Export a training run | base plus classes used by the system | `quick-convert export RUN_DIR DESTINATION` | versioned inference artifact |
 
 Commands shown without `uv run` assume an activated environment. In a development checkout, prefix them with `uv run`.

@@ -110,3 +110,18 @@ class SpeakerIdentity:
 @dataclass(frozen=True)
 class SourceVoice:
     """Resynthesize the source without selecting a different target voice."""
+
+
+@dataclass(frozen=True)
+class GeneratedVoice:
+    """Generate a reproducible pseudo-voice from source evidence.
+
+    The seed identifies the per-utterance sampling policy. Systems define the
+    representation and generation algorithm.
+    """
+
+    seed: int = 0
+
+    def __post_init__(self):
+        if type(self.seed) is not int or not -(2**63) <= self.seed < 2**63:
+            raise ValueError("GeneratedVoice seed must be a signed 64-bit integer.")

@@ -230,6 +230,17 @@ class Optimization:
                     raise ValueError("Warmup must leave at least one step for cosine decay.")
                 scheduler_kwargs["T_max"] = decay_steps
                 scheduler_factory = ClampedCosineAnnealingLR
+            if scheduler_kwargs.get("total_steps") == "auto":
+                if scheduler_factory is not torch.optim.lr_scheduler.OneCycleLR:
+                    raise ValueError("total_steps='auto' requires torch.optim.lr_scheduler.OneCycleLR.")
+                if self.interval != "step" or self.frequency != 1:
+                    raise ValueError("total_steps='auto' requires interval='step' and frequency=1.")
+                if self.warmup is not None:
+                    raise ValueError("OneCycleLR includes its own warmup; set warmup to null.")
+                total_steps = getattr(optimizer, "total_steps", None)
+                if total_steps is None:
+                    raise ValueError("total_steps='auto' requires a finite total_steps training budget.")
+                scheduler_kwargs["total_steps"] = int(total_steps)
             scheduler = scheduler_factory(
                 optimizer,
                 **scheduler_kwargs,

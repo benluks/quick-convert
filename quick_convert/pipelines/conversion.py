@@ -19,7 +19,13 @@ from quick_convert.pipelines.conversion_records import (
 )
 from quick_convert.pipelines.targets import DatasetReferenceTargets, resource_label
 from quick_convert.systems.conversion.base import SpeechConversionSystem
-from quick_convert.systems.conversion.targets import PreparedTarget, ReferenceSpeech, SourceVoice, SpeakerIdentity
+from quick_convert.systems.conversion.targets import (
+    GeneratedVoice,
+    PreparedTarget,
+    ReferenceSpeech,
+    SourceVoice,
+    SpeakerIdentity,
+)
 
 
 if TYPE_CHECKING:
@@ -76,6 +82,8 @@ def target_description(target):
     """Describe selection and references without serializing conditioning tensors."""
     if isinstance(target, SpeakerIdentity):
         return {"mode": "identity", "speaker_id": target.speaker_id}
+    if isinstance(target, GeneratedVoice):
+        return {"mode": "generated", "seed": target.seed}
     if isinstance(target, SourceVoice):
         return {"mode": "resynthesize"}
     if isinstance(target, DatasetReferenceTargets):
@@ -148,7 +156,12 @@ class SpeechConversionPipeline:
         self,
         system: SpeechConversionSystem,
         dataset: BaseDataset,
-        target: ReferenceSpeech | SpeakerIdentity | SourceVoice | PreparedTarget | DatasetReferenceTargets,
+        target: ReferenceSpeech
+        | SpeakerIdentity
+        | SourceVoice
+        | GeneratedVoice
+        | PreparedTarget
+        | DatasetReferenceTargets,
         out_dir: PathLike | None = None,
         *,
         batch_size: int = 1,
@@ -162,10 +175,11 @@ class SpeechConversionPipeline:
         inference_cfg_rate: float | None = None,
     ):
         if not isinstance(
-            target, (ReferenceSpeech, SpeakerIdentity, SourceVoice, PreparedTarget, DatasetReferenceTargets)
+            target,
+            (ReferenceSpeech, SpeakerIdentity, SourceVoice, GeneratedVoice, PreparedTarget, DatasetReferenceTargets),
         ):
             raise TypeError(
-                "Conversion requires reference speech, a speaker identity, source voice, a prepared target, or dataset reference groups."
+                "Conversion requires reference speech, a speaker identity, source voice, generated voice, a prepared target, or dataset reference groups."
             )
         if type(batch_size) is not int or batch_size < 1:
             raise ValueError("batch_size must be a positive integer.")
