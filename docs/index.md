@@ -13,14 +13,13 @@ Start with the overview, choose a task guide, and use references for details.
 
 | Goal | Guide |
 | --- | --- |
-| Work directly in Python | [Python API](library/python-api.md) |
-| Prepare data and named resources | [Data](data/index.md) |
+| Prepare data and features | [Data and resources](data/index.md), [precomputation](guides/precomputation.md), [fitting](guides/fitting.md) |
+| Train a system | [VQ-ASR quickstart](quickstart.md), [training runs](guides/training.md), [paired reconstruction](guides/paired-reconstruction.md) |
 | Load or export a model | [Inference](guides/inference.md) |
-| Convert speech | [Voice conversion](guides/voice-conversion.md), [outputs and resuming](guides/conversion-outputs.md) |
-| Use reference audio | [Reference conditioning](guides/reference-conditioning.md), [paired reconstruction](guides/paired-reconstruction.md) |
+| Convert speech | [Voice conversion](guides/voice-conversion.md), [reference conditioning](guides/reference-conditioning.md), [outputs and resuming](guides/conversion-outputs.md) |
+| Evaluate speech outputs | [Utterance evaluation](guides/evaluation.md), [speaker verification](guides/asv.md), [frame diagnostics](guides/frame-diagnostics.md) |
 | Work with codec representations | [Native codecs](guides/native-codecs.md) |
-| Fit or inspect acoustic features | [Fitting](guides/fitting.md), [frame diagnostics](guides/frame-diagnostics.md) |
-| Evaluate speaker verification | [ASV](guides/asv.md) |
+| Work directly in Python | [Python API](library/python-api.md) |
 
 ## Extension and reference
 
