@@ -2,6 +2,7 @@ from pathlib import Path
 
 import lightning as L
 import torch
+from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.utilities.rank_zero import rank_zero_only
 
 from quick_convert.data import BaseDataset
@@ -158,6 +159,9 @@ class LightningTrainer(BaseTrainer):
 
         logger = self.pl_trainer.loggers[0]
         _ = logger.experiment
+
+        if isinstance(logger, TensorBoardLogger):
+            return Path(logger.log_dir)
 
         save_dir = logger.save_dir if logger.save_dir is not None else self.pl_trainer.default_root_dir
 

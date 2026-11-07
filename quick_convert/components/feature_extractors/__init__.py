@@ -16,12 +16,13 @@ the tokenizer/speaker dependencies.
 from importlib import import_module
 
 
-__all__ = ["ContentFeatureExtractor", "SpeakerEmbeddingExtractor", "TokenizerFeatureExtractor"]
+__all__ = ["ContentFeatureExtractor", "SpeakerEmbeddingExtractor", "TokenizerFeatureExtractor", "YAAPTF0Extractor"]
 
 _MODULES = {
     "ContentFeatureExtractor": ".content",
     "SpeakerEmbeddingExtractor": ".speaker_embedding",
     "TokenizerFeatureExtractor": ".tokenizer",
+    "YAAPTF0Extractor": ".yaapt_f0",
 }
 
 

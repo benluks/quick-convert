@@ -5,6 +5,7 @@ from .speaker_encoders import (
     PyannoteWeSpeakerEncoder,
     SpeakerEmbedding,
     SpeakerEncoder,
+    SpeechBrainECAPASpeakerEncoder,
 )
 from .speaker_encoders.cosyvoice_campplus_frames import CosyVoiceCAMPPlusFrameEncoder
 
@@ -17,4 +18,5 @@ __all__ = [
     "PyannoteWeSpeakerEncoder",
     "SpeakerEmbedding",
     "SpeakerEncoder",
+    "SpeechBrainECAPASpeakerEncoder",
 ]

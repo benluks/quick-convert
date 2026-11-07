@@ -3,7 +3,7 @@
 from importlib import import_module
 
 from .base import SpeechConversionSystem
-from .targets import PreparedTarget, ReferenceSpeech, SourceVoice, SpeakerIdentity
+from .targets import GeneratedVoice, PreparedTarget, ReferenceSpeech, SourceVoice, SpeakerIdentity
 
 
 __all__ = [
@@ -11,6 +11,8 @@ __all__ = [
     "PreparedTarget",
     "ReferenceSpeech",
     "SourceVoice",
+    "GeneratedVoice",
+    "PSST1ConversionSystem",
     "SpeakerIdentity",
     "SSLReconstructionConversionSystem",
     "SSLReconstructionResult",
@@ -25,6 +27,7 @@ def __getattr__(name):
         "SSLReconstructionResult": "ssl_reconstruction",
         "KNNVCConversionSystem": "knnvc",
         "ASRBNConversionSystem": "asrbn",
+        "PSST1ConversionSystem": "psst1",
     }
     if name not in modules:
         raise AttributeError(name)

@@ -6,7 +6,13 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 
 from quick_convert.data import AudioBatch, GeneratedAudio
-from quick_convert.systems.conversion.targets import PreparedTarget, ReferenceSpeech, SourceVoice, SpeakerIdentity
+from quick_convert.systems.conversion.targets import (
+    GeneratedVoice,
+    PreparedTarget,
+    ReferenceSpeech,
+    SourceVoice,
+    SpeakerIdentity,
+)
 
 
 class SpeechConversionSystem(Protocol):
@@ -17,13 +23,15 @@ class SpeechConversionSystem(Protocol):
     """
 
     def prepare_target(
-        self, target: ReferenceSpeech | SpeakerIdentity | SourceVoice | PreparedTarget
+        self, target: ReferenceSpeech | SpeakerIdentity | SourceVoice | GeneratedVoice | PreparedTarget
     ) -> PreparedTarget: ...
 
     def convert_batch(self, batch: AudioBatch, *, target: PreparedTarget) -> GeneratedAudio: ...
 
 
-def generate_audio_batch(batch: AudioBatch, operation, *, sample_rate: int, **kwargs) -> GeneratedAudio:
+def generate_audio_batch(
+    batch: AudioBatch, operation, *, sample_rate: int, sample_kwargs=None, **kwargs
+) -> GeneratedAudio:
     """Apply a single-item operation and preserve exact output lengths.
 
     This default adapter is intentionally sequential. Implementations with
@@ -33,15 +41,16 @@ def generate_audio_batch(batch: AudioBatch, operation, *, sample_rate: int, **kw
     waveforms = []
 
     for sample in batch:
+        call_kwargs = {**kwargs, **(sample_kwargs(sample) if sample_kwargs is not None else {})}
         if sample.waveform is None:
-            waveform = operation(sample.path, **kwargs)
+            waveform = operation(sample.path, **call_kwargs)
         else:
             if sample.sample_rate is None:
                 raise ValueError(f"Loaded sample {sample.utt_id!r} has no sample rate.")
             waveform = operation(
                 sample.waveform,
                 sample_rate=int(sample.sample_rate),
-                **kwargs,
+                **call_kwargs,
             )
 
         if waveform.ndim == 2 and waveform.shape[0] == 1:

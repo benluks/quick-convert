@@ -1,0 +1,20 @@
+# @package _global_
+
+# Frozen pretrained ECAPA-TDNN x-vectors for training the PSST1 flow.
+
+defaults:
+  - /global: default
+  - /pipeline: precompute_features
+  - /dataset: librispeech
+  - /components/feature_extractor@feature_extractor: speaker_embedding
+  - /components/speaker_encoder@encoder: speechbrain_ecapa
+  - _self_
+
+dataset:
+  splits:
+    - train-clean-360
+  load: true
+  target_sr: ${class_attr:${encoder._target_},SAMPLE_RATE}
+
+pipeline:
+  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/ecapa

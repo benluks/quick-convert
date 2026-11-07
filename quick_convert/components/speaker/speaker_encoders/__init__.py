@@ -3,6 +3,7 @@ from .cosyvoice_campplus import CosyVoiceCAMPPlusSpeakerEncoder
 from .cosyvoice_campplus_frames import CosyVoiceCAMPPlusFrameEncoder
 from .espnet import ESPnetSpeakerEncoder
 from .pyannote_wespeaker import PyannoteWeSpeakerEncoder
+from .speechbrain_ecapa import SpeechBrainECAPASpeakerEncoder
 
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "PyannoteWeSpeakerEncoder",
     "SpeakerEmbedding",
     "SpeakerEncoder",
+    "SpeechBrainECAPASpeakerEncoder",
 ]

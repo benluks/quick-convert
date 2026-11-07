@@ -221,3 +221,5 @@ produce an audio batch; include `reference_path` in dataset `load`. `SpeechPromp
 assembles an exact active-speech duration without changing caller audio or
 random state. See the [reference-conditioning guide](../guides/reference-conditioning.md)
 for executable presets and Python examples.
+
+The [PSST1 guide](../components/psst1.md) covers generated voices and its speaker-flow training recipe.

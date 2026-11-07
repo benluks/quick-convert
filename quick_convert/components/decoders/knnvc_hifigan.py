@@ -1,93 +1,29 @@
-# THIS CODE IS COPIED FROM https://github.com/jik876/hifi-gan/blob/master/models.py
+"""KNN-VC HiFi-GAN adapter, derived from jik876/hifi-gan.
+
+The residual and synthesis backbone is shared with other HiFi-GAN adapters.
+"""
 
 from dataclasses import dataclass
+from functools import partial
 
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torch.nn import Conv1d, ConvTranspose1d
+from torch.nn import Conv1d
 from torch.nn.utils import remove_weight_norm, weight_norm
 
 from quick_convert.components.decoders.base import BaseDecoder
+from quick_convert.components.decoders.hifigan import HifiGanGenerator, HifiGanResidualBlock, get_padding, init_weights
 from quick_convert.utils.device import DeviceLike, configure_device
 
 
 LRELU_SLOPE = 0.1
 
 
-def get_padding(kernel_size, dilation=1):
-    return int((kernel_size * dilation - dilation) / 2)
-
-
-def init_weights(m, mean=0.0, std=0.01):
-    classname = m.__class__.__name__
-    if classname.find("Conv") != -1:
-        m.weight.data.normal_(mean, std)
-
-
-class ResBlock1(torch.nn.Module):
+class ResBlock1(HifiGanResidualBlock):
     def __init__(self, h, channels, kernel_size=3, dilation=(1, 3, 5)):
-        super().__init__()
+        super().__init__(channels, kernel_size, dilation, use_weight_norm=True, initialize=True)
         self.h = h
-        self.convs1 = nn.ModuleList(
-            [
-                weight_norm(
-                    Conv1d(
-                        channels,
-                        channels,
-                        kernel_size,
-                        1,
-                        dilation=dilation[0],
-                        padding=get_padding(kernel_size, dilation[0]),
-                    )
-                ),
-                weight_norm(
-                    Conv1d(
-                        channels,
-                        channels,
-                        kernel_size,
-                        1,
-                        dilation=dilation[1],
-                        padding=get_padding(kernel_size, dilation[1]),
-                    )
-                ),
-                weight_norm(
-                    Conv1d(
-                        channels,
-                        channels,
-                        kernel_size,
-                        1,
-                        dilation=dilation[2],
-                        padding=get_padding(kernel_size, dilation[2]),
-                    )
-                ),
-            ]
-        )
-        self.convs1.apply(init_weights)
-
-        self.convs2 = nn.ModuleList(
-            [
-                weight_norm(
-                    Conv1d(channels, channels, kernel_size, 1, dilation=1, padding=get_padding(kernel_size, 1))
-                ),
-                weight_norm(
-                    Conv1d(channels, channels, kernel_size, 1, dilation=1, padding=get_padding(kernel_size, 1))
-                ),
-                weight_norm(
-                    Conv1d(channels, channels, kernel_size, 1, dilation=1, padding=get_padding(kernel_size, 1))
-                ),
-            ]
-        )
-        self.convs2.apply(init_weights)
-
-    def forward(self, x):
-        for c1, c2 in zip(self.convs1, self.convs2, strict=True):
-            xt = F.leaky_relu(x, LRELU_SLOPE)
-            xt = c1(xt)
-            xt = F.leaky_relu(xt, LRELU_SLOPE)
-            xt = c2(xt)
-            x = xt + x
-        return x
 
     def remove_weight_norm(self):
         for layer in self.convs1:
@@ -138,61 +74,21 @@ class ResBlock2(torch.nn.Module):
             remove_weight_norm(layer)
 
 
-class Generator(torch.nn.Module):
+class Generator(HifiGanGenerator):
     def __init__(self, h):
-        super().__init__()
+        super().__init__(
+            h.hifi_dim,
+            h.upsample_rates,
+            h.upsample_kernel_sizes,
+            h.upsample_initial_channel,
+            h.resblock_kernel_sizes,
+            h.resblock_dilation_sizes,
+            residual_block=partial(ResBlock1 if h.resblock == "1" else ResBlock2, h),
+            input_projection=nn.Linear(h.hubert_dim, h.hifi_dim),
+            use_weight_norm=True,
+            initialize=True,
+        )
         self.h = h
-        self.lin_pre = nn.Linear(h.hubert_dim, h.hifi_dim)
-        self.num_kernels = len(h.resblock_kernel_sizes)
-        self.num_upsamples = len(h.upsample_rates)
-        self.conv_pre = weight_norm(nn.Conv1d(h.hifi_dim, h.upsample_initial_channel, 7, 1, padding=3))
-        resblock = ResBlock1 if h.resblock == "1" else ResBlock2
-
-        self.ups = nn.ModuleList()
-        for i, (u, k) in enumerate(zip(h.upsample_rates, h.upsample_kernel_sizes, strict=True)):
-            self.ups.append(
-                weight_norm(
-                    ConvTranspose1d(
-                        h.upsample_initial_channel // (2**i),
-                        h.upsample_initial_channel // (2 ** (i + 1)),
-                        k,
-                        u,
-                        padding=(k - u) // 2,
-                    )
-                )
-            )
-
-        self.resblocks = nn.ModuleList()
-        for i in range(len(self.ups)):
-            ch = h.upsample_initial_channel // (2 ** (i + 1))
-            for k, d in zip(h.resblock_kernel_sizes, h.resblock_dilation_sizes, strict=True):
-                self.resblocks.append(resblock(h, ch, k, d))
-
-        self.conv_post = weight_norm(Conv1d(ch, 1, 7, 1, padding=3))
-        self.ups.apply(init_weights)
-        self.conv_post.apply(init_weights)
-
-    def forward(self, x):
-        """`x` as (bs, seq_len, dim), regular hifi assumes input of shape (bs, n_mels, seq_len)"""
-        x = self.lin_pre(x)
-        x = x.permute(0, 2, 1)  # (bs, seq_len, dim) --> (bs, dim, seq_len)
-
-        x = self.conv_pre(x)
-        for i in range(self.num_upsamples):
-            x = F.leaky_relu(x, LRELU_SLOPE)
-            x = self.ups[i](x)
-            xs = None
-            for j in range(self.num_kernels):
-                if xs is None:
-                    xs = self.resblocks[i * self.num_kernels + j](x)
-                else:
-                    xs += self.resblocks[i * self.num_kernels + j](x)
-            x = xs / self.num_kernels
-        x = F.leaky_relu(x)
-        x = self.conv_post(x)
-        x = torch.tanh(x)
-
-        return x
 
     def remove_weight_norm(self):
         print("Removing weight norm...")
