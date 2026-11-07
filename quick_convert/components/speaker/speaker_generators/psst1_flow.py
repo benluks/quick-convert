@@ -6,10 +6,30 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 
-from quick_convert.external.psst1.flow import VelocityNet, integrate_backward, integrate_forward
+from quick_convert.components.decoders.flow_matching.estimators.psst1 import PSST1FlowEstimator
 from quick_convert.utils.atomic_files import atomic_file
 
 from .base import BaseSpeakerGenerator
+
+
+def integrate_forward(model, x0, steps):
+    """Euler integration from noise (t=0) to embedding (t=1)."""
+    xt = x0
+    dt = 1.0 / steps
+    for i in range(steps):
+        t = torch.full((xt.shape[0],), i / steps, device=xt.device)
+        xt = xt + model(xt, t) * dt
+    return xt
+
+
+def integrate_backward(model, x1, steps):
+    """Euler integration from embedding (t=1) back to noise (t=0)."""
+    xt = x1
+    dt = 1.0 / steps
+    for i in range(steps):
+        t = torch.full((xt.shape[0],), 1.0 - i * dt, device=xt.device)
+        xt = xt - model(xt, t) * dt
+    return xt
 
 
 def mix_latents(z_orig: torch.Tensor, z_rand: torch.Tensor, w: float) -> torch.Tensor:
@@ -55,7 +75,7 @@ class PSST1FlowSpeakerGenerator(BaseSpeakerGenerator):
 
     def __init__(self, checkpoint_path: str | Path | None = None) -> None:
         super().__init__(embedding_dim=self.EMBEDDING_DIM)
-        self.velocity_net = VelocityNet(input_dim=self.EMBEDDING_DIM, cond_dim=self.COND_DIM)
+        self.velocity_net = PSST1FlowEstimator(input_dim=self.EMBEDDING_DIM, cond_dim=self.COND_DIM)
         self.register_buffer("mean", torch.zeros(self.EMBEDDING_DIM))
         self.register_buffer("std", torch.ones(self.EMBEDDING_DIM))
         if checkpoint_path is not None:

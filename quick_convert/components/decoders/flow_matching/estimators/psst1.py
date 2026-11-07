@@ -69,7 +69,7 @@ class DiTBlock(nn.Module):
         )
 
 
-class VelocityNet(nn.Module):
+class PSST1FlowEstimator(nn.Module):
     """U-Net MLP for speaker embeddings: 192 -> 96 -> 48 -> 24 -> 48 -> 96 -> 192."""
 
     def __init__(self, input_dim=192, cond_dim=256):
@@ -95,23 +95,3 @@ class VelocityNet(nn.Module):
         x_up = self.block_up1(F.silu(self.dec1(h3)), t_emb) + h2
         x_up = self.block_up2(F.silu(self.dec2(x_up)), t_emb) + h1
         return self.out_proj(x_up)
-
-
-def integrate_forward(model, x0, steps):
-    """Euler integration from noise (t=0) to embedding (t=1)."""
-    xt = x0
-    dt = 1.0 / steps
-    for i in range(steps):
-        t = torch.full((xt.shape[0],), i / steps, device=xt.device)
-        xt = xt + model(xt, t) * dt
-    return xt
-
-
-def integrate_backward(model, x1, steps):
-    """Euler integration from embedding (t=1) back to noise (t=0)."""
-    xt = x1
-    dt = 1.0 / steps
-    for i in range(steps):
-        t = torch.full((xt.shape[0],), 1.0 - i * dt, device=xt.device)
-        xt = xt - model(xt, t) * dt
-    return xt

@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import torch
 
-from quick_convert.components.decoders.psst1_vocoder import PSST1Vocoder
+from quick_convert.components.decoders.psst1_hifigan import PSST1HifiGanDecoder
 from quick_convert.components.speaker.emotion_compensation import EmotionBoundaryCompensator
 from quick_convert.components.speaker.speaker_encoders.speechbrain_ecapa import SpeechBrainECAPASpeakerEncoder
 from quick_convert.components.speaker.speaker_generators.psst1_flow import PSST1FlowSpeakerGenerator
@@ -66,7 +66,7 @@ class PSST1ConversionSystem(InferenceSystem):
         self.speaker_encoder = SpeechBrainECAPASpeakerEncoder(files["speaker_encoder"], device=device)
         self.speaker_generator = PSST1FlowSpeakerGenerator(files["flow"]).to(device)
         self.emotion_compensator = EmotionBoundaryCompensator(files["emotion_boundaries"]).to(device)
-        self.vocoder = PSST1Vocoder(files["hubert"], files["generator"], device=device)
+        self.vocoder = PSST1HifiGanDecoder(files["hubert"], files["generator"], device=device)
 
         self.emotion_recognizer = emotion_recognizer
         self.emotion_label_map = dict(emotion_label_map or {})
@@ -107,7 +107,7 @@ class PSST1ConversionSystem(InferenceSystem):
 
     @property
     def sample_rate(self):
-        return PSST1Vocoder.SAMPLE_RATE
+        return PSST1HifiGanDecoder.SAMPLE_RATE
 
     @property
     def target_space(self):

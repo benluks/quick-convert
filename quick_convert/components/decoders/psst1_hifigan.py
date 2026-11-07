@@ -6,12 +6,48 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from quick_convert.components.decoders.hifigan import HifiGanGenerator
 from quick_convert.components.feature_extractors.yaapt_f0 import YAAPTF0Extractor
-from quick_convert.external.psst1.hifigan import Generator, upsample_condition
 from quick_convert.utils.device import DeviceLike, configure_device
 
 
-class PSST1Vocoder(nn.Module):
+class PSST1HifiGanGenerator(HifiGanGenerator):
+    """PSST1's folded HiFi-GAN weights, derived from speech-resynthesis.
+
+    The research adaptation is distributed under CC BY-NC 4.0. Source lineage
+    and weight provenance are documented in docs/components/psst1.md.
+    """
+
+    def __init__(
+        self,
+        model_in_dim=393,
+        upsample_rates=(5, 4, 2, 2, 2),
+        upsample_kernel_sizes=(11, 8, 4, 4, 4),
+        upsample_initial_channel=512,
+        resblock_kernel_sizes=(3, 7, 11),
+        resblock_dilation_sizes=((1, 3, 5), (1, 3, 5), (1, 3, 5)),
+    ):
+        super().__init__(
+            model_in_dim,
+            upsample_rates,
+            upsample_kernel_sizes,
+            upsample_initial_channel,
+            resblock_kernel_sizes,
+            resblock_dilation_sizes,
+        )
+
+
+def upsample_condition(signal, max_frames):
+    """Repeat each conditioning frame to span ``max_frames`` (latentGenerator._upsample)."""
+    bsz, channels, cond_length = signal.size()
+    signal = signal.unsqueeze(3).repeat(1, 1, 1, max_frames // cond_length)
+    reminder = (max_frames - signal.shape[2] * signal.shape[3]) // signal.shape[3]
+    if reminder > 0:
+        raise NotImplementedError("Padding condition signal - misalignment between condition features.")
+    return signal.view(bsz, channels, max_frames)
+
+
+class PSST1HifiGanDecoder(nn.Module):
     """Speaker-conditioned HiFi-GAN resynthesis used by PSST1.
 
     The generator is conditioned on soft HuBERT content units (200 classes),
@@ -47,7 +83,7 @@ class PSST1Vocoder(nn.Module):
         self.hubert = hubert_base()
         self.hubert.load_state_dict(hubert["hubert"])
         self.unit_projection = nn.Parameter(hubert["W"].float(), requires_grad=False)
-        self.generator = Generator()
+        self.generator = PSST1HifiGanGenerator()
         self.generator.load_state_dict(torch.load(generator_path, map_location="cpu", weights_only=True)["generator"])
         self.f0_extractor = YAAPTF0Extractor()
         self.eval()

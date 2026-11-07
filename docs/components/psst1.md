@@ -33,7 +33,7 @@ For every utterance:
    direction (default 10).
 3. `EmotionBoundaryCompensator` rescales the pseudo x-vector to norm √192 and moves it to a signed distance of 40
    (−40 for `sad`) from the linear boundary of the utterance's emotion.
-4. `PSST1Vocoder` resynthesizes the input's soft HuBERT units and
+4. `PSST1HifiGanDecoder` resynthesizes the input's soft HuBERT units and
    YAAPT F0 with the compensated x-vector through HiFi-GAN.
 
 `resynthesize()` skips steps 2 and 3, which gives the vocoder-only baseline.
@@ -203,3 +203,26 @@ with `load_inference_system` or exported using the standard
 [inference workflow](../guides/inference.md). The top-level training seed is
 applied before the network is instantiated. The research-compatible `flow.pt`
 export is also available.
+
+## Component ownership
+
+The adapted PSST1 estimator lives in
+`components/decoders/flow_matching/estimators/psst1.py`; integration and speaker
+standardization live in the speaker generator. Its adaptive normalization and
+skip connections differ from the conditional residual MLP estimator.
+
+`PSST1HifiGanDecoder` in `components/decoders/psst1_hifigan.py` assembles content,
+pitch, and speaker conditioning. Its synthesis network shares the HiFi-GAN
+backbone with KNN-VC. KNN-VC selects weight normalization, its input projection,
+and its upsampling configuration; PSST1 loads folded convolution weights.
+The moved PSST1 implementations retain their research provenance and stated
+CC BY-NC 4.0 terms.
+
+The PSST1 flow estimator derives from the research
+`flow_matching/flow_matcher.py`, which adapts facebookresearch/DiT.
+The PSST1 HiFi-GAN configuration derives from the research
+`adapted_from_facebookresearch/models_test.py`, adapted from
+facebookresearch/speech-resynthesis by Xiaoxiao Miao (NII).
+The contributor used a research working copy dated 2026-10-22; exact upstream
+revisions were not recorded. Moving these adaptations into components retains
+that attribution and the licensing decision described above.

@@ -5,20 +5,20 @@ import pytest
 import torch
 
 import quick_convert.systems.conversion.psst1 as psst1_module
+from quick_convert.components.decoders.flow_matching.estimators.psst1 import PSST1FlowEstimator
+from quick_convert.components.decoders.psst1_hifigan import PSST1HifiGanGenerator, upsample_condition
 from quick_convert.components.speaker import SpeakerEmbedding
 from quick_convert.components.speaker.emotion_compensation import EmotionBoundaryCompensator
 from quick_convert.components.speaker.speaker_generators.psst1_flow import PSST1FlowSpeakerGenerator, mix_latents
 from quick_convert.data import AudioBatch, AudioSample
 from quick_convert.data.resources import ResourceCollection, ResourceRef
-from quick_convert.external.psst1.flow import VelocityNet
-from quick_convert.external.psst1.hifigan import Generator, upsample_condition
 from quick_convert.systems.conversion import GeneratedVoice, PSST1ConversionSystem
 
 
 def write_flow(path: Path) -> Path:
     torch.manual_seed(0)
     torch.save(
-        {"velocity_net": VelocityNet().state_dict(), "mean": torch.randn(192), "std": torch.rand(192) + 0.5},
+        {"velocity_net": PSST1FlowEstimator().state_dict(), "mean": torch.randn(192), "std": torch.rand(192) + 0.5},
         path,
     )
     return path
@@ -116,7 +116,7 @@ def test_upsample_condition_repeats_frames():
 
 
 def test_hifigan_generator_upsamples_f0_frames_to_samples():
-    generator = Generator().eval()
+    generator = PSST1HifiGanGenerator().eval()
 
     with torch.no_grad():
         out = generator(torch.randn(1, 393, 3))
@@ -159,7 +159,7 @@ class FakeRecognizer:
 @pytest.fixture
 def make_psst1(tmp_path, monkeypatch):
     monkeypatch.setattr(psst1_module, "SpeechBrainECAPASpeakerEncoder", FakeSpeakerEncoder)
-    monkeypatch.setattr(psst1_module, "PSST1Vocoder", FakeVocoder)
+    monkeypatch.setattr(psst1_module, "PSST1HifiGanDecoder", FakeVocoder)
     write_flow(tmp_path / "flow.pt")
     write_boundaries(tmp_path / "emotion_boundaries.pt")
     for name in ("ecapa.ckpt", "hubert_soft.pt", "hifigan.pt"):
@@ -335,13 +335,13 @@ def test_psst1_conversion_pipeline_writes_and_resumes(tmp_path, make_psst1):
 
 
 def test_psst1_children_follow_parent_device_move():
-    from quick_convert.components.decoders.psst1_vocoder import PSST1Vocoder
+    from quick_convert.components.decoders.psst1_hifigan import PSST1HifiGanDecoder
     from quick_convert.components.speaker.speaker_encoders.speechbrain_ecapa import SpeechBrainECAPASpeakerEncoder
     from quick_convert.systems.ser.speechbrain_ser import SpeechBrainSER
 
     parent = torch.nn.Module()
     # Construct device-tracking shells without downloading optional models.
-    for name, cls in (("vocoder", PSST1Vocoder), ("speaker", SpeechBrainECAPASpeakerEncoder)):
+    for name, cls in (("vocoder", PSST1HifiGanDecoder), ("speaker", SpeechBrainECAPASpeakerEncoder)):
         child = cls.__new__(cls)
         torch.nn.Module.__init__(child)
         child.register_buffer("_device_anchor", torch.empty(0), persistent=False)
@@ -416,3 +416,37 @@ def test_lazy_ser_backend_moves_without_changing_checkpoint_keys():
     assert set(recognizer.state_dict()) == before
     parent = torch.nn.ModuleDict({"recognizer": recognizer}).to("meta")
     assert parent["recognizer"].predict(torch.ones(1600), 16000) == "neu"
+
+
+def test_shared_hifigan_loads_folded_knn_weights_with_identical_output():
+    from quick_convert.components.decoders.knnvc_hifigan import Generator, KnnVCHifiGanConfig
+
+    config = KnnVCHifiGanConfig(
+        hubert_dim=4,
+        hifi_dim=4,
+        upsample_rates=(2, 2),
+        upsample_kernel_sizes=(4, 4),
+        upsample_initial_channel=16,
+        resblock_kernel_sizes=(3,),
+        resblock_dilation_sizes=((1, 3, 5),),
+    )
+    knn = Generator(config).eval()
+    with torch.no_grad():
+        knn.lin_pre.weight.copy_(torch.eye(4))
+        knn.lin_pre.bias.zero_()
+    features = torch.randn(2, 3, 4)
+    normalized = knn(features)
+    knn.remove_weight_norm()
+
+    psst = PSST1HifiGanGenerator(
+        model_in_dim=4,
+        upsample_rates=(2, 2),
+        upsample_kernel_sizes=(4, 4),
+        upsample_initial_channel=16,
+        resblock_kernel_sizes=(3,),
+        resblock_dilation_sizes=((1, 3, 5),),
+    ).eval()
+    folded_state = {key: value for key, value in knn.state_dict().items() if not key.startswith("lin_pre.")}
+    psst.load_state_dict(folded_state, strict=True)
+    torch.testing.assert_close(knn(features), normalized, rtol=0, atol=0)
+    torch.testing.assert_close(psst(features.transpose(1, 2)), normalized, rtol=0, atol=0)
