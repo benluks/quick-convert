@@ -65,7 +65,6 @@ targets:
   quick_convert.components.speaker.ESPnetSpeakerEncoder: [espnet-wavlm-joint]
   quick_convert.components.speaker.PyannoteWeSpeakerEncoder: [pyannote]
   quick_convert.components.speaker.SpeechBrainECAPASpeakerEncoder: [speechbrain]
-  quick_convert.components.decoders.PSST1HifiGanDecoder: [yaapt]
   quick_convert.components.feature_extractors.YAAPTF0Extractor: [yaapt]
   quick_convert.components.ssl.DACContentEncoder: [dac]
   quick_convert.components.ssl.DACQuantizedContentEncoder: [dac]

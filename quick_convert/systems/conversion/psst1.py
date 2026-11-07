@@ -8,9 +8,11 @@ from uuid import uuid4
 import torch
 
 from quick_convert.components.decoders.psst1_hifigan import PSST1HifiGanDecoder
+from quick_convert.components.feature_extractors.yaapt_f0 import YAAPTF0Extractor
 from quick_convert.components.speaker.emotion_compensation import EmotionBoundaryCompensator
 from quick_convert.components.speaker.speaker_encoders.speechbrain_ecapa import SpeechBrainECAPASpeakerEncoder
 from quick_convert.components.speaker.speaker_generators.psst1_flow import PSST1FlowSpeakerGenerator
+from quick_convert.components.ssl.hubert_soft import SoftHubertContentEncoder
 from quick_convert.data import AudioBatch, GeneratedAudio
 from quick_convert.systems.base import InferenceSystem
 from quick_convert.utils.audio import load_audio_input
@@ -66,7 +68,9 @@ class PSST1ConversionSystem(InferenceSystem):
         self.speaker_encoder = SpeechBrainECAPASpeakerEncoder(files["speaker_encoder"], device=device)
         self.speaker_generator = PSST1FlowSpeakerGenerator(files["flow"]).to(device)
         self.emotion_compensator = EmotionBoundaryCompensator(files["emotion_boundaries"]).to(device)
-        self.vocoder = PSST1HifiGanDecoder(files["hubert"], files["generator"], device=device)
+        self.content_encoder = SoftHubertContentEncoder(files["hubert"], device=device)
+        self.f0_extractor = YAAPTF0Extractor()
+        self.decoder = PSST1HifiGanDecoder(files["generator"], device=device)
 
         self.emotion_recognizer = emotion_recognizer
         self.emotion_label_map = dict(emotion_label_map or {})
@@ -160,7 +164,7 @@ class PSST1ConversionSystem(InferenceSystem):
         waveform = load_audio_input(audio, target_sample_rate=self.sample_rate, sample_rate=sample_rate, mono=True)[0]
         xvector = self.speaker_encoder.encode(waveform, self.sample_rate).values
         if isinstance(target.conditioning, SourceVoice):
-            return self.vocoder(waveform, xvector)
+            return self._synthesize(waveform, xvector)
         label = self._resolve_emotion(emotion, waveform)
         pseudo = self.speaker_generator.anonymize(
             xvector,
@@ -168,7 +172,23 @@ class PSST1ConversionSystem(InferenceSystem):
             steps=self.steps,
             generator=self._noise_generator(target.conditioning.seed, waveform),
         )
-        return self.vocoder(waveform, self.emotion_compensator(pseudo, label))
+        return self._synthesize(waveform, self.emotion_compensator(pseudo, label))
+
+    def _synthesize(self, waveform, xvector):
+        # The research frontend normalizes/crops only content and F0 audio;
+        # speaker and emotion extraction consume the original source waveform.
+        hop = 320
+        usable = waveform.numel() // hop * hop
+        if usable == 0:
+            raise ValueError(f"PSST1 needs at least {hop} samples.")
+        audio = waveform.detach().float().cpu()
+        peak = audio.abs().max()
+        if peak > 0:
+            audio = audio / peak
+        audio = (audio * 0.95)[:usable]
+        content = self.content_encoder.encode_waveforms(audio.unsqueeze(0), sample_rate=self.sample_rate)
+        f0 = self.f0_extractor.extract(audio, self.sample_rate)
+        return self.decoder(content.values[0, : content.lengths[0]], f0, xvector, num_samples=waveform.numel())
 
     @torch.inference_mode()
     def resynthesize(self, audio, *, sample_rate=None):

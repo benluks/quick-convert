@@ -135,15 +135,30 @@ class FakeSpeakerEncoder:
         return SpeakerEmbedding(values=values, embedding_dim=192, backend="fake", model_name="fake")
 
 
-class FakeVocoder:
+class FakeDecoder:
     SAMPLE_RATE = 16_000
 
-    def __init__(self, hubert_path, generator_path, device=None):
+    def __init__(self, generator_path, device=None):
         self.xvectors = []
 
-    def __call__(self, waveform, xvector):
+    def __call__(self, units, f0, xvector, *, num_samples=None):
         self.xvectors.append(xvector.clone())
-        return waveform.clone()
+        return units[:, 0].clone()[:num_samples]
+
+
+class FakeContentEncoder(torch.nn.Module):
+    def __init__(self, checkpoint_path, device=None):
+        super().__init__()
+
+    def encode_waveforms(self, waveforms, sample_rate):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(values=waveforms[..., None], lengths=torch.tensor([waveforms.shape[1]]))
+
+
+class FakeF0Extractor:
+    def extract(self, audio, sample_rate):
+        return torch.zeros(max(1, len(audio) // 160))
 
 
 class FakeRecognizer:
@@ -159,7 +174,9 @@ class FakeRecognizer:
 @pytest.fixture
 def make_psst1(tmp_path, monkeypatch):
     monkeypatch.setattr(psst1_module, "SpeechBrainECAPASpeakerEncoder", FakeSpeakerEncoder)
-    monkeypatch.setattr(psst1_module, "PSST1HifiGanDecoder", FakeVocoder)
+    monkeypatch.setattr(psst1_module, "PSST1HifiGanDecoder", FakeDecoder)
+    monkeypatch.setattr(psst1_module, "SoftHubertContentEncoder", FakeContentEncoder)
+    monkeypatch.setattr(psst1_module, "YAAPTF0Extractor", FakeF0Extractor)
     write_flow(tmp_path / "flow.pt")
     write_boundaries(tmp_path / "emotion_boundaries.pt")
     for name in ("ecapa.ckpt", "hubert_soft.pt", "hifigan.pt"):
@@ -190,9 +207,9 @@ def test_psst1_explicit_emotion_wins_over_recognizer(make_psst1):
     waveform = torch.randn(1600)
 
     anonymizer.convert(waveform, target=anonymizer.prepare_target(GeneratedVoice()), emotion="hap")
-    explicit = anonymizer.vocoder.xvectors[-1]
+    explicit = anonymizer.decoder.xvectors[-1]
     anonymizer.convert(waveform, target=anonymizer.prepare_target(GeneratedVoice()))
-    predicted = anonymizer.vocoder.xvectors[-1]
+    predicted = anonymizer.decoder.xvectors[-1]
 
     assert recognizer.calls == 1
     hap = anonymizer.emotion_compensator.normals[anonymizer.EMOTIONS.index("hap")]
@@ -222,7 +239,7 @@ def test_psst1_seed_depends_on_input_and_seed_only(make_psst1):
     for waveform in (first, second, first):
         anonymizer.convert(waveform, target=anonymizer.prepare_target(GeneratedVoice(seed=3)), emotion="neu")
     anonymizer.convert(first, target=anonymizer.prepare_target(GeneratedVoice(seed=4)), emotion="neu")
-    xvectors = anonymizer.vocoder.xvectors
+    xvectors = anonymizer.decoder.xvectors
 
     assert torch.equal(xvectors[0], xvectors[2])
     assert not torch.allclose(xvectors[0], xvectors[1])
@@ -258,8 +275,8 @@ def test_psst1_batch_reads_emotion_resources(make_psst1):
     sad = anonymizer.emotion_compensator.normals[anonymizer.EMOTIONS.index("sad")]
     ang = anonymizer.emotion_compensator.normals[anonymizer.EMOTIONS.index("ang")]
     assert generated.lengths.tolist() == [1600, 1280]
-    assert torch.allclose(anonymizer.vocoder.xvectors[0] @ sad, torch.tensor(-40.0), atol=1e-3)
-    assert torch.allclose(anonymizer.vocoder.xvectors[1] @ ang, torch.tensor(40.0), atol=1e-3)
+    assert torch.allclose(anonymizer.decoder.xvectors[0] @ sad, torch.tensor(-40.0), atol=1e-3)
+    assert torch.allclose(anonymizer.decoder.xvectors[1] @ ang, torch.tensor(40.0), atol=1e-3)
 
 
 def test_psst1_resynthesis_uses_the_original_xvector(make_psst1):
@@ -269,7 +286,7 @@ def test_psst1_resynthesis_uses_the_original_xvector(make_psst1):
     anonymizer.resynthesize(waveform)
 
     expected = FakeSpeakerEncoder(None).encode(waveform, 16_000).values
-    assert torch.allclose(anonymizer.vocoder.xvectors[-1], expected)
+    assert torch.allclose(anonymizer.decoder.xvectors[-1], expected)
 
 
 def test_psst1_downloads_released_weights_when_no_directory_is_given(tmp_path, monkeypatch, make_psst1):
@@ -328,9 +345,9 @@ def test_psst1_conversion_pipeline_writes_and_resumes(tmp_path, make_psst1):
     values, rate = sf.read(output)
     assert rate == 16000 and len(values) == 1600
     assert abs(values).max() > 0
-    assert len(system.vocoder.xvectors) == 1
+    assert len(system.decoder.xvectors) == 1
     pipeline.run()
-    assert len(system.vocoder.xvectors) == 1
+    assert len(system.decoder.xvectors) == 1
     assert json.loads((pipeline.out_dir / "conversions.jsonl").read_text())["utt_id"] == "utt"
 
 
@@ -450,3 +467,66 @@ def test_shared_hifigan_loads_folded_knn_weights_with_identical_output():
     psst.load_state_dict(folded_state, strict=True)
     torch.testing.assert_close(knn(features), normalized, rtol=0, atol=0)
     torch.testing.assert_close(psst(features.transpose(1, 2)), normalized, rtol=0, atol=0)
+
+
+def test_split_resynthesis_matches_previous_waveform_path(tmp_path, monkeypatch):
+    from functools import partial
+    from types import SimpleNamespace
+
+    import torch.nn.functional as F
+    import torchaudio.models
+
+    import quick_convert.components.decoders.psst1_hifigan as hifigan
+    from quick_convert.components.ssl.hubert_soft import SoftHubertContentEncoder
+
+    class Hubert(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.register_buffer("scales", torch.arange(1, 5).float())
+
+        def forward(self, audio):
+            frames = audio.unfold(-1, 400, 320).mean(-1)
+            return frames[..., None] * self.scales, None
+
+    monkeypatch.setattr(torchaudio.models, "hubert_base", Hubert)
+    generator = partial(
+        PSST1HifiGanGenerator,
+        upsample_initial_channel=32,
+        resblock_kernel_sizes=(3,),
+        resblock_dilation_sizes=((1, 3, 5),),
+    )
+    torch.save({"hubert": Hubert().state_dict(), "W": torch.randn(200, 4)}, tmp_path / "hubert.pt")
+    torch.save({"generator": generator().state_dict()}, tmp_path / "hifigan.pt")
+    monkeypatch.setattr(hifigan, "PSST1HifiGanGenerator", generator)
+    encoder = SoftHubertContentEncoder(tmp_path / "hubert.pt", device="cpu")
+    decoder = hifigan.PSST1HifiGanDecoder(tmp_path / "hifigan.pt", device="cpu")
+
+    class F0:
+        def extract(self, audio, rate):
+            return torch.linspace(100, 140, len(audio) // 160)
+
+    context = SimpleNamespace(content_encoder=encoder, f0_extractor=F0(), decoder=decoder, sample_rate=16000)
+    # Retain the previous waveform-to-conditioning order as a regression oracle.
+    waveform, speaker = torch.randn(1607), torch.randn(192)
+    audio = waveform.float().cpu()
+    audio = (audio / audio.abs().max() * 0.95)[:1600]
+    raw, _ = encoder.hubert(audio.unsqueeze(0))
+    units = F.linear(F.normalize(raw), F.normalize(encoder.unit_projection))
+    units = F.pad(F.layer_norm(units, units.shape).transpose(2, 1), (0, 1), "replicate")
+    f0 = context.f0_extractor.extract(audio, 16000).reshape(1, 1, -1)
+    units = upsample_condition(units, f0.shape[-1])
+    vector = speaker.reshape(1, 192, 1)
+    vector = F.layer_norm(vector, vector.shape)
+    packed = torch.cat((units, f0, upsample_condition(vector, f0.shape[-1])), dim=1)
+    with torch.inference_mode():
+        expected = decoder.generator(packed).reshape(-1)[: len(waveform)]
+        expected = expected / expected.abs().max()
+        actual = PSST1ConversionSystem._synthesize(context, waveform, speaker)
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+
+    # The content contract also preserves valid lengths when batching recordings.
+    batch = torch.stack((F.pad(audio[:960], (0, 640)), audio))
+    features = encoder.encode_waveforms(batch, torch.tensor([960, 1600]), 16000)
+    alone = encoder.encode_waveforms(audio[:960].unsqueeze(0), sample_rate=16000)
+    assert features.lengths.tolist() == [2, 4]
+    torch.testing.assert_close(features.values[0, :2], alone.values[0], rtol=0, atol=0)

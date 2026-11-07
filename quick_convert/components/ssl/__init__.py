@@ -1,6 +1,7 @@
 from .base import ContentEncoder, ContentFeatures, DiscreteContentEncoder
 from .dac import DACContentEncoder
 from .emo2vec import EmotionEncoder
+from .hubert_soft import SoftHubertContentEncoder
 from .pase import PASEContentEncoder
 from .pros2vec import ProsodyEncoder
 from .quantized import (
@@ -25,6 +26,7 @@ __all__ = [
     "SpeechTokenizerQuantizedContentEncoder",
     "VQASRContentEncoder",
     "ContentEncoder",
+    "SoftHubertContentEncoder",
     "ContentFeatures",
     "DiscreteContentEncoder",
     "DACContentEncoder",

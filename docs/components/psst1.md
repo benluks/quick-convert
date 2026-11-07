@@ -83,9 +83,9 @@ for conversion.
 
 ## Implementation and provenance
 
-`PSST1HifiGanDecoder` in `components/decoders/psst1_hifigan.py` assembles
-content, F0, and speaker conditioning. It shares the HiFi-GAN backbone with
-KNN-VC. The PSST1 flow estimator lives under `components/decoders/flow_matching/estimators`;
+`PSST1ConversionSystem` coordinates `SoftHubertContentEncoder`, YAAPT F0,
+and pseudo-speaker generation. `PSST1HifiGanDecoder` accepts those features
+and packs the conditioning required by its shared HiFi-GAN backbone. The PSST1 flow estimator lives under `components/decoders/flow_matching/estimators`;
 speaker standardization and integration live in the speaker generator.
 
 The estimator derives from the research `flow_matching/flow_matcher.py`
