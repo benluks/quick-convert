@@ -6,9 +6,9 @@ from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 from torch import nn
 
+from quick_convert.components.encoders.content import ContentFeatures, VQASRContentEncoder
 from quick_convert.components.layers import LayerWeightedSum
-from quick_convert.components.layers.rvq_ema import ResidualVectorQuantizerEMA
-from quick_convert.components.ssl import ContentFeatures, VQASRContentEncoder
+from quick_convert.components.layers.ema_rvq import EMAResidualVectorQuantizer
 from quick_convert.data import AudioBatch
 from quick_convert.dependencies import dependency_plan
 from quick_convert.inference import load_inference_system
@@ -39,7 +39,7 @@ class TinyContentEncoder(nn.Module):
 
 def make_source():
     return VQASRSystem(
-        quantizer=ResidualVectorQuantizerEMA(
+        quantizer=EMAResidualVectorQuantizer(
             input_dim=4, n_codebooks=1, codebook_size=4, codebook_dim=2, kmeans_init=False
         ),
         ctc_head=nn.Linear(4, 3),
@@ -119,7 +119,9 @@ def test_vq_reconstruction_recipe_and_nested_loader_device(tmp_path):
             {
                 "system": {
                     "_target_": "quick_convert.systems.asr.VQASRSystem",
-                    "online_encoders": {"content": {"_target_": "quick_convert.components.ssl.W2VBertContentEncoder"}},
+                    "online_encoders": {
+                        "content": {"_target_": "quick_convert.components.encoders.content.W2VBertContentEncoder"}
+                    },
                 }
             }
         ),
@@ -138,7 +140,7 @@ def test_vq_reconstruction_recipe_and_nested_loader_device(tmp_path):
     assert "feature_transform" not in cfg.system
     assert cfg.train_dataset.target_sr == 16000
     assert "content" not in cfg.train_dataset.load
-    assert dependency_plan(cfg).extras == ("cosyvoice", "training", "transformers")
+    assert dependency_plan(cfg).extras == ("campplus", "cosyvoice", "training", "transformers")
     resolved = OmegaConf.create(OmegaConf.to_container(cfg.system, resolve=True))
     override_devices(resolved, "cpu")
     assert resolved.online_encoders.content.system.map_location == "cpu"
@@ -164,7 +166,7 @@ def test_reconstruction_checkpoint_restores_nested_source_on_requested_device(tm
             "decoder": {"_target_": "torch.nn.Linear", "in_features": 4, "out_features": 1},
             "online_encoders": {
                 "content": {
-                    "_target_": "quick_convert.components.ssl.VQASRContentEncoder",
+                    "_target_": "quick_convert.components.encoders.content.VQASRContentEncoder",
                     "system": {
                         "_target_": "quick_convert.inference.load_inference_system",
                         "source": str(source_path),

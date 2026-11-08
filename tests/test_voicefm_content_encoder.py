@@ -5,7 +5,7 @@ import pytest
 import torch
 from torch import nn
 
-from quick_convert.components.ssl import VoiceFMContentEncoder, resolve_content_encoder
+from quick_convert.components.encoders.content import VoiceFMContentEncoder, resolve_content_encoder
 
 
 class FakeEncoder(nn.Module):

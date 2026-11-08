@@ -7,7 +7,7 @@ defaults:
   - _self_
 
 speaker_encoder:
-  _target_: quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusSpeakerEncoder
+  _target_: quick_convert.components.encoders.speaker.CosyVoiceCAMPPlusSpeakerEncoder
   device: ${device}
 
 dataset_path: ${out_root}/librispeech_test

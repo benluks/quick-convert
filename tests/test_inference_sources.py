@@ -259,7 +259,9 @@ def test_dependency_planner_inspects_the_saved_system_without_instantiation(tmp_
 
     run, _ = write_run(tmp_path, embedded=True)
     saved = torch.load(run / "checkpoints/last.ckpt", weights_only=True)
-    saved[CHECKPOINT_METADATA_KEY]["system"] = {"_target_": "quick_convert.components.ssl.W2VBertContentEncoder"}
+    saved[CHECKPOINT_METADATA_KEY]["system"] = {
+        "_target_": "quick_convert.components.encoders.content.W2VBertContentEncoder"
+    }
     torch.save(saved, run / "checkpoints/last.ckpt")
     artifact = export_inference_artifact(run, tmp_path / "artifact")
     for loader in (

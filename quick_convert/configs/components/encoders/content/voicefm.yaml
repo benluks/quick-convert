@@ -1,0 +1,3 @@
+_target_: quick_convert.components.encoders.content.VoiceFMContentEncoder
+checkpoint_path: ???
+device: ${device}

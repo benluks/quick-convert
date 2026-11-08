@@ -26,7 +26,7 @@ system:
       # Reference audio is independent of the continuation; allow longer context.
       prefix_fraction: [0.5, 1.0]
     content_encoder:
-      _target_: quick_convert.components.encoders.upsample_conformer.UpsampleConformerEncoder
+      _target_: quick_convert.components.sequence.upsample_conformer.UpsampleConformerEncoder
       input_size: ${..feature_dim}
       output_size: 256
       num_blocks: 6

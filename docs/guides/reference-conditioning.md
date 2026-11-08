@@ -21,7 +21,7 @@ quick-convert train_sslr_w2vbert_dit_campp_prefix data_root=/data
 quick-convert train_sslr_w2vbert_cmdiff_campp_prefix data_root=/data
 ```
 
-The CAMPPlus variants require `campplus-frames`, in addition to the content,
+The CAMPPlus variants require `campplus`, in addition to the content,
 decoder and training profiles selected by `requirements`. Their online speaker
 encoder is replaced by a frozen 512-channel CAMPPlus frame encoder. The
 `train_sslr_dac_dit_campp_prefix` and `train_sslr_dac_cmdiff_campp_prefix` variants
@@ -40,7 +40,7 @@ name, so prefix variants do not share the base run's output directory.
 example:
 
 ```python
-from quick_convert.components.decoders import StreamConditioning
+from quick_convert.components.generators.acoustic import StreamConditioning
 
 conditioning = StreamConditioning({"mel": 80, "pitch": 1})
 assert conditioning.output_dim == 83
@@ -75,7 +75,7 @@ could leak future context. An already cropped training prefix uses
 At inference, pass only the prepared prefixes:
 
 ```python
-from quick_convert.components.decoders import ConditioningStream
+from quick_convert.components.generators.acoustic import ConditioningStream
 
 # prefix_mels: [batch, prefix_time, 80]; prefix_lengths: int64 [batch].
 result = system.generate_features(
@@ -137,7 +137,7 @@ quiet intervals, and fills an exact duration using crossfades and edge fades:
 
 ```python
 from pathlib import Path
-from quick_convert.components.reference_prompt import SpeechPromptBuilder
+from quick_convert.components.conditioning.reference_prompt import SpeechPromptBuilder
 
 # Each waveform is finite, mono floating-point audio at one common sample rate.
 recordings = [(Path("reference.wav"), reference_waveform, 16_000)]

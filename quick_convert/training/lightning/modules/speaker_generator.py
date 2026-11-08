@@ -8,7 +8,7 @@ from pathlib import Path
 
 import torch
 
-from quick_convert.components.speaker.speaker_generators.base import BaseSpeakerGenerator
+from quick_convert.components.generators.speaker.base import BaseSpeakerGenerator
 from quick_convert.data import BaseDataset
 from quick_convert.data.types import AudioBatch
 

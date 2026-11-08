@@ -4,7 +4,7 @@ For named prefix streams, CAMPPlus frame context and aligned reference prompts,
 see the [reference-conditioning guide](../guides/reference-conditioning.md).
 
 `CosyVoiceSpectrogramGenerator` uses a resolved
-`quick_convert.components.feature_extractors.mel.MelSpectrogramConfig` as its
+`quick_convert.components.features.mel.matcha.MelSpectrogramConfig` as its
 waveform-to-mel contract. Content encoders can continue to consume 16 kHz audio;
 the decoder resamples reconstruction targets to the mel specification's rate.
 Training targets and validation reference images use the same extraction path.
@@ -56,7 +56,7 @@ following preprocessing can use:
 
 ```yaml
 mel_config:
-  _target_: quick_convert.components.feature_extractors.mel.MelSpectrogramConfig
+  _target_: quick_convert.components.features.mel.matcha.MelSpectrogramConfig
   sample_rate: 24000
   n_fft: 1920
   hop_size: 480
@@ -84,7 +84,7 @@ wiring, rather than rounding a noninteger ratio.
 ## Encoder and training behavior
 
 The CFM reconstruction configs use the first-party
-`quick_convert.components.encoders.upsample_conformer.UpsampleConformerEncoder`
+`quick_convert.components.sequence.upsample_conformer.UpsampleConformerEncoder`
 adapter. The preset retains the original six-block stack, four-block second
 stack, second projection, and three-frame lookahead. Upsampling follows the
 content-to-mel ratio; factor one bypasses the resampler. See the

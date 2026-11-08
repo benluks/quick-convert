@@ -1,3 +1,0 @@
-_target_: quick_convert.components.speaker.ESPnetSpeakerEncoder
-device: ${device}
-sample_rate: 16000

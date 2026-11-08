@@ -307,7 +307,7 @@ def test_canonical_default_paths_resolve_without_inference(run_name, tmp_path):
 
 
 def test_prepared_prompt_records_exact_intervals_and_overlaps(tmp_path):
-    from quick_convert.components.reference_prompt import PromptSegment
+    from quick_convert.components.conditioning.reference_prompt import PromptSegment
 
     sources, request, metadata = corpus(tmp_path)
 
@@ -335,7 +335,7 @@ def test_prepared_prompt_records_exact_intervals_and_overlaps(tmp_path):
 
 
 def test_reference_prompt_builder_changes_output_identity():
-    from quick_convert.components.reference_prompt import EnergyActivityDetector, SpeechPromptBuilder
+    from quick_convert.components.conditioning.reference_prompt import EnergyActivityDetector, SpeechPromptBuilder
     from quick_convert.pipelines.conversion import target_description
 
     prefix = ReferenceSpeech(["target.wav"], prompt_seconds=30)

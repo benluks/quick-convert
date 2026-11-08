@@ -4,8 +4,8 @@ defaults:
   - /global: default
   - /pipeline: precompute_features
   - /dataset: librispeech
-  - /components/feature_extractor@feature_extractor: content
-  - /components/ssl@encoder: w2vbert
+  - /components/resources@feature_extractor: content
+  - /components/encoders/content@encoder: w2vbert
   - _self_
 
 dataset:
@@ -26,5 +26,5 @@ feature_extractor:
     downsample_factor: 4
 
 pipeline:
-  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/ssl@encoder}_6layer
+  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/encoders/content@encoder}_6layer
   batch_size: 64

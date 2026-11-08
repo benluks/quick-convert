@@ -1,6 +1,6 @@
 import pytest
 
-from quick_convert.components.ssl import (
+from quick_convert.components.encoders.content import (
     CONTENT_ENCODER_ALIASES,
     ContentEncoder,
     S3TokenizerContentEncoder,
@@ -11,7 +11,8 @@ from quick_convert.components.ssl import (
 
 def test_dotted_content_encoder_path_resolves():
     assert (
-        resolve_content_encoder("quick_convert.components.ssl.S3TokenizerContentEncoder") is S3TokenizerContentEncoder
+        resolve_content_encoder("quick_convert.components.encoders.content.S3TokenizerContentEncoder")
+        is S3TokenizerContentEncoder
     )
 
 
@@ -31,7 +32,7 @@ def test_unknown_content_encoder_explains_valid_identifiers():
 
 def test_missing_dotted_content_encoder_has_context():
     with pytest.raises(ImportError, match="Could not resolve content encoder"):
-        resolve_content_encoder("quick_convert.components.ssl.MissingEncoder")
+        resolve_content_encoder("quick_convert.components.encoders.content.MissingEncoder")
 
 
 def test_resolved_class_must_implement_content_encoder_contract():

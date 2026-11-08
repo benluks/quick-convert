@@ -1,6 +1,6 @@
 import torch
 
-from quick_convert.components.ssl.s3tokenizer import S3TokenizerContentEncoder
+from quick_convert.components.encoders.content.s3tokenizer import S3TokenizerContentEncoder
 
 
 def test_s3_ternary_factors_match_fsq_rounding():

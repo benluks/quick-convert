@@ -1,0 +1,3 @@
+_target_: quick_convert.components.encoders.content.ProsodyEncoder
+sample_rate: 22050
+device: ${device}

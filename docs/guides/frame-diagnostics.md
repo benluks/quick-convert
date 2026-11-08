@@ -7,7 +7,7 @@ training recipes do not automatically add these metrics.
 
 ```python
 import torch
-from quick_convert.components.layers.heads import HeadTarget
+from quick_convert.components.heads.base import HeadTarget
 from quick_convert.components.metrics import FramePredictionMetrics
 
 target = HeadTarget(

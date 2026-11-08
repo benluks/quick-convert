@@ -4,7 +4,7 @@ defaults:
   - /global: default
   - /pipeline: precompute_features
   - /dataset: librispeech
-  - /components/feature_extractor@feature_extractor: content
+  - /components/resources@feature_extractor: content
   - _self_
 
 dataset:

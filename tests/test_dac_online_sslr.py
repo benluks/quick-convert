@@ -7,7 +7,7 @@ import pytest
 import torch
 from torch import nn
 
-from quick_convert.components.ssl import DACContentEncoder
+from quick_convert.components.encoders.content import DACContentEncoder
 
 
 class TinyEncoder(nn.Module):
@@ -108,5 +108,5 @@ def test_online_dac_run_dependencies_do_not_include_transformers(backbone):
     from quick_convert.dependencies import compose_dependency_plan
 
     plan = compose_dependency_plan(f"train_sslr_dac_{backbone}_campp_prefix")
-    assert {"dac", "campplus-frames", "cosyvoice", "training"} <= set(plan.extras)
+    assert {"dac", "campplus", "cosyvoice", "training"} <= set(plan.extras)
     assert "transformers" not in plan.extras

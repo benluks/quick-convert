@@ -5,9 +5,9 @@ import torch
 import torchaudio
 from torch import nn
 
-from quick_convert.components.decoders.cosyvoice import CosyVoiceSpectrogramGenerator
-from quick_convert.components.decoders.cosyvoice_config import read_cosyvoice_config
-from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
+from quick_convert.components.features.mel.matcha import MelSpectrogramConfig
+from quick_convert.components.generators.acoustic.cosyvoice import CosyVoiceSpectrogramGenerator
+from quick_convert.components.generators.acoustic.cosyvoice_config import read_cosyvoice_config
 
 
 SPEC = MelSpectrogramConfig(24000, 1920, 480, 1920, 80, 0, None)
@@ -223,8 +223,8 @@ def test_extraction_matches_checkpoint_matcha_normalization():
 
 
 def test_pretrained_adapter_uses_companion_architecture_and_pins_weights(tmp_path, monkeypatch):
-    adapter = pytest.importorskip("quick_convert.components.decoders.hift_generator")
-    from quick_convert.components.decoders import cosyvoice_config
+    adapter = pytest.importorskip("quick_convert.components.generators.waveform.hift_generator")
+    from quick_convert.components.generators.acoustic import cosyvoice_config
 
     path = tmp_path / "snapshots" / "exact-commit" / "configs" / "model.yaml"
     path.parent.mkdir(parents=True)
@@ -296,21 +296,21 @@ def test_hydra_vocoder_metadata_is_serializable_and_restores_strictly(monkeypatc
     from hydra.utils import instantiate
     from omegaconf import OmegaConf
 
-    adapter = pytest.importorskip("quick_convert.components.decoders.hift_generator")
+    adapter = pytest.importorskip("quick_convert.components.generators.waveform.hift_generator")
     monkeypatch.setattr(adapter, "CausalConvRNNF0Predictor", lambda **kwargs: nn.Linear(2, 2))
     monkeypatch.setattr(adapter, "CausalHiFTGenerator", lambda **kwargs: nn.Linear(2, 2))
     config = OmegaConf.create(
         {
-            "_target_": "quick_convert.components.decoders.hift_generator.CosyVoiceHiFTDecoder",
+            "_target_": "quick_convert.components.generators.waveform.hift_generator.CosyVoiceHiFTDecoder",
             "config": {
-                "_target_": "quick_convert.components.decoders.hift_generator.CosyVoiceHiFTConfig",
+                "_target_": "quick_convert.components.generators.waveform.hift_generator.CosyVoiceHiFTConfig",
                 "upsample_rates": [8, 5, 3],
                 "istft_params": {"n_fft": 16, "hop_len": 4},
                 "resblock_dilation_sizes": [[1, 3, 5]] * 3,
             },
             "device": "cpu",
             "mel_config": {
-                "_target_": "quick_convert.components.feature_extractors.mel.MelSpectrogramConfig",
+                "_target_": "quick_convert.components.features.mel.matcha.MelSpectrogramConfig",
                 **asdict(SPEC),
             },
         }
@@ -340,7 +340,7 @@ def test_hydra_vocoder_metadata_is_serializable_and_restores_strictly(monkeypatc
     restored_system = restore_system(
         InferenceState(
             system_config={
-                "_target_": "quick_convert.components.decoders.cosyvoice.CosyVoiceSpectrogramGenerator",
+                "_target_": "quick_convert.components.generators.acoustic.cosyvoice.CosyVoiceSpectrogramGenerator",
                 "flow": {"_target_": "test_mel_contract.Flow"},
                 "feature_dim": 4,
                 "device": "cpu",

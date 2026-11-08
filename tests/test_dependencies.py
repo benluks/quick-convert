@@ -21,7 +21,7 @@ def test_vq_asr_requirements_follow_composed_targets():
 def test_swapping_vq_asr_encoder_changes_requirements():
     plan = compose_dependency_plan(
         "train_vq_asr_librispeech",
-        ["system.online_encoders.content._target_=quick_convert.components.ssl.DACContentEncoder"],
+        ["system.online_encoders.content._target_=quick_convert.components.encoders.content.DACContentEncoder"],
     )
 
     assert plan.extras == ("asr", "dac", "training")

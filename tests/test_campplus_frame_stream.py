@@ -7,9 +7,9 @@ import pytest
 import torch
 from torch import nn
 
-from quick_convert.components.decoders import ConditioningStream, StreamConditioning
-from quick_convert.components.mixins.resource import ResolvedResource
-from quick_convert.components.speaker import CosyVoiceCAMPPlusFrameEncoder
+from quick_convert.components.encoders.speaker import CosyVoiceCAMPPlusSpeakerEncoder
+from quick_convert.components.generators.acoustic import ConditioningStream, StreamConditioning
+from quick_convert.components.resources.resolution import ResolvedResource
 from quick_convert.data import AudioBatch
 from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 
@@ -38,7 +38,7 @@ def frame_encoder(tmp_path, monkeypatch):
     onnx.save(model, path)
     original = path.read_bytes()
     monkeypatch.setattr("huggingface_hub.hf_hub_download", lambda **kw: str(path))
-    encoder = CosyVoiceCAMPPlusFrameEncoder(device="cpu")
+    encoder = CosyVoiceCAMPPlusSpeakerEncoder(device="cpu", output="frames")
     assert path.read_bytes() == original
     assert encoder.session.get_outputs()[0].name == "frames"
     assert encoder.feature_dim == 512 and encoder.frame_hz == 50 and encoder.sample_rate == 16000
@@ -65,7 +65,7 @@ def test_crop_happens_before_encoder_and_zero_prefix_skips_inference(frame_encod
         calls.append(waveform.clone())
         return torch.ones(frames, 512)
 
-    monkeypatch.setattr(frame_encoder, "_encode", encode)
+    monkeypatch.setattr(frame_encoder, "_encode_frames", encode)
     batch = audio_batch(torch.arange(1600.0).repeat(2, 1))
     original = batch.waveforms.clone()
     result = frame_encoder.encode_prefixes(batch, torch.tensor([3, 0]))

@@ -1,3 +1,0 @@
-_target_: quick_convert.components.ssl.EmotionEncoder
-sample_rate: 16000
-device: ${device}

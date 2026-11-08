@@ -7,7 +7,7 @@ import pytest
 import torch
 from hydra import compose, initialize_config_dir
 
-from quick_convert.components.speaker import (
+from quick_convert.components.encoders.speaker import (
     ESPnetSpeakerEncoder,
     PyannoteWeSpeakerEncoder,
     SpeakerEmbedding,
@@ -50,7 +50,7 @@ def test_speaker_encoder_base_loads_files_at_backend_sample_rate(monkeypatch):
             raise NotImplementedError
 
     monkeypatch.setattr(
-        "quick_convert.components.speaker.speaker_encoders.base.load_audio_input",
+        "quick_convert.components.encoders.speaker.base.load_audio_input",
         lambda *args, **kwargs: torch.zeros(1, 7),
     )
 
@@ -123,11 +123,45 @@ def test_speaker_encoder_configs_compose():
         pyannote = compose(
             config_name=None,
             overrides=[
-                "+components/speaker_encoder@encoder=pyannote_wespeaker_voxceleb_resnet34_LM",
+                "+components/encoders/speaker@encoder=pyannote_wespeaker_voxceleb_resnet34_LM",
                 "+device=cpu",
             ],
         )
 
     assert espnet.feature_extractor.encoder is espnet.encoder
     assert espnet.dataset.target_sr == 16_000
-    assert pyannote.encoder._target_ == "quick_convert.components.speaker.PyannoteWeSpeakerEncoder"
+    assert pyannote.encoder._target_ == "quick_convert.components.encoders.speaker.PyannoteWeSpeakerEncoder"
+
+
+@pytest.mark.parametrize(
+    "encoder,kwargs",
+    [
+        (ESPnetSpeakerEncoder, {}),
+        (PyannoteWeSpeakerEncoder, {}),
+    ],
+)
+def test_unsupported_frame_output_fails_before_loading_backend(encoder, kwargs):
+    with pytest.raises(NotImplementedError, match="frames"):
+        encoder(output="frames", device="cpu", **kwargs)
+
+
+def test_campplus_pooled_option_retains_embedding_contract(monkeypatch):
+    from quick_convert.components.encoders.speaker import CosyVoiceCAMPPlusSpeakerEncoder
+
+    class Extractor:
+        def __init__(self, model_path):
+            pass
+
+        def inference(self, waveform):
+            return torch.ones(192)
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", lambda **kwargs: "/tmp/campplus.onnx")
+    monkeypatch.setitem(
+        sys.modules, "quick_convert.external.cosyvoice.utils.onnx", SimpleNamespace(EmbeddingExtractor=Extractor)
+    )
+    encoder = CosyVoiceCAMPPlusSpeakerEncoder(output="pooled", device="cpu")
+    assert encoder.feature_dim == 192 and encoder.frame_hz is None
+    result = encoder(make_batch())
+    assert isinstance(result, SpeakerEmbedding) and result.values.shape == (2, 192)
+    with pytest.raises(NotImplementedError, match="frames"):
+        encoder.encode_prefixes(make_batch(), torch.tensor([1, 1]))

@@ -6,9 +6,13 @@ import pytest
 import torch
 from torch import nn
 
-from quick_convert.components.decoders import ConditioningStream, CosyVoiceSpectrogramGenerator, StreamConditioning
-from quick_convert.components.decoders.stream_flow import stream_flow_loss
-from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
+from quick_convert.components.features.mel.matcha import MelSpectrogramConfig
+from quick_convert.components.generators.acoustic import (
+    ConditioningStream,
+    CosyVoiceSpectrogramGenerator,
+    StreamConditioning,
+)
+from quick_convert.components.generators.acoustic.stream_flow import stream_flow_loss
 
 
 def test_shared_target_and_independent_context_masks_preserve_inputs():
@@ -289,7 +293,7 @@ def test_actual_dit_stream_training_and_generation_with_upsampling(monkeypatch):
 
 
 def test_system_resolves_training_resources_but_uses_explicit_inference_prefixes():
-    from quick_convert.components.mixins.resource import ResolvedResource
+    from quick_convert.components.resources.resolution import ResolvedResource
     from quick_convert.data import AudioBatch
     from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 
@@ -318,7 +322,7 @@ def test_system_resolves_training_resources_but_uses_explicit_inference_prefixes
 def test_no_xvector_stream_model_trains_and_generates_without_speaker_resource(monkeypatch):
     pytest.importorskip("lightning")
     pytest.importorskip("quick_convert.external.cosyvoice.flow.DiT.dit")
-    from quick_convert.components.mixins.resource import ResolvedResource
+    from quick_convert.components.resources.resolution import ResolvedResource
     from quick_convert.data import AudioBatch
     from quick_convert.external.cosyvoice.flow.DiT.dit import DiT
     from quick_convert.systems.conversion import SSLReconstructionConversionSystem
@@ -487,7 +491,7 @@ def test_float32_frozen_prefixes_work_during_autocast_generation():
 
 
 def test_named_reference_conversion_keeps_reference_content_in_both_guidance_branches(tmp_path, monkeypatch):
-    from quick_convert.components.mixins.resource import ResolvedResource
+    from quick_convert.components.resources.resolution import ResolvedResource
     from quick_convert.data import AudioBatch
     from quick_convert.systems.conversion import ReferenceSpeech, SSLReconstructionConversionSystem
 

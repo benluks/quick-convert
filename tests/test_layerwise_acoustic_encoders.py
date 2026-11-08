@@ -5,8 +5,8 @@ import pytest
 import torch
 from torch import nn
 
+from quick_convert.components.encoders.content import EmotionEncoder, PASEContentEncoder
 from quick_convert.components.layers import LayerWeightedSum
-from quick_convert.components.ssl import EmotionEncoder, PASEContentEncoder
 
 
 class FakeBlock(nn.Module):

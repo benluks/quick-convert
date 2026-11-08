@@ -5,8 +5,8 @@ import pytest
 import torch
 from torch import nn
 
-from quick_convert.components.decoders.cosyvoice import CosyVoiceSpectrogramGenerator
-from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
+from quick_convert.components.features.mel.matcha import MelSpectrogramConfig
+from quick_convert.components.generators.acoustic.cosyvoice import CosyVoiceSpectrogramGenerator
 from quick_convert.data import GeneratedAudio
 
 
@@ -174,7 +174,7 @@ def test_cosyvoice_default_vocoder_loads_once(monkeypatch):
             calls.append(kwargs)
             return FakeVocoder()
 
-    module = ModuleType("quick_convert.components.decoders.hift_generator")
+    module = ModuleType("quick_convert.components.generators.waveform.hift_generator")
     module.CosyVoiceHiFTDecoder = Loader
     monkeypatch.setitem(sys.modules, module.__name__, module)
 

@@ -1,3 +1,0 @@
-_target_: quick_convert.components.ssl.VoiceFMContentEncoder
-checkpoint_path: ???
-device: ${device}

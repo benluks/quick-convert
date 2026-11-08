@@ -1,9 +1,9 @@
 from .activations import Swish
 from .conformer import ConformerBlock
 from .conv import DepthWiseConvolution, WNConv1d
+from .gradient_rvq import FactorizedCosineVectorQuantizer, GradientResidualVectorQuantizer
 from .grl import GradientReversalLayer
 from .layer_fusion import LayerWeightedSum
-from .rvq_dac import ResidualVectorQuantizerDAC, VectorQuantize
 from .stats_pool import AttentiveStatisticsPooling
 
 
@@ -13,8 +13,8 @@ __all__ = [
     "DepthWiseConvolution",
     "GradientReversalLayer",
     "LayerWeightedSum",
-    "ResidualVectorQuantizerDAC",
+    "GradientResidualVectorQuantizer",
     "Swish",
-    "VectorQuantize",
+    "FactorizedCosineVectorQuantizer",
     "WNConv1d",
 ]

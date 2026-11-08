@@ -3,8 +3,8 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from quick_convert.components.mixins.resource import OnlineResourceMixin, ResolvedResource
-from quick_convert.components.ssl.base import ContentFeatures
+from quick_convert.components.encoders.content.base import ContentFeatures
+from quick_convert.components.resources.resolution import OnlineResourceMixin, ResolvedResource
 from quick_convert.data.resources.base import TensorResourceBatch
 
 

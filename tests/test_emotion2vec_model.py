@@ -3,8 +3,8 @@ import os
 import pytest
 import torch
 
+from quick_convert.components.encoders.content import EmotionEncoder
 from quick_convert.components.layers import LayerWeightedSum
-from quick_convert.components.ssl import EmotionEncoder
 
 
 @pytest.mark.skipif(os.environ.get("QC_ACOUSTIC_MODEL_TESTS") != "1", reason="Optional checkpoint download")

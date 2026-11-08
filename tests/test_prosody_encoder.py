@@ -7,7 +7,7 @@ import torch
 from hydra import compose, initialize_config_dir
 from torch import nn
 
-from quick_convert.components.ssl.pros2vec import ProsodyEncoder
+from quick_convert.components.encoders.content.pros2vec import ProsodyEncoder
 
 
 CONFIG_DIR = Path(__file__).parents[1] / "quick_convert" / "configs"
@@ -97,6 +97,6 @@ def test_prosody_precompute_config_composes():
     with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR.resolve())):
         config = compose(config_name="run/precompute_prosody_mpm_librispeech")
 
-    assert config.encoder._target_ == "quick_convert.components.ssl.ProsodyEncoder"
+    assert config.encoder._target_ == "quick_convert.components.encoders.content.ProsodyEncoder"
     assert config.dataset.target_sr == 22_050
     assert config.pipeline.extractor.encoder is config.encoder

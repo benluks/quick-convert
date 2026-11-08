@@ -1,8 +1,8 @@
 import pytest
 import torch
 
-from quick_convert.components.fitting import load_fitted_state
-from quick_convert.components.prosody import ProsodyTargets, ProsodyTransform
+from quick_convert.components.transforms.fitting import load_fitted_state
+from quick_convert.components.transforms.prosody import ProsodyTargets, ProsodyTransform
 from quick_convert.data import ManifestDataset
 from quick_convert.data.indexing import Indexer
 from quick_convert.pipelines.fit import FitPipeline

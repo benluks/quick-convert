@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from quick_convert.components.speaker import SpeakerEmbeddingAggregation
+from quick_convert.components.transforms.speaker_aggregation import SpeakerEmbeddingAggregation
 from quick_convert.data import AudioSample, BaseDataset
 from quick_convert.data.resources import ResourceCollection, ResourceRef
 from quick_convert.pipelines.evaluation.metrics.eer import compute_eer

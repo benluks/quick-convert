@@ -113,7 +113,7 @@ def test_vq_asr_config_exposes_an_inference_ready_system():
     assert config.trainer.val_dataloader_kwargs.batch_size == 32
     assert "quantizer" not in config.trainer.module
     assert "ctc_head" not in config.trainer.module
-    from quick_convert.components.ssl import W2VBertContentEncoder
+    from quick_convert.components.encoders.content import W2VBertContentEncoder
 
     assert config.system.quantizer.input_dim == W2VBertContentEncoder.FEATURE_DIM
 
@@ -121,14 +121,14 @@ def test_vq_asr_config_exposes_an_inference_ready_system():
 @pytest.mark.parametrize(
     ("config_path", "target"),
     [
-        ("components/ssl/w2vbert.yaml", "quick_convert.components.ssl.W2VBertContentEncoder"),
-        ("components/ssl/emo2vec.yaml", "quick_convert.components.ssl.EmotionEncoder"),
-        ("components/ssl/dac.yaml", "quick_convert.components.ssl.DACContentEncoder"),
-        ("components/ssl/pros2vec.yaml", "quick_convert.components.ssl.ProsodyEncoder"),
-        ("components/speaker_encoder/espnet.yaml", "quick_convert.components.speaker.ESPnetSpeakerEncoder"),
+        ("components/encoders/content/w2vbert.yaml", "quick_convert.components.encoders.content.W2VBertContentEncoder"),
+        ("components/encoders/content/emo2vec.yaml", "quick_convert.components.encoders.content.EmotionEncoder"),
+        ("components/encoders/content/dac.yaml", "quick_convert.components.encoders.content.DACContentEncoder"),
+        ("components/encoders/content/pros2vec.yaml", "quick_convert.components.encoders.content.ProsodyEncoder"),
+        ("components/encoders/speaker/espnet.yaml", "quick_convert.components.encoders.speaker.ESPnetSpeakerEncoder"),
         (
-            "components/speaker_encoder/pyannote_wespeaker_voxceleb_resnet34_LM.yaml",
-            "quick_convert.components.speaker.PyannoteWeSpeakerEncoder",
+            "components/encoders/speaker/pyannote_wespeaker_voxceleb_resnet34_LM.yaml",
+            "quick_convert.components.encoders.speaker.PyannoteWeSpeakerEncoder",
         ),
     ],
 )
@@ -145,7 +145,7 @@ def test_public_component_configs_only_pass_declared_arguments(config_path, targ
 
 
 def test_w2vbert_exposes_sample_rate_as_a_fixed_capability():
-    from quick_convert.components.ssl import W2VBertContentEncoder
+    from quick_convert.components.encoders.content import W2VBertContentEncoder
 
     signature = inspect.signature(W2VBertContentEncoder)
 
@@ -156,9 +156,9 @@ def test_w2vbert_exposes_sample_rate_as_a_fixed_capability():
 @pytest.mark.parametrize(
     "target",
     [
-        "quick_convert.components.decoders.flow_matching.estimators.residual_mlp.ResidualMLPEstimator",
-        "quick_convert.components.decoders.flow_matching.base.BASECFM",
-        "quick_convert.components.speaker.speaker_generators.cfm_speaker_generator.CFMSpeakerGenerator",
+        "quick_convert.components.flow_matching.estimators.residual_mlp.ResidualMLPEstimator",
+        "quick_convert.components.flow_matching.base.BASECFM",
+        "quick_convert.components.generators.speaker.cfm.CFMSpeakerGenerator",
     ],
 )
 def test_configured_component_targets_are_importable(target):
@@ -225,7 +225,7 @@ def test_w2vbert_precompute_pipeline_instantiates_without_downloading_model(
 
     assert loaded_revisions == ["test-revision", "test-revision"]
     assert pipeline.extractor.encoder.model_name == "facebook/w2v-bert-2.0"
-    from quick_convert.components.ssl import W2VBertContentEncoder
+    from quick_convert.components.encoders.content import W2VBertContentEncoder
 
     assert pipeline.dataset.target_sr == W2VBertContentEncoder.SAMPLE_RATE
 
@@ -288,7 +288,7 @@ def test_rvq_ssl_reconstruction_uses_plain_quantizer_encoder():
     encoder = system.encoder
     assert system._target_ == "quick_convert.systems.conversion.SSLReconstructionConversionSystem"
     assert config.trainer.module.system == system
-    assert encoder._target_ == "quick_convert.components.layers.rvq_ema.ResidualVectorQuantizerEMA"
+    assert encoder._target_ == "quick_convert.components.layers.ema_rvq.EMAResidualVectorQuantizer"
     assert encoder.input_dim == 1024
     assert system.decoder.feature_dim == encoder.input_dim
     assert "encoder" not in config.trainer.module

@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from quick_convert.components.layers.heads import HeadTarget
+from quick_convert.components.heads.base import HeadTarget
 from quick_convert.components.metrics import FramePredictionMetrics
 
 

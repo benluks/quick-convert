@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from quick_convert.components.fitting import FittedTransform, save_fitted_state
+from quick_convert.components.transforms.fitting import FittedTransform, save_fitted_state
 
 
 class FitPipeline:

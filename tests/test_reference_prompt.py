@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from quick_convert.components.reference_prompt import EnergyActivityDetector, SpeechPromptBuilder
+from quick_convert.components.conditioning.reference_prompt import EnergyActivityDetector, SpeechPromptBuilder
 
 
 def test_energy_removes_internal_silence_and_preserves_quiet_speech():

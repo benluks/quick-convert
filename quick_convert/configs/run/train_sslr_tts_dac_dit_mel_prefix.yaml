@@ -2,7 +2,7 @@
 
 defaults:
   - /recipe: sslr_paired_tts_dit_mel_prefix
-  - /components/ssl@system.online_encoders.content: dac
+  - /components/encoders/content@system.online_encoders.content: dac
   - _self_
 
 exp_name: tts_dac_conformer_dit_mel_prefix_${dataset_name}

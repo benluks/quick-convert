@@ -19,7 +19,7 @@ class Indexer:
         self.idx_to_value: dict[int, Any] = {}
         self.state_path = state_path
         if state_path is not None:
-            from quick_convert.components.fitting import load_fitted_state
+            from quick_convert.components.transforms.fitting import load_fitted_state
 
             load_fitted_state(self, state_path)
 

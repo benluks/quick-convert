@@ -8,9 +8,13 @@ from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
-from quick_convert.components.decoders import ConditioningStream, CosyVoiceSpectrogramGenerator, StreamConditioning
-from quick_convert.components.encoders.upsample_conformer import UpsampleConformerEncoder
-from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
+from quick_convert.components.features.mel.matcha import MelSpectrogramConfig
+from quick_convert.components.generators.acoustic import (
+    ConditioningStream,
+    CosyVoiceSpectrogramGenerator,
+    StreamConditioning,
+)
+from quick_convert.components.sequence.upsample_conformer import UpsampleConformerEncoder
 
 
 CausalConditionalDecoder = pytest.importorskip("quick_convert.external.cosyvoice.flow.decoder").CausalConditionalDecoder

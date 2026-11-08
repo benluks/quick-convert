@@ -8,9 +8,13 @@ from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 from test_stream_conditioning import Flow
 
-from quick_convert.components.decoders import ConditioningStream, CosyVoiceSpectrogramGenerator, StreamConditioning
-from quick_convert.components.encoders.upsample_conformer import UpsampleConformerEncoder
-from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
+from quick_convert.components.features.mel.matcha import MelSpectrogramConfig
+from quick_convert.components.generators.acoustic import (
+    ConditioningStream,
+    CosyVoiceSpectrogramGenerator,
+    StreamConditioning,
+)
+from quick_convert.components.sequence.upsample_conformer import UpsampleConformerEncoder
 from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 
 
@@ -78,7 +82,7 @@ def test_invalid_duration_ratio(ratio):
 
 
 def test_independent_prefix_scores_every_target_frame(monkeypatch):
-    import quick_convert.components.decoders.stream_flow as module
+    import quick_convert.components.generators.acoustic.stream_flow as module
 
     def loss(flow, h, spks, targets, lengths, conditions, score):
         assert lengths.tolist() == [8, 10]
@@ -137,7 +141,7 @@ def test_paired_run_routes_content_through_tts_audio_resource():
 
 
 def test_training_module_resolves_paired_content_and_original_targets(monkeypatch):
-    from quick_convert.components.mixins.resource import ResolvedResource
+    from quick_convert.components.resources.resolution import ResolvedResource
     from quick_convert.data import AudioBatch
 
     SSLReconstructionTrainingModule = pytest.importorskip(

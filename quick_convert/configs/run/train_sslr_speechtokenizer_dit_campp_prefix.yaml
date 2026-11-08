@@ -2,7 +2,7 @@
 
 defaults:
   - /recipe: sslr_dit_campp_prefix
-  - /components/ssl@system.online_encoders.content: speechtokenizer_quantized
+  - /components/encoders/content@system.online_encoders.content: speechtokenizer_quantized
   - _self_
 
 # Preserve the existing experiment name and output directory.

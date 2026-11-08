@@ -6,7 +6,7 @@ import pytest
 import torch
 from torch import nn
 
-from quick_convert.components.ssl import (
+from quick_convert.components.encoders.content import (
     EmotionEncoder,
     PASEContentEncoder,
     SPEARContentEncoder,

@@ -8,7 +8,7 @@ defaults:
 system:
   decoder:
     stream_conditioning:
-      _target_: quick_convert.components.decoders.StreamConditioning
+      _target_: quick_convert.components.generators.acoustic.StreamConditioning
       dimensions:
         mel: 80
     flow:
