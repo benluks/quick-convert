@@ -155,7 +155,11 @@ def test_campplus_pooled_option_retains_embedding_contract(monkeypatch):
         def inference(self, waveform):
             return torch.ones(192)
 
-    monkeypatch.setattr("huggingface_hub.hf_hub_download", lambda **kwargs: "/tmp/campplus.onnx")
+    monkeypatch.setitem(
+        sys.modules,
+        "huggingface_hub",
+        SimpleNamespace(hf_hub_download=lambda **kwargs: "/tmp/campplus.onnx"),
+    )
     monkeypatch.setitem(
         sys.modules, "quick_convert.external.cosyvoice.utils.onnx", SimpleNamespace(EmbeddingExtractor=Extractor)
     )
