@@ -84,3 +84,20 @@ def test_knnvc_default_budget_is_applied_before_target_preparation(tmp_path):
     assert target.paths == instantiate(cfg.target).paths
     assert cfg.target.max_utterances == 10
     assert cfg.target.shuffle is True and cfg.target.seed == 0
+
+
+@pytest.mark.parametrize("splits,expected", [(None, {"1069-1-1", "1069-2-1"}), ("[dev-clean]", {"1069-2-1"})])
+def test_reference_split_scope_is_independent_of_source_split(tmp_path, splits, expected):
+    for split, chapter in [("train-clean-100", "1"), ("dev-clean", "2")]:
+        path = tmp_path / split / "1069" / chapter / f"1069-{chapter}-1.flac"
+        path.parent.mkdir(parents=True)
+        path.touch()
+    overrides = [f"root={tmp_path}", "target_speaker=1069", "target_max_seconds=null", "source_split=test-clean"]
+    if splits is not None:
+        overrides.append(f"target_splits={splits}")
+    with initialize_config_dir(config_dir=str(Path("quick_convert/configs").resolve()), version_base=None):
+        cfg = compose(config_name="run/convert_knnvc_librispeech", overrides=overrides)
+    target = instantiate(cfg.target)
+    assert {p.stem for p in target.paths} == expected
+    assert cfg.dataset.splits == ["test-clean"]
+    assert cfg.pipeline.metadata.reference_splits == cfg.target_dataset.splits

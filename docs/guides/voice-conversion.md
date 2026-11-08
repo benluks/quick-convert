@@ -72,15 +72,18 @@ From a checkout, install with `uv sync`, then run:
 ```bash
 uv run quick-convert convert_knnvc_librispeech \
   root=/data/LibriSpeech source_split=test-clean source_speaker=1089 \
-  target_split=train-clean-100 target_speaker=1069
+  target_speaker=1069
 ```
 
 Omit `source_speaker` to convert the whole source split. `root` is the directory
 containing the split folders. `dataset.pattern` remains directly overridable;
 the preset defaults it to the selected speaker's chapter recordings. References
 are selected from `target_dataset` using its speaker resource; `target_root`
-defaults to `root`, and `target_split` selects its split. Selection reads speaker
-metadata without decoding reference audio.
+defaults to `root`. References are discovered across all available splits below
+that root by default, independently of `source_split`. To restrict references,
+pass e.g. `'target_splits=[train-clean-100,dev-clean]'`. Only explicitly selected
+splits must exist. Selection reads speaker metadata without decoding reference
+audio; reference scope and selected paths are recorded in provenance.
 For CLAC sources and LibriSpeech references, use `convert_knnvc_clac` with
 `reference_dataset=librispeech`, `dataset.root`, `target_root`, and `target_speaker`.
 The shared KNN-VC recipe has no default reference corpus or audio format.

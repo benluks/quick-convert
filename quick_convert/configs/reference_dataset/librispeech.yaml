@@ -5,10 +5,11 @@ defaults:
   - _self_
 
 target_root: ???
-target_split: train-clean-100
+# Null discovers all available recordings below target_root.
+target_splits: null
 target_dataset:
   root: ${target_root}
-  splits: ["${target_split}"]
+  splits: ${target_splits}
   load: [spkid]
   resource_providers:
     - ${target_speaker_provider}
