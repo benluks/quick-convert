@@ -1,7 +1,7 @@
 # configs/dataset/librispeech.yaml
 
 _target_: quick_convert.data.BaseDataset
-root: ${data_root}/librispeech/Librispeech
+root: ${data_root}/librispeech/LibriSpeech
 splits:
   - train-clean-100
   - train-clean-360
@@ -13,3 +13,5 @@ splits:
 
 file_format: flac
 utt_id_template: "{path.stem}"
+
+pattern: "*"

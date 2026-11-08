@@ -379,7 +379,7 @@ def test_psst1_cli_composition_uses_conversion_pipeline(tmp_path, make_psst1, mo
     sf.write(audio_dir / "source.wav", torch.sin(torch.arange(1600) * 0.1).numpy(), 16000)
     with initialize_config_dir(version_base=None, config_dir=str(Path(__file__).parents[1] / "quick_convert/configs")):
         cfg = compose(
-            config_name="run/anonymize_psst1_iemocap",
+            config_name="run/convert_psst1_iemocap",
             overrides=[
                 f"dataset.root={tmp_path}/audio",
                 "dataset.splits=[test]",

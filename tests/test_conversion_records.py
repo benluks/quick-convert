@@ -296,7 +296,7 @@ def test_canonical_default_paths_resolve_without_inference(run_name, tmp_path):
     config_dir = Path(__file__).parents[1] / "quick_convert/configs"
     overrides = ["source=/runs/tezj8b44", "checkpoint=checkpoints/best.ckpt", f"out_root={tmp_path}"]
     if run_name == "convert_reference_librispeech":
-        overrides.append("target_id=6081")
+        overrides.append("target_speaker=6081")
     if run_name == "convert_reference_manifest":
         overrides.extend(["manifest_path=/data/sources.csv", "target_paths=[/data/ref.wav]"])
     with initialize_config_dir(version_base=None, config_dir=str(config_dir)):

@@ -9,7 +9,7 @@ from main import _resolve_config, main
 def make_run_configs(tmp_path: Path) -> Path:
     run_dir = tmp_path / "run"
     run_dir.mkdir()
-    for name in ["anonymize_asrbn_clac", "eval_asr_librispeech", "train_vq_asr_librispeech"]:
+    for name in ["convert_asrbn_clac", "eval_asr_librispeech", "train_vq_asr_librispeech"]:
         (run_dir / f"{name}.yaml").touch()
     return run_dir
 
@@ -48,7 +48,7 @@ def test_missing_alias_lists_valid_choices(tmp_path: Path) -> None:
     run_dir = make_run_configs(tmp_path)
 
     with pytest.raises(SystemExit, match="asrbn_clac"):
-        _resolve_config("anonymize", ["missing"], run_dir)
+        _resolve_config("convert", ["missing"], run_dir)
 
 
 def test_universal_help_lists_export(tmp_path: Path, capsys) -> None:

@@ -2,8 +2,10 @@ _target_: quick_convert.pipelines.conversion.SpeechConversionPipeline
 system: ${system}
 dataset: ${dataset}
 target: ${target}
-out_dir: ${out_root}/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.system/conversion@system}_${target_id}${out_dir_suffix}
+out_dir: ${conversion_dir:${out_root},${pipeline.metadata},${target},${out_dir_suffix}}
 metadata:
-  target_speaker: ${target_id}
+  system: ${system._target_}
+  dataset: ${dataset._target_}
+  source_root: ${dataset.root}
 batch_size: 1
 num_workers: 0

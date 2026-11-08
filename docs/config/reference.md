@@ -13,10 +13,10 @@ Quick Convert installs its Hydra tree under `quick_convert/configs/`. A file in 
 | `train vq_asr_librispeech` | `run/train_vq_asr_librispeech.yaml` |
 | `precompute tokens_librispeech` | `run/precompute_tokens_librispeech.yaml` |
 | `evaluate asr_librispeech` | `run/eval_asr_librispeech.yaml` |
-| `anonymize knnvc_clac` | `run/anonymize_knnvc_clac.yaml` |
+| `convert knnvc_clac` | `run/convert_knnvc_clac.yaml` |
 | `quick-convert convert_reference_manifest` | `run/convert_reference_manifest.yaml` |
 
-The universal command uses the full stem. A verb command prefixes its alias with `train_`, `precompute_`, `eval_`, or `anonymize_`.
+The universal command uses the full stem. A verb command prefixes its alias with `train_`, `precompute_`, `eval_`, or `convert_`.
 
 Reference conversion presets and target overrides are described in the
 [conversion guide](../guides/voice-conversion.md); output identity and resume

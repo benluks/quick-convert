@@ -197,7 +197,7 @@ def test_w2vbert_precompute_pipeline_instantiates_without_downloading_model(
     )
     monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
 
-    libri_root = tmp_path / "librispeech" / "Librispeech"
+    libri_root = tmp_path / "librispeech" / "LibriSpeech"
     for split in (
         "train-clean-100",
         "train-clean-360",

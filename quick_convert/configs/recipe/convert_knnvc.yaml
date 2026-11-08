@@ -1,0 +1,19 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /pipeline: conversion
+  - /system/conversion@system: knnvc
+  - _self_
+
+target_speaker: ???
+target_root: ???
+target_pattern: "*/*.flac"
+target:
+  _target_: quick_convert.pipelines.conversion.reference_speech_from_directory
+  root: ${target_root}
+  speaker_id: ${target_speaker}
+  pattern: ${target_pattern}
+pipeline:
+  metadata:
+    target_speaker: ${target_speaker}
+    reference_root: ${target_root}

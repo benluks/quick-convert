@@ -25,7 +25,7 @@ def test_librispeech_target_uses_resources_across_splits_without_loading_audio(t
             config_name="run/convert_reference_librispeech",
             overrides=[
                 "source=/unused/run",
-                "target_id=42",
+                "target_speaker=42",
                 f"dataset.root={tmp_path}",
                 f"target_dataset.root={tmp_path}",
                 "target_dataset.splits=[test-clean,train-clean-100]",

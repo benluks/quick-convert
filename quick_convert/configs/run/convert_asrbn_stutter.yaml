@@ -7,8 +7,14 @@ defaults:
   - /dataset: stutter
   - _self_
 
-target_id: "1069"
+target_speaker: ???
 
 target:
   _target_: quick_convert.systems.conversion.SpeakerIdentity
-  speaker_id: ${target_id}
+  speaker_id: ${target_speaker}
+
+pipeline:
+  metadata:
+    system: asrbn
+    dataset: stutter
+    target_speaker: ${target_speaker}

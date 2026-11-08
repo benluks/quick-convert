@@ -11,7 +11,7 @@ Install the `speechbrain` and `yaapt` extras. The CLI's default emotion
 recognizer also requires `speechbrain-ser`.
 
 ```bash
-uv run anonymize psst1_iemocap dataset.root=/data/IEMOCAP_full_release
+uv run convert psst1_iemocap dataset.root=/data/IEMOCAP_full_release
 ```
 
 The run uses `SpeechConversionPipeline`. Set `target.seed=52` for reproducible

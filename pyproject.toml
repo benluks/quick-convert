@@ -128,7 +128,7 @@ cosyvoice = [
 
 [project.scripts]
 quick-convert = "main:main"
-anonymize = "main:main"
+convert = "main:main"
 build_manifest = "main:main"
 evaluate = "main:main"
 eval_asr = "main:main"
