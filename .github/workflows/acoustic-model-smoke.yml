@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "pyproject.toml"
-      - "quick_convert/components/ssl/emo2vec.py"
+      - "quick_convert/components/encoders/content/emo2vec.py"
       - "tests/test_emotion2vec_model.py"
       - ".github/workflows/acoustic-model-smoke.yml"
 
@@ -28,4 +28,4 @@ jobs:
       - name: Test pretrained layers and fusion
         env:
           QC_ACOUSTIC_MODEL_TESTS: "1"
-        run: .venv/bin/python -m pytest -q tests/test_emotion2vec_model.py
+        run: .venv/bin/python -u -m pytest -vv -s -o faulthandler_timeout=180 tests/test_emotion2vec_model.py
