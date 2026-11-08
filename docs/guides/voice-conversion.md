@@ -38,7 +38,7 @@ The executable roots are `convert_reference_manifest`,
 ```bash
 quick-convert convert_reference_manifest source=/models/export \
   manifest_path=/data/sources.csv 'target_paths=[/audio/reference.wav]'
-quick-convert convert_reference_librispeech source=/models/export target_id=6081
+quick-convert convert_reference_librispeech source=/models/export target_speaker=6081
 ```
 
 These presets assemble a three-second speech prompt. Choose a compatible SSL
@@ -61,9 +61,45 @@ systems. Each conversion call receives its prepared target explicitly. KNN-VC
 and ASR-BN also accept a path or waveform through `convert(audio, target=prepared,
 sample_rate=16000)`. Prepared targets are tied to the system instance.
 
-The `anonymize_*` executable names remain, using the same conversion pipeline.
-KNN-VC directory selection belongs to the workflow; set `target_speaker_root`
-(or `QUICK_CONVERT_REFERENCE_ROOT`) and `pattern` for your reference corpus.
+Conversion runs and the verb command use `convert`, including `convert_knnvc_clac`
+and `convert_knnvc_librispeech`. KNN-VC prepares the target matching set once;
+no separate feature preparation is required.
+
+## KNN-VC with LibriSpeech
+
+From a checkout, install with `uv sync`, then run:
+
+```bash
+uv run quick-convert convert_knnvc_librispeech \
+  root=/data/LibriSpeech source_split=test-clean source_speaker=1089 \
+  target_split=train-clean-100 target_speaker=1069
+```
+
+Omit `source_speaker` to convert the whole source split. `root` is the directory
+containing the split folders. `dataset.pattern` remains directly overridable;
+the preset defaults it to the selected speaker's chapter recordings. References
+are selected from `target_dataset` using its speaker resource; `target_root`
+defaults to `root`, and `target_split` selects its split. Selection reads speaker
+metadata without decoding reference audio.
+For CLAC sources and LibriSpeech references, use `convert_knnvc_clac` with
+`reference_dataset=librispeech`, `dataset.root`, `target_root`, and `target_speaker`.
+The shared KNN-VC recipe has no default reference corpus or audio format.
+A custom `target_dataset` can use any supported audio format and resource
+providers; `target_speaker_resource` names the speaker resource (default `spkid`).
+KNN-VC defaults to `target_max_utterances=10`, `target_max_seconds=60`,
+`target_shuffle=true`, and `target_seed=0`. Candidates are sorted and then
+shuffled reproducibly; selection stops at either limit before feature extraction.
+Duration is read from audio headers without decoding waveforms. Whole utterances
+are kept, so the final utterance may take the total beyond the time budget.
+Shorter available sets are accepted and selected counts/duration are logged.
+Set either limit to `null` to disable it, or both to select every matching recording.
+Selected paths and selection settings are recorded in conversion provenance.
+
+The pretrained backend downloads code and weights through Torch Hub on first
+use. Its current inference imports are covered by the base installation; no
+additional optional profile is needed for this path. GPU execution is the
+default; select `device=cpu` for a small CPU run. These instructions describe
+the configuration interface; full pretrained execution is environment-dependent.
 
 The former `systems/anonymization`, `systems/reconstruction`, and
 `pipelines/anonymization` modules are removed. Update direct Python imports and

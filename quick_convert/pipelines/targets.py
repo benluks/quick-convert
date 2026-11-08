@@ -3,6 +3,8 @@
 import hashlib
 import json
 import logging
+import math
+import random
 
 from tqdm import tqdm
 
@@ -13,6 +15,52 @@ from quick_convert.systems.conversion.targets import ReferenceSpeech
 
 
 logger = logging.getLogger(__name__)
+
+
+def select_reference_paths(paths, *, max_utterances=None, max_seconds=None, shuffle=False, seed=0):
+    """Select whole recordings before encoding, in stable or seeded random order.
+
+    Stop at the utterance cap or after reaching the duration budget. Whole
+    recordings are retained, so duration can exceed the budget by the final
+    recording. Short references are accepted: budgets are caps, not minima.
+    Durations are read from audio headers only when a time budget is requested.
+    """
+    if max_utterances is not None and (type(max_utterances) is not int or max_utterances <= 0):
+        raise ValueError("max_utterances must be a positive integer or None.")
+    if max_seconds is not None and (
+        isinstance(max_seconds, bool)
+        or not isinstance(max_seconds, (int, float))
+        or not math.isfinite(max_seconds)
+        or max_seconds <= 0
+    ):
+        raise ValueError("max_seconds must be positive and finite or None.")
+    if type(shuffle) is not bool or type(seed) is not int:
+        raise ValueError("shuffle must be boolean and seed must be an integer.")
+    ordered = sorted(paths, key=str)
+    if shuffle:
+        random.Random(seed).shuffle(ordered)
+    selected, seconds = [], 0.0
+    for path in ordered:
+        if max_utterances is not None and len(selected) >= max_utterances:
+            break
+        if max_seconds is not None:
+            import soundfile as sf
+
+            info = sf.info(path)
+            duration = info.frames / info.samplerate
+            if not math.isfinite(duration) or duration <= 0:
+                raise ValueError(f"Reference recording has invalid duration: {path}")
+            seconds += duration
+        selected.append(path)
+        if max_seconds is not None and seconds >= max_seconds:
+            break
+    logger.info(
+        "Selected %d/%d reference recordings%s",
+        len(selected),
+        len(ordered),
+        f" ({seconds:.2f} seconds, whole utterances)" if max_seconds is not None else "",
+    )
+    return selected
 
 
 def resource_label(sample: AudioSample, name: str) -> str:

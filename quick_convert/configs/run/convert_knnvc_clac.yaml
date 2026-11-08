@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - /recipe: convert_knnvc
+  - /dataset: clac
+  - _self_
+
+pipeline:
+  metadata:
+    system: knnvc
+    dataset: clac

@@ -9,7 +9,7 @@ defaults:
 
 source: ???
 checkpoint: null
-target_id: ???
+target_speaker: ???
 
 system:
   _target_: quick_convert.inference.load_inference_system
@@ -35,7 +35,7 @@ pipeline:
   target:
     _target_: quick_convert.pipelines.conversion.reference_speech_from_dataset
     dataset: ${target_dataset}
-    speaker_id: ${target_id}
+    speaker_id: ${target_speaker}
     prompt_seconds: 3.0
     prompt_builder:
       _target_: quick_convert.components.conditioning.reference_prompt.SpeechPromptBuilder
@@ -46,5 +46,5 @@ pipeline:
     checkpoint: ${checkpoint}
     source_root: ${dataset.root}
     reference_root: ${target_dataset.root}
-    target_speaker: ${target_id}
+    target_speaker: ${target_speaker}
   out_dir: ${conversion_dir:${out_root},${pipeline.metadata},${pipeline.target},${out_dir_suffix}}

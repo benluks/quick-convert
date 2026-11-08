@@ -10,7 +10,11 @@ from quick_convert.components.layers import LayerWeightedSum
 @pytest.mark.skipif(os.environ.get("QC_ACOUSTIC_MODEL_TESTS") != "1", reason="Optional checkpoint download")
 def test_pretrained_emotion2vec_layers_match_final_and_train_fusion():
     torch.set_num_threads(2)
-    encoder = EmotionEncoder(layer=None, device="cpu")
+    encoder = EmotionEncoder(
+        model_name=os.environ.get("QC_EMOTION2VEC_MODEL_PATH", "iic/emotion2vec_plus_large"),
+        layer=None,
+        device="cpu",
+    )
     audio = torch.randn(2, 16000) * 0.01
     lengths = torch.tensor([16000, 12000])
     layered = encoder.encode_waveforms(audio, lengths)

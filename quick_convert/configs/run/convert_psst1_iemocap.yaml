@@ -6,7 +6,6 @@ defaults:
   - /dataset: iemocap
   - _self_
 
-target_id: psst1
 target:
   _target_: quick_convert.systems.conversion.GeneratedVoice
   seed: 52
@@ -18,4 +17,6 @@ dataset:
   target_sr: 16000
 pipeline:
   metadata:
+    system: psst1
+    dataset: iemocap
     target_speaker: null

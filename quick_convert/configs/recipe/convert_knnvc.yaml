@@ -1,0 +1,34 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /pipeline: conversion
+  - /system/conversion@system: knnvc
+  - /reference_dataset: null
+  - _self_
+
+target_speaker: ???
+target_dataset: ???
+target_speaker_resource: spkid
+# Whole utterances; stop at either limit. Set both to null for unlimited references.
+target_max_utterances: 10
+target_max_seconds: 60.0
+target_shuffle: true
+target_seed: 0
+target:
+  _target_: quick_convert.pipelines.conversion.reference_speech_from_dataset
+  dataset: ${target_dataset}
+  speaker_id: ${target_speaker}
+  speaker_resource: ${target_speaker_resource}
+  max_utterances: ${target_max_utterances}
+  max_seconds: ${target_max_seconds}
+  shuffle: ${target_shuffle}
+  seed: ${target_seed}
+pipeline:
+  metadata:
+    target_speaker: ${target_speaker}
+    reference_root: ${target_dataset.root}
+    reference_selection:
+      max_utterances: ${target_max_utterances}
+      max_seconds: ${target_max_seconds}
+      shuffle: ${target_shuffle}
+      seed: ${target_seed}
