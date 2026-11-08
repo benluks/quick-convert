@@ -170,3 +170,19 @@ pase = resolve_content_encoder("paseplus")(
 Layer-wise backend access is checked by fast contract tests. Published emotion2vec
 and PASE+ checkpoint inference remains an additional model smoke test, particularly
 for PASE+'s legacy QRNN/CuPy setup.
+
+### Pretrained emotion2vec smoke check
+
+Fast contract tests run in ordinary CI. The **Acoustic model smoke** workflow
+is manual (`Actions → Acoustic model smoke → Run workflow`); it caches ModelScope
+weights and gives downloading and inference separate five-minute budgets. A
+download timeout is a failed smoke check, not evidence of model correctness.
+
+On a cluster with cached weights, run the same test directly:
+
+```bash
+QC_ACOUSTIC_MODEL_TESTS=1 QC_EMOTION2VEC_MODEL_PATH=/models/emotion2vec_plus_large \
+  uv run --no-sync pytest -v -s tests/test_emotion2vec_model.py
+```
+
+The local directory must contain the complete FunASR-compatible model snapshot.

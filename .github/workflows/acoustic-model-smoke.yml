@@ -1,12 +1,8 @@
 name: Acoustic model smoke
 
+# Real checkpoint downloads are opt-in; ordinary PR CI runs the fast contracts.
 on:
-  pull_request:
-    paths:
-      - "pyproject.toml"
-      - "quick_convert/components/encoders/content/emo2vec.py"
-      - "tests/test_emotion2vec_model.py"
-      - ".github/workflows/acoustic-model-smoke.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,7 +10,7 @@ permissions:
 jobs:
   emotion2vec:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -25,7 +21,25 @@ jobs:
         run: |
           uv venv
           uv pip install '.[emotion2vec]' pytest
-      - name: Test pretrained layers and fusion
+      - name: Restore pretrained model cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/modelscope
+          key: emotion2vec-plus-large-modelscope-v1
+      - name: Download checkpoint (five-minute budget)
+        run: |
+          timeout --signal=TERM --kill-after=15s 5m .venv/bin/python -u - <<'PY'
+          import os
+          from modelscope import snapshot_download
+
+          print("Downloading iic/emotion2vec_plus_large (or reusing cached weights)", flush=True)
+          path = snapshot_download("iic/emotion2vec_plus_large")
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"QC_EMOTION2VEC_MODEL_PATH={path}\n")
+          print(f"Checkpoint ready: {path}", flush=True)
+          PY
+      - name: Test pretrained layers and fusion (five-minute budget)
         env:
           QC_ACOUSTIC_MODEL_TESTS: "1"
-        run: .venv/bin/python -u -m pytest -vv -s -o faulthandler_timeout=180 tests/test_emotion2vec_model.py
+        run: |
+          timeout --signal=TERM --kill-after=15s 5m .venv/bin/python -u -m pytest -vv -s -o faulthandler_timeout=120 tests/test_emotion2vec_model.py
