@@ -79,7 +79,12 @@ def test_conversion_presets_wire_explicit_targets(run, tmp_path, monkeypatch):
             config_name=f"run/{run}",
             overrides=["device=cpu", "target_speaker=1069"]
             + (
-                ["reference_dataset=librispeech", f"target_root={tmp_path}", "target_split=refs"]
+                [
+                    "reference_dataset=librispeech",
+                    "target_max_seconds=null",
+                    f"target_root={tmp_path}",
+                    "target_split=refs",
+                ]
                 if "knnvc" in run
                 else []
             ),

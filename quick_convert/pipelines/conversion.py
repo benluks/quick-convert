@@ -17,7 +17,7 @@ from quick_convert.pipelines.conversion_records import (
     conversion_output_dir,
     file_identity,
 )
-from quick_convert.pipelines.targets import DatasetReferenceTargets, resource_label
+from quick_convert.pipelines.targets import DatasetReferenceTargets, resource_label, select_reference_paths
 from quick_convert.systems.conversion.base import SpeechConversionSystem
 from quick_convert.systems.conversion.targets import (
     GeneratedVoice,
@@ -41,6 +41,10 @@ def reference_speech_from_dataset(
     speaker_id: str | int,
     *,
     speaker_resource: str = "spkid",
+    max_utterances: int | None = None,
+    max_seconds: float | None = None,
+    shuffle: bool = False,
+    seed: int = 0,
     aggregation: "SpeakerEmbeddingAggregation | None" = None,
     prompt_seconds: float | None = None,
     prompt_builder: "SpeechPromptBuilder | None" = None,
@@ -61,7 +65,9 @@ def reference_speech_from_dataset(
             paths.append(sample.path)
     if not paths:
         raise ValueError(f"No recordings found for speaker {speaker_id!r} in the reference dataset.")
-    logger.info("Selected %d reference recordings for %s=%s", len(paths), speaker_resource, speaker_id)
+    paths = select_reference_paths(
+        paths, max_utterances=max_utterances, max_seconds=max_seconds, shuffle=shuffle, seed=seed
+    )
     return ReferenceSpeech(
         paths=paths,
         aggregation=aggregation,

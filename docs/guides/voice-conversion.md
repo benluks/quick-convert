@@ -86,7 +86,14 @@ For CLAC sources and LibriSpeech references, use `convert_knnvc_clac` with
 The shared KNN-VC recipe has no default reference corpus or audio format.
 A custom `target_dataset` can use any supported audio format and resource
 providers; `target_speaker_resource` names the speaker resource (default `spkid`).
-The current selection policy uses all matching recordings.
+KNN-VC defaults to `target_max_utterances=10`, `target_max_seconds=60`,
+`target_shuffle=true`, and `target_seed=0`. Candidates are sorted and then
+shuffled reproducibly; selection stops at either limit before feature extraction.
+Duration is read from audio headers without decoding waveforms. Whole utterances
+are kept, so the final utterance may take the total beyond the time budget.
+Shorter available sets are accepted and selected counts/duration are logged.
+Set either limit to `null` to disable it, or both to select every matching recording.
+Selected paths and selection settings are recorded in conversion provenance.
 
 The pretrained backend downloads code and weights through Torch Hub on first
 use. Its current inference imports are covered by the base installation; no
