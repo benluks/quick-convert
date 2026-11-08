@@ -83,7 +83,7 @@ def test_conversion_presets_wire_explicit_targets(run, tmp_path, monkeypatch):
                     "reference_dataset=librispeech",
                     "target_max_seconds=null",
                     f"target_root={tmp_path}",
-                    "target_split=refs",
+                    "target_splits=[refs]",
                 ]
                 if "knnvc" in run
                 else []

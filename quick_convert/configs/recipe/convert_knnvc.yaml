@@ -27,6 +27,7 @@ pipeline:
   metadata:
     target_speaker: ${target_speaker}
     reference_root: ${target_dataset.root}
+    reference_splits: ${target_dataset.splits}
     reference_selection:
       max_utterances: ${target_max_utterances}
       max_seconds: ${target_max_seconds}
