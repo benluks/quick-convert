@@ -77,7 +77,7 @@ and quantizer in place, including EMA state; load a separate source system if it
 must remain trainable elsewhere.
 
 ```python
-from quick_convert.components.ssl import VQASRContentEncoder
+from quick_convert.components.encoders.content import VQASRContentEncoder
 from quick_convert.inference import load_inference_system
 
 source = load_inference_system("/models/vq-asr-export", map_location="cpu")

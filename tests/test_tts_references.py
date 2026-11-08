@@ -12,7 +12,7 @@ from test_tts_dit import decoder
 from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 
-from quick_convert.components.mixins.resource import ResolvedResource
+from quick_convert.components.resources.resolution import ResolvedResource
 from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 from quick_convert.utils.resolvers import register_config_resolvers
 
@@ -154,7 +154,7 @@ def test_invalid_reference_duration(seconds):
 
 
 def test_mel_reference_training_and_validation_preserve_selected_reference(paired_datasets, monkeypatch):
-    from quick_convert.components.decoders import StreamConditioning
+    from quick_convert.components.generators.acoustic import StreamConditioning
 
     training, _ = module()
     training.decoder.stream_conditioning = StreamConditioning(
@@ -261,13 +261,13 @@ def test_dac_tts_mel_preset_has_no_w2vbert_fields_or_dependencies():
         plan = dependency_plan(cfg)
         assert {"dac", "cosyvoice", "training"} <= set(plan.extras)
         assert "transformers" not in plan.extras
-        assert "campplus-frames" not in plan.extras
+        assert "campplus" not in plan.extras
 
 
 def test_dac_adapter_handles_raw_tts_flac_and_mel_prefix_training(paired_datasets, monkeypatch):
     from test_dac_online_sslr import encoder
 
-    from quick_convert.components.decoders import StreamConditioning
+    from quick_convert.components.generators.acoustic import StreamConditioning
     from quick_convert.components.layers.layer_fusion import LayerWeightedSum
 
     training, _ = module()

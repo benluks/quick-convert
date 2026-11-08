@@ -1,0 +1,6 @@
+# configs/components/encoders/content/dac.yaml
+# Pretrained, frozen DAC-16k content encoder — in place of for w2vbert.yaml.
+# Constructor defaults select the frozen pretrained 16 kHz model.
+_target_: quick_convert.components.encoders.content.DACContentEncoder
+sample_rate: 16000
+device: ${device}

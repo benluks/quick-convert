@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from quick_convert.components.prosody import ProsodyTransform
+from quick_convert.components.transforms.prosody import ProsodyTransform
 
 
 def records():

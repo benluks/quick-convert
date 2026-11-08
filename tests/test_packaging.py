@@ -56,7 +56,7 @@ def test_dac_and_onnx_prefix_profiles_have_compatible_requirements():
     assert len(url.rsplit("@", 1)[1]) == 40
     assert "0.25.0" in requirements["wandb"].specifier
     assert "7.0.0" not in requirements["protobuf"].specifier
-    onnx = next(Requirement(value) for value in extras["campplus-frames"] if Requirement(value).name == "onnx")
+    onnx = next(Requirement(value) for value in extras["campplus"] if Requirement(value).name == "onnx")
     assert "1.18.0" in onnx.specifier and "1.19.0" not in onnx.specifier
 
 

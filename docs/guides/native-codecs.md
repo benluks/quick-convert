@@ -10,7 +10,7 @@ vectors. They do not retrain a quantizer or return integer token IDs.
 | `SpeechTokenizerQuantizedContentEncoder` | `speechtokenizer` | All contributions, or one selected layer |
 
 ```python
-from quick_convert.components.ssl import SpeechTokenizerQuantizedContentEncoder
+from quick_convert.components.encoders.content import SpeechTokenizerQuantizedContentEncoder
 
 encoder = SpeechTokenizerQuantizedContentEncoder(layer=0, device="cpu")
 features = encoder.encode_waveforms(waveforms, lengths, sample_rate=16000)

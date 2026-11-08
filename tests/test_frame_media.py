@@ -20,7 +20,7 @@ def test_contour_renders_masked_targets_without_mutation():
         global_step=10,
         log_images=lambda values, **kwargs: images.update(values),
     )
-    from quick_convert.components.layers.heads import HeadTarget
+    from quick_convert.components.heads.base import HeadTarget
 
     target = HeadTarget(
         torch.tensor([[0, 999, 2]]),

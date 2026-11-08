@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 
 
 if TYPE_CHECKING:
-    from quick_convert.components.reference_prompt import PromptSegment, SpeechPromptBuilder
-    from quick_convert.components.speaker.aggregation import SpeakerEmbeddingAggregation
+    from quick_convert.components.conditioning.reference_prompt import PromptSegment, SpeechPromptBuilder
+    from quick_convert.components.transforms.speaker_aggregation import SpeakerEmbeddingAggregation
 
 
 ConditioningT = TypeVar("ConditioningT")
@@ -52,14 +52,14 @@ class ReferenceSpeech:
             raise TypeError("allow_missing_streams must be a boolean.")
         object.__setattr__(self, "allow_missing_streams", allow_missing_streams)
         if aggregation is not None:
-            from quick_convert.components.speaker.aggregation import SpeakerEmbeddingAggregation
+            from quick_convert.components.transforms.speaker_aggregation import SpeakerEmbeddingAggregation
 
             if not isinstance(aggregation, SpeakerEmbeddingAggregation):
                 raise TypeError("aggregation must be a SpeakerEmbeddingAggregation policy.")
         if prompt_seconds is not None and (not math.isfinite(prompt_seconds) or prompt_seconds <= 0):
             raise ValueError("prompt_seconds must be finite and positive.")
         if prompt_builder is not None:
-            from quick_convert.components.reference_prompt import SpeechPromptBuilder
+            from quick_convert.components.conditioning.reference_prompt import SpeechPromptBuilder
 
             if not isinstance(prompt_builder, SpeechPromptBuilder):
                 raise TypeError("prompt_builder must be a SpeechPromptBuilder.")

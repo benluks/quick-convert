@@ -10,10 +10,14 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from quick_convert.components.decoders import ConditioningStream, CosyVoiceDecoderOutput, CosyVoiceSpectrogramGenerator
+from quick_convert.components.generators.acoustic import (
+    ConditioningStream,
+    CosyVoiceDecoderOutput,
+    CosyVoiceSpectrogramGenerator,
+)
 from quick_convert.components.layers import LayerWeightedSum
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
-from quick_convert.components.mixins.resource import ResolvedResource
+from quick_convert.components.resources.resolution import ResolvedResource
 from quick_convert.data import AudioBatch
 from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 from quick_convert.utils.masking import make_padding_mask

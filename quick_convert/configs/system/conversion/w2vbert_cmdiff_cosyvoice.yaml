@@ -2,7 +2,7 @@
 
 defaults:
   - cmdiff_cosyvoice
-  - /components/ssl@online_encoders.content: w2vbert
+  - /components/encoders/content@online_encoders.content: w2vbert
   - _self_
 
 feature_transform:

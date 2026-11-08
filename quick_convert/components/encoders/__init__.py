@@ -1,15 +1,20 @@
-from .conformer_encoder import ConformerEncoder, ConformerEncoderSSL
-from .linear_head import LinearHead
-from .linguistic_head import LinguisticCTCHead
-from .parallel_conformer import ParallelConformerEncoder
-from .speaker_head import SpeakerASPHead
+"""Public encoders components; optional backends load on access."""
+
+from importlib import import_module
 
 
-__all__ = [
-    "ConformerEncoder",
-    "ConformerEncoderSSL",
-    "LinearHead",
-    "LinguisticCTCHead",
-    "ParallelConformerEncoder",
-    "SpeakerASPHead",
-]
+_EXPORTS = {
+    "ContentEncoder": "quick_convert.components.encoders.content.base",
+    "ContentFeatures": "quick_convert.components.encoders.content.base",
+    "SpeakerEncoder": "quick_convert.components.encoders.speaker.base",
+    "SpeakerEmbedding": "quick_convert.components.encoders.speaker.base",
+}
+__all__ = list(_EXPORTS)
+
+
+def __getattr__(name):
+    if name not in _EXPORTS:
+        raise AttributeError(name)
+    value = getattr(import_module(_EXPORTS[name]), name)
+    globals()[name] = value
+    return value

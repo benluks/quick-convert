@@ -1,13 +1,13 @@
 # @package system
 
 defaults:
-  - /components/decoders@decoder: causal_masked_dit
+  - /components/generators/acoustic@decoder: causal_masked_dit
   - _self_
 
 _target_: quick_convert.systems.conversion.SSLReconstructionConversionSystem
 online_encoders:
   speaker:
-    _target_: quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusSpeakerEncoder
+    _target_: quick_convert.components.encoders.speaker.CosyVoiceCAMPPlusSpeakerEncoder
 decoder:
   cond_strategy: null
   flow:

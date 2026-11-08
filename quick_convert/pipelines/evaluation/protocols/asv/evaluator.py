@@ -9,8 +9,11 @@ from pathlib import Path
 import torch
 from tqdm import tqdm
 
-from quick_convert.components.speaker import SpeakerEmbeddingAggregation, SpeakerEncoder
-from quick_convert.components.speaker.aggregation import audio_durations
+from quick_convert.components.encoders.speaker import SpeakerEncoder
+from quick_convert.components.transforms.speaker_aggregation import (
+    SpeakerEmbeddingAggregation,
+    audio_durations,
+)
 from quick_convert.data import BaseDataset
 
 from ...provenance import describe_component, write_provenance

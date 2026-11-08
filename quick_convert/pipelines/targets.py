@@ -6,7 +6,7 @@ import logging
 
 from tqdm import tqdm
 
-from quick_convert.components.speaker import SpeakerEmbeddingAggregation
+from quick_convert.components.transforms.speaker_aggregation import SpeakerEmbeddingAggregation
 from quick_convert.data import AudioSample, BaseDataset
 from quick_convert.pipelines.conversion_records import file_identity
 from quick_convert.systems.conversion.targets import ReferenceSpeech

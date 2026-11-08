@@ -2,7 +2,7 @@
 
 defaults:
   - /recipe: librispeech_codec_precompute
-  - /components/ssl@encoder: dac
+  - /components/encoders/content@encoder: dac
   - _self_
 
 dataset:

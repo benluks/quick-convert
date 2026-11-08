@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from quick_convert.components.encoders.upsample_conformer import UpsampleConformerEncoder
+from quick_convert.components.sequence.upsample_conformer import UpsampleConformerEncoder
 from quick_convert.external.cosyvoice.transformer.upsample_encoder import UpsampleConformerEncoder as Original
 
 
@@ -144,7 +144,9 @@ def test_decoder_config_uses_the_first_party_encoder():
     from hydra.utils import instantiate
     from omegaconf import OmegaConf
 
-    config = OmegaConf.load(str(files("quick_convert.configs").joinpath("components/decoders/causal_masked_diff.yaml")))
+    config = OmegaConf.load(
+        str(files("quick_convert.configs").joinpath("components/generators/acoustic/causal_masked_diff.yaml"))
+    )
     encoder = config.flow.encoder
     encoder.static_chunk_size = 4
     model = instantiate(encoder)

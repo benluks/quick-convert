@@ -1,0 +1,8 @@
+defaults:
+  - /components/flow_matching/estimators@cfm.estimator: residual_mlp
+  - _self_
+
+_target_: quick_convert.components.generators.speaker.cfm.CFMSpeakerGenerator
+embedding_dim: 256
+cfm:
+  _target_: quick_convert.components.flow_matching.base.BASECFM

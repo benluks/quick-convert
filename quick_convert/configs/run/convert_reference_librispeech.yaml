@@ -4,7 +4,7 @@ defaults:
   - /dataset: librispeech
   - /dataset@target_dataset: librispeech
   - /resource_providers/librispeech@spkid_provider: spkid
-  - /components/speaker_aggregation@pipeline.target.aggregation: null
+  - /components/transforms/speaker_aggregation@pipeline.target.aggregation: null
   - _self_
 
 source: ???
@@ -38,7 +38,7 @@ pipeline:
     speaker_id: ${target_id}
     prompt_seconds: 3.0
     prompt_builder:
-      _target_: quick_convert.components.reference_prompt.SpeechPromptBuilder
+      _target_: quick_convert.components.conditioning.reference_prompt.SpeechPromptBuilder
   metadata:
     system: speech-conversion
     dataset: librispeech

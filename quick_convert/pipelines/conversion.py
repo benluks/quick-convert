@@ -29,8 +29,8 @@ from quick_convert.systems.conversion.targets import (
 
 
 if TYPE_CHECKING:
-    from quick_convert.components.reference_prompt import SpeechPromptBuilder
-    from quick_convert.components.speaker import SpeakerEmbeddingAggregation
+    from quick_convert.components.conditioning.reference_prompt import SpeechPromptBuilder
+    from quick_convert.components.transforms.speaker_aggregation import SpeakerEmbeddingAggregation
 
 
 logger = logging.getLogger(__name__)

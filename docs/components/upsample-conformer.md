@@ -1,6 +1,6 @@
 # Upsample Conformer encoder
 
-`quick_convert.components.encoders.upsample_conformer.UpsampleConformerEncoder`
+`quick_convert.components.sequence.upsample_conformer.UpsampleConformerEncoder`
 is a first-party adapter around vendored CosyVoice attention, convolution, and
 positional-encoding blocks. It accepts `[batch, time, input_size]` features and
 an integer valid-length vector. It returns features and a `[batch, 1, time]`
@@ -10,7 +10,7 @@ For a compact custom encoder:
 
 ```python
 import torch
-from quick_convert.components.encoders.upsample_conformer import UpsampleConformerEncoder
+from quick_convert.components.sequence.upsample_conformer import UpsampleConformerEncoder
 
 encoder = UpsampleConformerEncoder(
     input_size=1024,

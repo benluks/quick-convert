@@ -4,10 +4,10 @@ import pytest
 import torch
 from torch import nn
 
-from quick_convert.components.decoders import CosyVoiceGenerationOutput
+from quick_convert.components.encoders.content.base import ContentFeatures
+from quick_convert.components.generators.acoustic import CosyVoiceGenerationOutput
 from quick_convert.components.layers.rvq import RVQLosses, RVQOutput
-from quick_convert.components.mixins.resource import ResolvedResource
-from quick_convert.components.ssl.base import ContentFeatures
+from quick_convert.components.resources.resolution import ResolvedResource
 from quick_convert.data import AudioBatch, GeneratedAudio
 from quick_convert.data.resources.base import TensorResourceBatch
 from quick_convert.systems.conversion import SSLReconstructionConversionSystem, SSLReconstructionResult
@@ -288,9 +288,9 @@ def test_training_mode_preserves_frozen_encoders_and_vocoder(trainable):
 
 
 def test_native_reference_conversion_prepares_content_mels_and_global_embedding(tmp_path, monkeypatch):
-    from quick_convert.components.decoders.cosyvoice_reference import CosyVoiceReference
-    from quick_convert.components.reference_prompt import SpeechPromptBuilder
-    from quick_convert.components.speaker.aggregation import SpeakerEmbeddingAggregation
+    from quick_convert.components.conditioning.reference_prompt import SpeechPromptBuilder
+    from quick_convert.components.generators.acoustic.cosyvoice_reference import CosyVoiceReference
+    from quick_convert.components.transforms.speaker_aggregation import SpeakerEmbeddingAggregation
     from quick_convert.systems.conversion.reference import ReferenceCondition
     from quick_convert.systems.conversion.targets import ReferenceSpeech
 

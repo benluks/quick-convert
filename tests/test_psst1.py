@@ -5,11 +5,11 @@ import pytest
 import torch
 
 import quick_convert.systems.conversion.psst1 as psst1_module
-from quick_convert.components.decoders.flow_matching.estimators.psst1 import PSST1FlowEstimator
-from quick_convert.components.decoders.psst1_hifigan import PSST1HifiGanGenerator, upsample_condition
-from quick_convert.components.speaker import SpeakerEmbedding
-from quick_convert.components.speaker.emotion_compensation import EmotionBoundaryCompensator
-from quick_convert.components.speaker.speaker_generators.psst1_flow import PSST1FlowSpeakerGenerator, mix_latents
+from quick_convert.components.encoders.speaker import SpeakerEmbedding
+from quick_convert.components.flow_matching.estimators.psst1 import PSST1FlowEstimator
+from quick_convert.components.generators.speaker.psst1_flow import PSST1FlowSpeakerGenerator, mix_latents
+from quick_convert.components.generators.waveform.psst1_hifigan import PSST1HifiGanGenerator, upsample_condition
+from quick_convert.components.transforms.emotion_compensation import EmotionBoundaryCompensator
 from quick_convert.data import AudioBatch, AudioSample
 from quick_convert.data.resources import ResourceCollection, ResourceRef
 from quick_convert.systems.conversion import GeneratedVoice, PSST1ConversionSystem
@@ -352,8 +352,8 @@ def test_psst1_conversion_pipeline_writes_and_resumes(tmp_path, make_psst1):
 
 
 def test_psst1_children_follow_parent_device_move():
-    from quick_convert.components.decoders.psst1_hifigan import PSST1HifiGanDecoder
-    from quick_convert.components.speaker.speaker_encoders.speechbrain_ecapa import SpeechBrainECAPASpeakerEncoder
+    from quick_convert.components.encoders.speaker.speechbrain_ecapa import SpeechBrainECAPASpeakerEncoder
+    from quick_convert.components.generators.waveform.psst1_hifigan import PSST1HifiGanDecoder
     from quick_convert.systems.ser.speechbrain_ser import SpeechBrainSER
 
     parent = torch.nn.Module()
@@ -436,7 +436,7 @@ def test_lazy_ser_backend_moves_without_changing_checkpoint_keys():
 
 
 def test_shared_hifigan_loads_folded_knn_weights_with_identical_output():
-    from quick_convert.components.decoders.knnvc_hifigan import Generator, KnnVCHifiGanConfig
+    from quick_convert.components.generators.waveform.knnvc_hifigan import Generator, KnnVCHifiGanConfig
 
     config = KnnVCHifiGanConfig(
         hubert_dim=4,
@@ -476,8 +476,8 @@ def test_split_resynthesis_matches_previous_waveform_path(tmp_path, monkeypatch)
     import torch.nn.functional as F
     import torchaudio.models
 
-    import quick_convert.components.decoders.psst1_hifigan as hifigan
-    from quick_convert.components.ssl.hubert_soft import SoftHubertContentEncoder
+    import quick_convert.components.generators.waveform.psst1_hifigan as hifigan
+    from quick_convert.components.encoders.content.hubert_soft import SoftHubertContentEncoder
 
     class Hubert(torch.nn.Module):
         def __init__(self):

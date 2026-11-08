@@ -3,7 +3,7 @@
 defaults:
   - /recipe: sslr_paired_tts_dit
   - /recipe/sslr_campp_prefix
-  - /components/ssl@system.online_encoders.content: w2vbert_last_layer
+  - /components/encoders/content@system.online_encoders.content: w2vbert_last_layer
   - _self_
 
 exp_name: tts_content_conformer_dit_cosyvoice_${dataset_name}

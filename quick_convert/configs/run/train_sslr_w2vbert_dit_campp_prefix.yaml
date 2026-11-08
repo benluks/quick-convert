@@ -2,7 +2,7 @@
 
 defaults:
   - /recipe: sslr_dit_campp_prefix
-  - /components/ssl@system.online_encoders.content: w2vbert
+  - /components/encoders/content@system.online_encoders.content: w2vbert
   - _self_
 
 exp_name: train_sslr_w2vbert_dit_campp_prefix_${dataset_name}

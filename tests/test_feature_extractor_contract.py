@@ -3,8 +3,7 @@ import inspect
 import pytest
 import torch
 
-from quick_convert.components.feature_extractors.base import BaseFeatureExtractor
-from quick_convert.components.ssl import (
+from quick_convert.components.encoders.content import (
     DACContentEncoder,
     EmotionEncoder,
     ProsodyEncoder,
@@ -12,11 +11,12 @@ from quick_convert.components.ssl import (
     W2VBertContentEncoder,
     WavLMContentEncoder,
 )
-from quick_convert.components.ssl.base import ContentEncoder, ContentFeatures
+from quick_convert.components.encoders.content.base import ContentEncoder, ContentFeatures
+from quick_convert.components.resources.base import BaseResourceExtractor
 
 
 def test_feature_extractor_requires_a_feature_name():
-    class MissingFeatureName(BaseFeatureExtractor):
+    class MissingFeatureName(BaseResourceExtractor):
         pass
 
     with pytest.raises(TypeError, match="feature_name"):

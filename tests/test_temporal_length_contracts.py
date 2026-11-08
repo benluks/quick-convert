@@ -6,11 +6,15 @@ import pytest
 import torch
 from torch import nn
 
-from quick_convert.components.encoders import ConformerEncoder, ConformerEncoderSSL, ParallelConformerEncoder
+from quick_convert.components.heads.base import HeadOutput
 from quick_convert.components.layers import LayerWeightedSum
-from quick_convert.components.layers.heads import HeadOutput
-from quick_convert.components.layers.rvq_ema import ResidualVectorQuantizerEMA
-from quick_convert.components.mixins.resource import ResolvedResource
+from quick_convert.components.layers.ema_rvq import EMAResidualVectorQuantizer
+from quick_convert.components.resources.resolution import ResolvedResource
+from quick_convert.components.sequence import (
+    ConformerEncoder,
+    LayerWeightedConformerEncoder,
+    ParallelLayerWeightedConformerEncoder,
+)
 from quick_convert.data import AudioBatch
 from quick_convert.systems.asr import VQASRSystem
 from quick_convert.systems.conversion import SSLReconstructionConversionSystem
@@ -27,9 +31,9 @@ class CaptureHead(nn.Module):
     [
         LayerWeightedSum,
         ConformerEncoder,
-        ConformerEncoderSSL,
-        ParallelConformerEncoder,
-        ResidualVectorQuantizerEMA,
+        LayerWeightedConformerEncoder,
+        ParallelLayerWeightedConformerEncoder,
+        EMAResidualVectorQuantizer,
     ],
 )
 def test_time_preserving_modules_report_unchanged_lengths(module_type):
@@ -63,7 +67,7 @@ def test_adaptation_matches_explicit_composition_and_keeps_gradients(task, sourc
     transform = LayerWeightedSum(3, projection=nn.Linear(4, 6)) if layered else nn.Identity()
     dim = 6 if layered else 4
     quantizer = (
-        ResidualVectorQuantizerEMA(input_dim=dim, n_codebooks=1, codebook_size=4, codebook_dim=2, kmeans_init=False)
+        EMAResidualVectorQuantizer(input_dim=dim, n_codebooks=1, codebook_size=4, codebook_dim=2, kmeans_init=False)
         if task == "asr" or source == "rvq"
         else None
     )
@@ -101,7 +105,7 @@ def test_invalid_stage_lengths_fail_before_the_next_component(task, stage):
         def forward(self, x):
             return x[:, :1] if stage == "transform" else x
 
-    class BadQuantizer(ResidualVectorQuantizerEMA):
+    class BadQuantizer(EMAResidualVectorQuantizer):
         @staticmethod
         def output_lengths(lengths):
             return lengths.float()

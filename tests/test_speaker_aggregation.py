@@ -3,8 +3,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from quick_convert.components.speaker import SpeakerEmbeddingAggregation
-from quick_convert.components.speaker.aggregation import audio_durations
+from quick_convert.components.transforms.speaker_aggregation import SpeakerEmbeddingAggregation, audio_durations
 from quick_convert.data import AudioBatch, AudioSample
 from quick_convert.data.resources import ResourceCollection, ResourceRef
 

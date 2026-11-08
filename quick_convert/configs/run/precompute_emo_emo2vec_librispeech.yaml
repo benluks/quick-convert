@@ -4,8 +4,8 @@ defaults:
   - /global: default
   - /pipeline: precompute_features
   - /dataset: librispeech
-  - /components/feature_extractor@feature_extractor: content
-  - /components/ssl@encoder: emo2vec
+  - /components/resources@feature_extractor: content
+  - /components/encoders/content@encoder: emo2vec
   - _self_
 
 dataset:
@@ -21,7 +21,7 @@ dataset:
   target_sr: ${encoder.sample_rate}
 
 pipeline:
-  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/ssl@encoder}
+  out_dir: ${out_root}/precomputed/${hydra:runtime.choices.dataset}/${hydra:runtime.choices.components/encoders/content@encoder}
   # idempotent: safe to resume timed-out jobs (already-written utts are skipped)
   skip_existing: true
 

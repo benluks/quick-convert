@@ -9,16 +9,16 @@ from typing import Any
 import torch
 from torch import nn
 
-from quick_convert.components.encoders import LinguisticCTCHead
+from quick_convert.components.encoders.content import ContentEncoder
+from quick_convert.components.heads import LinguisticCTCHead
+from quick_convert.components.heads.base import HeadOutput, HeadTarget
 from quick_convert.components.layers import LayerWeightedSum
-from quick_convert.components.layers.heads import HeadOutput, HeadTarget
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
-from quick_convert.components.mixins.asr_logging import ASRLoggingMixin
-from quick_convert.components.mixins.gradient_logging import ObjectiveGradientLoggingMixin
-from quick_convert.components.mixins.resource import OnlineResourceMixin
-from quick_convert.components.ssl import ContentEncoder
+from quick_convert.components.resources.resolution import OnlineResourceMixin
 from quick_convert.data.types import AudioBatch
 from quick_convert.systems.asr import VQASRSystem
+from quick_convert.training.lightning.asr_logging import ASRLoggingMixin
+from quick_convert.training.lightning.gradient_logging import ObjectiveGradientLoggingMixin
 
 from ..optim import Optimization
 from .base import BaseTrainingModule

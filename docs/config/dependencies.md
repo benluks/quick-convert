@@ -16,7 +16,7 @@ checkout and for a published package. Hydra overrides participate in planning:
 
 ```bash
 uv run quick-convert requirements train_vq_asr_librispeech \
-  system.online_encoders.content._target_=quick_convert.components.ssl.DACContentEncoder
+  system.online_encoders.content._target_=quick_convert.components.encoders.content.DACContentEncoder
 ```
 
 Check the active environment with:
@@ -50,8 +50,8 @@ requires an older `ml-dtypes`; install those profiles separately.
 
 ## Prefix-conditioned reconstruction
 
-`campplus-frames` supplies `onnx`, `onnxruntime` and `huggingface-hub` for the
-frame-wise CAMPPlus adapter. Imports and model downloads are lazy until that
+`campplus` supplies `onnx`, `onnxruntime` and `huggingface-hub` for the
+pooled and frame-wise CAMPPlus encoder. Imports and model downloads are lazy until that
 encoder is selected. Its supported ONNX graph is truncated in memory and is
 never written back to the model cache.
 

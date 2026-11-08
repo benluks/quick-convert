@@ -4,7 +4,7 @@ defaults:
   - /global: default
   - /pipeline: precompute_features
   - /dataset: librispeech
-  - /components/feature_extractor@feature_extractor: tokenizer
+  - /components/resources@feature_extractor: tokenizer
   - /resource_providers/librispeech@transcript_provider: transcript
   # skipping the encoder. feature extractor computes directly. That means
   # this isn't robust to different tokenizers for now.

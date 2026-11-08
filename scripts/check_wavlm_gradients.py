@@ -8,7 +8,7 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from quick_convert.components.ssl.wavlm import WavLMContentEncoder
+from quick_convert.components.encoders.content.wavlm import WavLMContentEncoder
 from quick_convert.data import AudioBatch, AudioSample
 from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 

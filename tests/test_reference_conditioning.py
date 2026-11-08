@@ -7,9 +7,9 @@ import pytest
 import torch
 from torch import nn
 
-from quick_convert.components.decoders.cosyvoice import CosyVoiceSpectrogramGenerator
-from quick_convert.components.decoders.cosyvoice_reference import CosyVoiceReference, reference_flow_loss
-from quick_convert.components.feature_extractors.mel import MelSpectrogramConfig
+from quick_convert.components.features.mel.matcha import MelSpectrogramConfig
+from quick_convert.components.generators.acoustic.cosyvoice import CosyVoiceSpectrogramGenerator
+from quick_convert.components.generators.acoustic.cosyvoice_reference import CosyVoiceReference, reference_flow_loss
 from quick_convert.data.resources import SameSpeakerReferenceProvider
 
 
@@ -155,7 +155,7 @@ def test_real_cosyvoice_flow_trains_and_generates_with_reference():
     cfm_module = pytest.importorskip("quick_convert.external.cosyvoice.flow.flow_matching")
     from omegaconf import DictConfig
 
-    from quick_convert.components.encoders.upsample_conformer import UpsampleConformerEncoder
+    from quick_convert.components.sequence.upsample_conformer import UpsampleConformerEncoder
 
     encoder = UpsampleConformerEncoder(
         input_size=4,

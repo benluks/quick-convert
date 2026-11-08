@@ -172,9 +172,9 @@ def test_precompute_rejects_legacy_cache_and_duplicate_destinations(tmp_path):
 def test_cached_content_preserves_online_representation_contract(tmp_path):
     from types import SimpleNamespace
 
-    from quick_convert.components.feature_extractors.content import ContentFeatureExtractor
+    from quick_convert.components.encoders.content.base import ContentFeatures
     from quick_convert.components.layers import LayerWeightedSum
-    from quick_convert.components.ssl.base import ContentFeatures
+    from quick_convert.components.resources.content import ContentFeatureExtractor
     from quick_convert.data.resources import PathResourceProvider
     from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 

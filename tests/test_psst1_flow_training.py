@@ -6,7 +6,7 @@ from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
-from quick_convert.components.speaker.speaker_generators.psst1_flow import PSST1FlowSpeakerGenerator
+from quick_convert.components.generators.speaker.psst1_flow import PSST1FlowSpeakerGenerator
 from quick_convert.data import BaseDataset
 from quick_convert.data.resources import PathResourceProvider
 from quick_convert.utils.resolvers import class_attribute

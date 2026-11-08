@@ -1,15 +1,15 @@
 import pytest
 import torch
 
+from quick_convert.components.layers.ema_codebook import EMAVectorQuantizer
+from quick_convert.components.layers.ema_rvq import EMAResidualVectorQuantizer
 from quick_convert.components.layers.rvq import RVQLosses, RVQOutput
-from quick_convert.components.layers.rvq_ema import ResidualVectorQuantizerEMA
-from quick_convert.components.layers.vector_quantize import VectorQuantize
 
 
 @pytest.mark.parametrize("topk", [None, 1])
 @pytest.mark.parametrize("use_cosine_sim", [False, True])
 def test_commitment_uses_quantizer_space_with_or_without_mask(topk, use_cosine_sim):
-    quantizer = VectorQuantize(
+    quantizer = EMAVectorQuantizer(
         dim=3,
         codebook_dim=2,
         codebook_size=2,
@@ -38,7 +38,7 @@ def test_commitment_uses_quantizer_space_with_or_without_mask(topk, use_cosine_s
 
 
 def test_rvq_ema_implements_shared_output_contract():
-    quantizer = ResidualVectorQuantizerEMA(
+    quantizer = EMAResidualVectorQuantizer(
         input_dim=4,
         n_codebooks=2,
         codebook_size=8,
@@ -70,7 +70,7 @@ def test_rvq_ema_implements_shared_output_contract():
 
 
 def test_rvq_layer_contributions_sum_to_quantized_output():
-    quantizer = ResidualVectorQuantizerEMA(
+    quantizer = EMAResidualVectorQuantizer(
         input_dim=4,
         n_codebooks=2,
         codebook_size=8,

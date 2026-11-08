@@ -21,7 +21,7 @@ or discover datasets, and the pipeline has no prosody/speaker-specific logic.
 ```yaml
 # Prosody composition:
 transform:
-  _target_: quick_convert.components.prosody.ProsodyTransform
+  _target_: quick_convert.components.transforms.prosody.ProsodyTransform
 pipeline:
   _target_: quick_convert.pipelines.fit.FitPipeline
   dataset: ${dataset}
@@ -46,7 +46,7 @@ Hydra targets; new compositions use `ProsodyTransform` and `FitPipeline`.
 Restore state into a matching configured component without unpickling it:
 
 ```python
-from quick_convert.components.fitting import load_fitted_state
+from quick_convert.components.transforms.fitting import load_fitted_state
 from quick_convert.data.indexing import Indexer
 
 indexer = Indexer("{sample.resources.spkid.value}")

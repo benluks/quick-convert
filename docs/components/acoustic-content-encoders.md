@@ -11,7 +11,7 @@ Install `uv sync --extra spear`. The default is the official
 checkpoint: 16 kHz input, approximately 50 Hz output, 1280 features.
 
 ```python
-from quick_convert.components.ssl import resolve_content_encoder
+from quick_convert.components.encoders.content import resolve_content_encoder
 
 encoder = resolve_content_encoder("spear")(layer=None, device="cuda")
 features = encoder.encode_file("speech.wav")
@@ -30,7 +30,7 @@ with a different output timebase. `revision` can pin the upstream release;
 `local_files_only=True` uses cached weights and code. The official model needs
 `trust_remote_code=True`, which is explicit in the constructor.
 
-Hydra component: `components/ssl=spear`. Configure the consuming system's feature
+Hydra component: `components/encoders/content=spear`. Configure the consuming system's feature
 dimension to match the chosen checkpoint; changing an encoder does not retrain
 an existing decoder.
 
@@ -68,13 +68,13 @@ follow the upstream setup for your CUDA version. Do not change `rnn_type` to byp
 that requirement with the published checkpoint: that changes the architecture.
 This backend has not been verified with the published checkpoint in CI.
 
-Hydra component: `components/ssl=paseplus`; supply `config_path` and
+Hydra component: `components/encoders/content=paseplus`; supply `config_path` and
 `checkpoint_path`, both intentionally required.
 
 ## emotion2vec
 
 This encoder already exists: `resolve_content_encoder("emotion2vec")` or
-`components/ssl=emo2vec`. Install `uv sync --extra emotion2vec`.
+`components/encoders/content=emo2vec`. Install `uv sync --extra emotion2vec`.
 The extra constrains Transformers to `>=4.50.1,<5`, preventing resolution to
 legacy versions whose tokenizers require a source build on Python 3.11.
 To install the latest GitHub code into an existing environment, use:
@@ -139,7 +139,7 @@ mask and convolution geometry. Its attention still includes the padded context,
 as in the upstream encoder. Inputs exceeding 30 seconds are rejected rather
 than silently truncated; split long recordings before extraction.
 
-Hydra component: `components/ssl=voicefm`, with required `checkpoint_path`.
+Hydra component: `components/encoders/content=voicefm`, with required `checkpoint_path`.
 Verification covers checkpoint round trips and length/layer contracts; published
 clinical VoiceFM weights have not been exercised because they are not available
 in the code release.

@@ -8,7 +8,7 @@ defaults:
   - /pipeline: training
   - /trainer: psst1_flow
   - /dataset@train_dataset: librispeech
-  - /components/speaker_generator@system: psst1_flow
+  - /components/generators/speaker@system: psst1_flow
   - _self_
 
 seed: 1999

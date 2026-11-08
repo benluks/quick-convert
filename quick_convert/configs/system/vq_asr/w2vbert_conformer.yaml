@@ -1,9 +1,9 @@
 # @package system
 
 defaults:
-  - /components/encoders@ctc_head: linguistic_head
-  - /components/layers@quantizer: rvq_ema
-  - /components/ssl@online_encoders.content: w2vbert
+  - /components/heads@ctc_head: linguistic_head
+  - /components/layers@quantizer: ema_rvq
+  - /components/encoders/content@online_encoders.content: w2vbert
   - _self_
 
 _target_: quick_convert.systems.asr.VQASRSystem

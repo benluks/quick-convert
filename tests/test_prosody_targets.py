@@ -4,7 +4,7 @@ import pytest
 import torch
 from hydra import compose, initialize_config_dir
 
-from quick_convert.components.prosody import ProsodyTransform
+from quick_convert.components.transforms.prosody import ProsodyTransform
 
 
 def measurements(pitch):

@@ -3,9 +3,9 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from quick_convert.components.layers.heads import HeadOutput
+from quick_convert.components.heads.base import HeadOutput
 from quick_convert.components.layers.rvq import RVQLosses, RVQOutput
-from quick_convert.components.mixins.resource import ResolvedResource
+from quick_convert.components.resources.resolution import ResolvedResource
 from quick_convert.data import AudioBatch
 from quick_convert.systems.asr import VQASRResult, VQASRSystem
 

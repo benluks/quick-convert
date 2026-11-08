@@ -4,13 +4,14 @@ system:
   online_encoders:
     speaker: null
     frame_speaker:
-      _target_: quick_convert.components.speaker.CosyVoiceCAMPPlusFrameEncoder
+      _target_: quick_convert.components.encoders.speaker.CosyVoiceCAMPPlusSpeakerEncoder
+      output: frames
   decoder:
     feature_dim: ${class_attr:${system.online_encoders.content._target_},FEATURE_DIM}
     stream_conditioning:
-      _target_: quick_convert.components.decoders.StreamConditioning
+      _target_: quick_convert.components.generators.acoustic.StreamConditioning
       dimensions:
-        frame_speaker: ${class_attr:quick_convert.components.speaker.CosyVoiceCAMPPlusFrameEncoder,FEATURE_DIM}
+        frame_speaker: ${class_attr:quick_convert.components.encoders.speaker.CosyVoiceCAMPPlusSpeakerEncoder,FRAME_DIM}
     flow:
       decoder:
         estimator:

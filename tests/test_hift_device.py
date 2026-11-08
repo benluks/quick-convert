@@ -5,7 +5,9 @@ import torch
 from torch import nn
 
 
-CosyVoiceHiFTDecoder = pytest.importorskip("quick_convert.components.decoders.hift_generator").CosyVoiceHiFTDecoder
+CosyVoiceHiFTDecoder = pytest.importorskip(
+    "quick_convert.components.generators.waveform.hift_generator"
+).CosyVoiceHiFTDecoder
 
 
 class PitchGenerator(nn.Module):

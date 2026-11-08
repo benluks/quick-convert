@@ -13,14 +13,14 @@ import torch
 import torchaudio
 from torch import nn
 
-from quick_convert.components.decoders import (
+from quick_convert.components.generators.acoustic import (
     ConditioningStream,
     CosyVoiceGenerationOutput,
     CosyVoiceSpectrogramGenerator,
 )
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
-from quick_convert.components.mixins.resource import OnlineResourceMixin
-from quick_convert.components.speaker.aggregation import SpeakerEmbeddingAggregation, audio_durations
+from quick_convert.components.resources.resolution import OnlineResourceMixin
+from quick_convert.components.transforms.speaker_aggregation import SpeakerEmbeddingAggregation, audio_durations
 from quick_convert.data import AudioBatch, GeneratedAudio
 from quick_convert.systems._content import content_frame_rate, quantize_content, transform_content
 from quick_convert.systems.base import InferenceSystem

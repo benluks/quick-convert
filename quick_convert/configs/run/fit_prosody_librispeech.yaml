@@ -23,7 +23,7 @@ dataset:
   load: [prosody, spkid]
 
 transform:
-  _target_: quick_convert.components.prosody.ProsodyTransform
+  _target_: quick_convert.components.transforms.prosody.ProsodyTransform
 
 pipeline:
   _target_: quick_convert.pipelines.fit.FitPipeline

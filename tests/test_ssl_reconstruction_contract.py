@@ -4,10 +4,10 @@ import pytest
 import torch
 from torch import nn
 
-from quick_convert.components.decoders import CosyVoiceDecoderOutput
+from quick_convert.components.generators.acoustic import CosyVoiceDecoderOutput
 from quick_convert.components.layers import LayerWeightedSum
 from quick_convert.components.layers.rvq import RVQLosses, RVQOutput
-from quick_convert.components.mixins.resource import ResolvedResource
+from quick_convert.components.resources.resolution import ResolvedResource
 from quick_convert.data import AudioBatch
 from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 

@@ -74,7 +74,7 @@ Equal-weight averaging remains the default. To weight each recording by its
 valid audio duration, excluding batch padding, pass a shared policy:
 
 ```python
-from quick_convert.components.speaker import SpeakerEmbeddingAggregation
+from quick_convert.components.transforms.speaker_aggregation import SpeakerEmbeddingAggregation
 
 evaluator = ASVEvaluator(
     enroll_dataset,
@@ -89,7 +89,7 @@ results = evaluator.run()
 For the existing CLI preset, append these overrides:
 
 ```bash
-'+pipeline.enrollment_aggregation._target_=quick_convert.components.speaker.SpeakerEmbeddingAggregation' \
+'+pipeline.enrollment_aggregation._target_=quick_convert.components.transforms.speaker_aggregation.SpeakerEmbeddingAggregation' \
 '+pipeline.enrollment_aggregation.method=duration_weighted'
 ```
 

@@ -53,7 +53,7 @@ Providers describe where a value comes from. The dataset decides whether the res
 from hydra.utils import instantiate
 from quick_convert.utils.config import compose_component
 
-config = compose_component("components/ssl", "w2vbert", {"device": "cpu"})
+config = compose_component("components/encoders/content", "w2vbert", {"device": "cpu"})
 encoder = instantiate(config)
 ```
 
@@ -65,7 +65,7 @@ Applications that let users choose a content encoder can accept either a
 built-in alias or a full dotted class path:
 
 ```python
-from quick_convert.components.ssl import resolve_content_encoder
+from quick_convert.components.encoders.content import resolve_content_encoder
 
 encoder_class = resolve_content_encoder("s3tokenizer")
 encoder = encoder_class(device="cpu", layer=11)

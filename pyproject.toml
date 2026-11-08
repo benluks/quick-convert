@@ -115,7 +115,7 @@ speechbrain-ser = ["speechbrain>=1.0.3,<2", "transformers>=4.36,<5"]
 yaapt = ["amfm-decompy>=1.0.12"]
 wer = ["jiwer>=3.0"]
 asr = ["jiwer>=3.0", "sentencepiece>=0.2.0"] # Compatibility bundle.
-campplus-frames = ["onnx>=1.17.0,<1.19", "onnxruntime>=1.26.0", "huggingface-hub>=0.28.1"]
+campplus = ["onnx>=1.17.0,<1.19", "onnxruntime>=1.26.0", "huggingface-hub>=0.28.1"]
 cosyvoice = [
     "conformer>=0.3.2",
     "diffusers>=0.29.0",

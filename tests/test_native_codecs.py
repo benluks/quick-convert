@@ -5,8 +5,11 @@ import pytest
 import torch
 from torch import nn
 
-from quick_convert.components.ssl import DACQuantizedContentEncoder, MimiQuantizedContentEncoder
-from quick_convert.components.ssl.quantized import QuantizedContentEncoder, SpeechTokenizerQuantizedContentEncoder
+from quick_convert.components.encoders.content import DACQuantizedContentEncoder, MimiQuantizedContentEncoder
+from quick_convert.components.encoders.content.quantized import (
+    QuantizedContentEncoder,
+    SpeechTokenizerQuantizedContentEncoder,
+)
 
 
 class TinyCodec(QuantizedContentEncoder):
@@ -241,7 +244,7 @@ def test_speechtokenizer_reconstruction_config_uses_single_layer_without_fusion(
         assert cfg.system.decoder.flow._target_.endswith("CausalMaskedDiffWithDiT")
         assert "encoder" not in cfg.system.decoder.flow
     assert cfg.system.online_encoders.speaker is None
-    assert cfg.system.online_encoders.frame_speaker._target_.endswith("CosyVoiceCAMPPlusFrameEncoder")
+    assert cfg.system.online_encoders.frame_speaker._target_.endswith("CosyVoiceCAMPPlusSpeakerEncoder")
     dimensions = cfg.system.decoder.stream_conditioning.dimensions
     assert cfg.system.decoder.flow.decoder.estimator.cond_dim == dimensions.frame_speaker + 1
     assert cfg.system.decoder.flow.decoder.estimator.spk_dim is None

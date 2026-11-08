@@ -58,7 +58,7 @@ inspect interpolations to trace the assembled object graph.
 The SSL reconstruction CAMPPlus prefix runs use one recipe per decoder family,
 `recipe/sslr_dit_campp_prefix.yaml` or `recipe/sslr_cmdiff_campp_prefix.yaml`.
 Both reuse manifest training and the same frame-speaker conditioning. Each run
-selects its content encoder at `components/ssl@system.online_encoders.content`
+selects its content encoder at `components/encoders/content@system.online_encoders.content`
 and supplies its own layer fusion or checkpoint-specific capabilities. Run names
 and output directories are preserved. The system choices for the prefix runs
 are `dit_cosyvoice` and `cmdiff_cosyvoice`, respectively. Causal masked diffusion

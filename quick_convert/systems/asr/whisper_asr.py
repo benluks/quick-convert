@@ -5,6 +5,8 @@ from typing import Any
 
 import torchaudio
 
+from quick_convert.components.features.mel.whisper import whisper_log_mel
+
 from ...data.types import AudioBatch, MetadataSample
 from .base import ASRSystem
 
@@ -67,7 +69,7 @@ class WhisperASR(ASRSystem):
         assert (batch.sample_rates == self.sr).all()
         model = self._get_model()
         wav = self._whisper.pad_or_trim(batch.waveforms.to(self.device))
-        mel = self._whisper.log_mel_spectrogram(wav)
+        mel = whisper_log_mel(wav, backend=self._whisper)
         decoding_results: Iterable[Any] = model.decode(mel, self.decoding_options)
 
         return [res.text for res in decoding_results]

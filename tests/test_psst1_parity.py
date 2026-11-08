@@ -35,12 +35,12 @@ def assets():
 
 @pytest.fixture(scope="module")
 def components(assets):
-    from quick_convert.components.decoders.psst1_hifigan import PSST1HifiGanDecoder
-    from quick_convert.components.feature_extractors.yaapt_f0 import YAAPTF0Extractor
-    from quick_convert.components.speaker.emotion_compensation import EmotionBoundaryCompensator
-    from quick_convert.components.speaker.speaker_encoders.speechbrain_ecapa import SpeechBrainECAPASpeakerEncoder
-    from quick_convert.components.speaker.speaker_generators.psst1_flow import PSST1FlowSpeakerGenerator
-    from quick_convert.components.ssl.hubert_soft import SoftHubertContentEncoder
+    from quick_convert.components.encoders.content.hubert_soft import SoftHubertContentEncoder
+    from quick_convert.components.encoders.speaker.speechbrain_ecapa import SpeechBrainECAPASpeakerEncoder
+    from quick_convert.components.features.f0.yaapt import YAAPTF0Extractor
+    from quick_convert.components.generators.speaker.psst1_flow import PSST1FlowSpeakerGenerator
+    from quick_convert.components.generators.waveform.psst1_hifigan import PSST1HifiGanDecoder
+    from quick_convert.components.transforms.emotion_compensation import EmotionBoundaryCompensator
 
     return {
         "encoder": SpeechBrainECAPASpeakerEncoder(assets / "ecapa.ckpt", device="cpu"),

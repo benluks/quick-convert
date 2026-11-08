@@ -7,11 +7,11 @@ from typing import Any
 import torch
 from torch import nn
 
-from quick_convert.components.encoders import LinguisticCTCHead
+from quick_convert.components.encoders.content import ContentEncoder
+from quick_convert.components.heads import LinguisticCTCHead
 from quick_convert.components.layers import LayerWeightedSum
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
-from quick_convert.components.mixins.resource import OnlineResourceMixin
-from quick_convert.components.ssl import ContentEncoder
+from quick_convert.components.resources.resolution import OnlineResourceMixin
 from quick_convert.data import AudioBatch
 from quick_convert.systems._content import module_output_lengths, quantize_content, transform_content
 from quick_convert.systems.base import InferenceSystem
