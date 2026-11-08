@@ -3,17 +3,18 @@ defaults:
   - /global: default
   - /pipeline: conversion
   - /system/conversion@system: knnvc
+  - /reference_dataset: null
   - _self_
 
 target_speaker: ???
-target_root: ???
-target_pattern: "*/*.flac"
+target_dataset: ???
+target_speaker_resource: spkid
 target:
-  _target_: quick_convert.pipelines.conversion.reference_speech_from_directory
-  root: ${target_root}
+  _target_: quick_convert.pipelines.conversion.reference_speech_from_dataset
+  dataset: ${target_dataset}
   speaker_id: ${target_speaker}
-  pattern: ${target_pattern}
+  speaker_resource: ${target_speaker_resource}
 pipeline:
   metadata:
     target_speaker: ${target_speaker}
-    reference_root: ${target_root}
+    reference_root: ${target_dataset.root}

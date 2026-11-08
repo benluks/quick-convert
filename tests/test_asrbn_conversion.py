@@ -71,11 +71,19 @@ def test_conversion_presets_wire_explicit_targets(run, tmp_path, monkeypatch):
 
     register_config_resolvers()
     monkeypatch.setattr(torch.hub, "load", lambda *a, **kw: Backend())
-    root = tmp_path / "1069" / "chapter"
+    root = tmp_path / "refs" / "1069" / "chapter"
     root.mkdir(parents=True)
     (root / "ref.flac").touch()
     with initialize_config_dir(config_dir=str(Path("quick_convert/configs").resolve()), version_base=None):
-        cfg = compose(config_name=f"run/{run}", overrides=["device=cpu", "target_speaker=1069"])
+        cfg = compose(
+            config_name=f"run/{run}",
+            overrides=["device=cpu", "target_speaker=1069"]
+            + (
+                ["reference_dataset=librispeech", f"target_root={tmp_path}", "target_split=refs"]
+                if "knnvc" in run
+                else []
+            ),
+        )
     system = instantiate(cfg.system)
     if "knnvc" in run:
         cfg.target_root = str(tmp_path)

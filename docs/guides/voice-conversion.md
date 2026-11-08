@@ -78,11 +78,15 @@ uv run quick-convert convert_knnvc_librispeech \
 Omit `source_speaker` to convert the whole source split. `root` is the directory
 containing the split folders. `dataset.pattern` remains directly overridable;
 the preset defaults it to the selected speaker's chapter recordings. References
-use every matching recording beneath `target_root/target_speaker`; `target_root`
-defaults to `root/target_split` and can point to another LibriSpeech-style root.
-For CLAC, use `convert_knnvc_clac`, set `dataset.root`, `target_root`, and
-`target_speaker`. `target_pattern` controls reference discovery independently
-of source discovery.
+are selected from `target_dataset` using its speaker resource; `target_root`
+defaults to `root`, and `target_split` selects its split. Selection reads speaker
+metadata without decoding reference audio.
+For CLAC sources and LibriSpeech references, use `convert_knnvc_clac` with
+`reference_dataset=librispeech`, `dataset.root`, `target_root`, and `target_speaker`.
+The shared KNN-VC recipe has no default reference corpus or audio format.
+A custom `target_dataset` can use any supported audio format and resource
+providers; `target_speaker_resource` names the speaker resource (default `spkid`).
+The current selection policy uses all matching recordings.
 
 The pretrained backend downloads code and weights through Torch Hub on first
 use. Its current inference imports are covered by the base installation; no

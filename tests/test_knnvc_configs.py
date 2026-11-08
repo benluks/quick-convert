@@ -31,3 +31,34 @@ def test_convert_verb_selects_knnvc_librispeech():
     )
     assert config == "run/convert_knnvc_librispeech"
     assert overrides == ["root=/data/LibriSpeech"]
+
+
+def test_knnvc_reference_selection_is_independent_of_corpus_layout_and_format(tmp_path):
+    from omegaconf import OmegaConf
+
+    for speaker in ["alice", "bob"]:
+        path = tmp_path / speaker / "reference.wav"
+        path.parent.mkdir()
+        path.touch()  # Selection must not decode audio.
+    with initialize_config_dir(config_dir=str(Path("quick_convert/configs").resolve()), version_base=None):
+        cfg = compose(config_name="run/convert_knnvc_clac", overrides=["target_speaker=alice"])
+    cfg.target_speaker_resource = "performer"
+    cfg.target_dataset = OmegaConf.create(
+        {
+            "_target_": "quick_convert.data.BaseDataset",
+            "root": str(tmp_path),
+            "file_format": "wav",
+            "utt_id_template": "{path.parent.name}/{path.stem}",
+            "load": ["performer"],
+            "resource_providers": [
+                {
+                    "_target_": "quick_convert.data.resources.TemplateResourceProvider",
+                    "name": "performer",
+                    "kind": "text",
+                    "template": "{path.parent.name}",
+                }
+            ],
+        }
+    )
+    target = instantiate(cfg.target)
+    assert target.paths == (tmp_path / "alice" / "reference.wav",)
