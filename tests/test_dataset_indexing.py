@@ -7,7 +7,7 @@ from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
 from quick_convert.data import BaseDataset
-from quick_convert.data.indexing import join_index, link_identities, rttm_segment_rows
+from quick_convert.data.recording_index import join_index, link_identities, read_rttm_intervals, segment_rows
 
 
 def test_hydra_index_loads_rttm_intervals(tmp_path, monkeypatch):
@@ -85,7 +85,7 @@ def test_identity_link_rejects_unknown_targets():
 @pytest.mark.parametrize(
     ("contents", "message"),
     [
-        ("SPEAKER take 1 0 1 <NA> <NA> other <NA> <NA>\n", "No RTTM turns matched"),
+        ("SPEAKER take 1 0 1 <NA> <NA> other <NA> <NA>\n", "No intervals matched"),
         ("SPEAKER take 1 0 nan <NA> <NA> reader <NA> <NA>\n", "Invalid RTTM interval"),
         (
             "SPEAKER take 1 0 1 <NA> <NA> reader <NA> <NA>\nSPEAKER take 2 0 1 <NA> <NA> reader <NA> <NA>\n",
@@ -97,10 +97,32 @@ def test_rttm_index_rejects_unusable_annotations(tmp_path, contents, message):
     path = tmp_path / "take.rttm"
     path.write_text(contents)
     with pytest.raises(ValueError, match=message):
-        rttm_segment_rows(
+        segment_rows(
             [{"take": "take"}],
             recording_id_column="take",
             audio_path=str(tmp_path / "take.wav"),
-            rttm_path=str(path),
+            annotation_path=str(path),
+            interval_reader=read_rttm_intervals,
             speaker="reader",
         )
+
+
+def test_segment_rows_accepts_a_reader_for_another_format(tmp_path):
+    audio = tmp_path / "take.wav"
+    audio.touch()
+    annotations = tmp_path / "take.txt"
+
+    def read_intervals(path, speaker):
+        assert path == annotations
+        assert speaker == "reader"
+        return [(2.0, 3.0), (0.0, 1.0)]
+
+    rows = segment_rows(
+        [{"take": "take"}],
+        recording_id_column="take",
+        audio_path=str(audio),
+        annotation_path=str(annotations),
+        interval_reader=read_intervals,
+        speaker="reader",
+    )
+    assert [(row.start, row.end) for row in rows] == [(0.0, 1.0), (2.0, 3.0)]

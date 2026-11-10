@@ -6,27 +6,30 @@ dataset:
   load: [audio]
   target_sr: 16000
   rows:
-    _target_: quick_convert.data.indexing.rttm_segment_rows
+    _target_: quick_convert.data.recording_index.segment_rows
     recording_id_column: take
     audio_path: "${data_root}/audio/{filename}"
-    rttm_path: "${data_root}/annotations/{take}.rttm"
+    annotation_path: "${data_root}/annotations/{take}.rttm"
+    interval_reader:
+      _target_: quick_convert.data.recording_index.read_rttm_intervals
+      _partial_: true
     speaker: "{reader_track}"
     resources:
       spkid: linked_reader
     rows:
-      _target_: quick_convert.data.indexing.join_index
+      _target_: quick_convert.data.recording_index.join_index
       key_columns: [reader]
       rows:
-        _target_: quick_convert.data.indexing.read_csv_index
+        _target_: quick_convert.data.recording_index.read_csv_index
         path: ${data_root}/takes.csv
         columns: [take, reader, filename, reader_track]
       lookup:
-        _target_: quick_convert.data.indexing.link_identities
+        _target_: quick_convert.data.recording_index.link_identities
         id_column: reader
         links_column: aliases
         output_column: linked_reader
         separator: ";"
         rows:
-          _target_: quick_convert.data.indexing.read_csv_index
+          _target_: quick_convert.data.recording_index.read_csv_index
           path: ${data_root}/readers.csv
           columns: [reader, aliases]

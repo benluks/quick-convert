@@ -125,7 +125,9 @@ Supply the result of an index to `BaseDataset(rows=...)` to construct a
 dataset from recording metadata and RTTM annotations. The
 [example Hydra config](examples/rttm_dataset.yaml)
 reads selected CSV columns, links equivalent identities, joins the tables,
-and selects a configured speaker label per recording.
+and selects a configured speaker label per recording. The example supplies
+an RTTM reader to the segment builder. Other annotation formats can supply
+their own reader returning start and end times in seconds.
 
 The example expects `takes.csv` with `take,reader,filename,reader_track` and
 `readers.csv` with `reader,aliases`. Put source audio under `audio/` and name
