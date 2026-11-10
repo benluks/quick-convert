@@ -96,3 +96,25 @@ of incompatible representations. Legacy bare tensors still load with unknown
 representation metadata. To regenerate an existing content cache in the new
 format, select a fresh precompute output directory. Code that reads the new
 files directly with `torch.load` can access the tensor under the `values` key.
+
+## Group-disjoint cross-validation
+
+Use one group ID per item in dataset order, such as a speaker ID or a source
+recording ID. Assign folds once and reuse the mapping for each run. The
+assignment balances item counts and keeps all items from each group together.
+
+```python
+from torch.utils.data import DataLoader, Subset
+
+from quick_convert.data.cross_validation import assign_folds, fold_indices
+
+group_ids = [row.resources.spkid.value for row in dataset.rows]
+assignments = assign_folds(group_ids, n_splits=5, seed=115)
+train_indices, held_out_indices = fold_indices(group_ids, assignments, fold=0)
+
+train = DataLoader(Subset(dataset, train_indices), collate_fn=dataset.collate_fn)
+held_out = DataLoader(Subset(dataset, held_out_indices), collate_fn=dataset.collate_fn)
+```
+
+This example uses speaker IDs already attached to metadata rows. Fold selection
+uses row indices and does not load audio or rewrite the manifest.

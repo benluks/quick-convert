@@ -40,7 +40,7 @@ def test_pairing_stays_within_speaker_and_split_and_excludes_source(tmp_path, mo
         assert str(row.path) != ref.value
         assert row.path.stem.split("-")[:2] == Path(ref.value).stem.split("-")[:2]
         assert "reference_path" not in row.resources.keys()
-    monkeypatch.setattr("quick_convert.data.base_dataset.load_audio", lambda *a, **kw: (torch.ones(1, 160), 16000))
+    monkeypatch.setattr("quick_convert.data.types.load_audio", lambda *a, **kw: (torch.ones(1, 160), 16000))
     batch = next(iter(dataset.make_dataloader(batch_size=2)))
     assert len(batch.resources["reference_path"]) == 2
     manifest.write_text("utt_id,path,split,spkid\na,a.wav,train,only\n")

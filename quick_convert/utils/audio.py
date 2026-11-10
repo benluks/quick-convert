@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from math import isfinite
 from os import PathLike
 
 import soundfile as sf
@@ -12,15 +13,48 @@ from quick_convert.types import AudioInput
 
 
 def load_audio(
-    audio_path: PathLike, target_sr: int | None = None, mono: bool = False, device="cpu"
+    audio_path: PathLike,
+    target_sr: int | None = None,
+    mono: bool = False,
+    device="cpu",
+    *,
+    start: float | None = None,
+    end: float | None = None,
 ) -> tuple[torch.Tensor, int]:
-    x, sr = torchaudio.load(str(audio_path))
+    """Decode audio, optionally reading a half-open interval in source seconds."""
+    path = str(audio_path)
+    if start is None and end is None:
+        x, sr = torchaudio.load(path)
+    else:
+        x, sr = _load_audio_segment(path, start, end)
     if target_sr and sr != target_sr:
         x = T.Resample(sr, target_sr)(x)
         sr = target_sr
     if mono and x.shape[-2] == 2:
         x = x.mean(dim=-2, keepdim=True)
     return x.to(device=device), sr
+
+
+def _load_audio_segment(path: str, start: float | None, end: float | None) -> tuple[torch.Tensor, int]:
+    start = 0.0 if start is None else start
+    if not isfinite(start) or start < 0:
+        raise ValueError("Audio start must be finite and nonnegative.")
+    if end is not None and (not isfinite(end) or end <= start):
+        raise ValueError("Audio end must be finite and greater than start.")
+
+    info = torchaudio.info(path)
+    first_frame = round(start * info.sample_rate)
+    last_frame = None if end is None else round(end * info.sample_rate)
+    num_frames = -1 if last_frame is None else last_frame - first_frame
+    if last_frame is not None and num_frames <= 0:
+        raise ValueError("Audio interval contains no source frames.")
+    if info.num_frames > 0 and (first_frame >= info.num_frames or (last_frame or 0) > info.num_frames):
+        raise ValueError("Audio interval exceeds the source recording.")
+
+    waveform, sample_rate = torchaudio.load(path, frame_offset=first_frame, num_frames=num_frames)
+    if waveform.shape[-1] == 0 or (num_frames > 0 and waveform.shape[-1] != num_frames):
+        raise ValueError("Audio interval exceeds the source recording.")
+    return waveform, sample_rate
 
 
 def load_audio_input(

@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from quick_convert.utils.paths import TemplateFormatter
 
-from ..utils.audio import get_supported_formats, load_audio
+from ..utils.audio import get_supported_formats
 from .resources import BaseResourceProvider, ResourceCollection, ResourceRef, load_resource
 from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 
@@ -236,17 +236,16 @@ class BaseDataset(Dataset):
                 f"No method for determining utt_id. Please provide either `utt_id_template` or `get_utt_id_fn` when initializing {type(self).__name__}."
             )
 
-    def load_sample(self, sample: AudioSample) -> AudioSample:
+    def load_sample(self, sample: MetadataSample) -> AudioSample:
         """Return ``sample`` with audio loaded under this dataset's settings."""
-        waveform, sample_rate = load_audio(sample.path, target_sr=self.target_sr, mono=self.convert_to_mono)
         return AudioSample(
             utt_id=sample.utt_id,
             path=sample.path,
             split=sample.split,
-            waveform=waveform,
-            sample_rate=sample_rate,
             resources=sample.resources,
-        )
+            start=sample.start,
+            end=sample.end,
+        ).load_audio(target_sr=self.target_sr, mono=self.convert_to_mono)
 
     def _collate_dicts(self, batch: list[AudioSample], property="resources") -> dict[str, list[Any]]:
         return {

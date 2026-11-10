@@ -41,6 +41,9 @@ class ManifestDataset(BaseDataset):
                     },
                 }
 
+        start_column, end_column:
+            Optional columns containing interval boundaries in source seconds.
+            An omitted or empty cell leaves that side unbounded.
         **kwargs:
             Additional arguments forwarded to :class:`BaseDataset`.
 
@@ -73,6 +76,9 @@ class ManifestDataset(BaseDataset):
         utt_id_column: str = "utt_id",
         split_column: str = "split",
         resources: dict[str, dict[str, str | int | ResourceKind]] | None = None,
+        *,
+        start_column: str = "start",
+        end_column: str = "end",
         **kwargs,
     ):
 
@@ -89,12 +95,15 @@ class ManifestDataset(BaseDataset):
                 try:
                     reader = csv.DictReader(f)
                     for row in reader:
+                        start = (row.get(start_column) or "").strip()
+                        end = (row.get(end_column) or "").strip()
                         rows.append(
                             MetadataSample(
                                 utt_id=row.get(utt_id_column),
                                 path=Path(row[path_column]) if row.get(path_column) else None,
                                 split=row.get(split_column),
-                                # spk_id=row.get(spk_id_column),
+                                start=float(start) if start else None,
+                                end=float(end) if end else None,
                                 resources=ResourceCollection.from_refs(
                                     [self._resource_from_cell(name, spec, row) for name, spec in resources.items()]
                                 ),
