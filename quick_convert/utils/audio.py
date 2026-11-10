@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+import subprocess
 from functools import lru_cache
 from math import isfinite
 from os import PathLike
+from pathlib import Path
 
 import soundfile as sf
 import torch
@@ -23,7 +26,9 @@ def load_audio(
 ) -> tuple[torch.Tensor, int]:
     """Decode audio, optionally reading a half-open interval in source seconds."""
     path = str(audio_path)
-    if start is None and end is None:
+    if Path(path).suffix.lower() == ".mp4" and "ffmpeg" not in torchaudio.list_audio_backends():
+        x, sr = _load_mp4_with_ffmpeg(path, start, end)
+    elif start is None and end is None:
         x, sr = torchaudio.load(path)
     else:
         x, sr = _load_audio_segment(path, start, end)
@@ -35,25 +40,107 @@ def load_audio(
     return x.to(device=device), sr
 
 
-def _load_audio_segment(path: str, start: float | None, end: float | None) -> tuple[torch.Tensor, int]:
+def _validate_segment(start: float | None, end: float | None) -> float:
     start = 0.0 if start is None else start
     if not isfinite(start) or start < 0:
         raise ValueError("Audio start must be finite and nonnegative.")
     if end is not None and (not isfinite(end) or end <= start):
         raise ValueError("Audio end must be finite and greater than start.")
+    return start
 
-    info = torchaudio.info(path)
-    first_frame = round(start * info.sample_rate)
-    last_frame = None if end is None else round(end * info.sample_rate)
-    num_frames = -1 if last_frame is None else last_frame - first_frame
-    if last_frame is not None and num_frames <= 0:
+
+def _segment_frames(start: float, end: float | None, sample_rate: int) -> tuple[int, int]:
+    first = round(start * sample_rate)
+    count = -1 if end is None else round(end * sample_rate) - first
+    if end is not None and count <= 0:
         raise ValueError("Audio interval contains no source frames.")
-    if info.num_frames > 0 and (first_frame >= info.num_frames or (last_frame or 0) > info.num_frames):
+    return first, count
+
+
+def _check_audio_length(waveform: torch.Tensor, num_frames: int) -> None:
+    if waveform.shape[-1] == 0 or (num_frames > 0 and waveform.shape[-1] != num_frames):
+        raise ValueError("Audio interval exceeds the source recording.")
+
+
+def _load_audio_segment(path: str, start: float | None, end: float | None) -> tuple[torch.Tensor, int]:
+    start = _validate_segment(start, end)
+    info = torchaudio.info(path)
+    first_frame, num_frames = _segment_frames(start, end, info.sample_rate)
+    if info.num_frames > 0 and (
+        first_frame >= info.num_frames or (num_frames > 0 and first_frame + num_frames > info.num_frames)
+    ):
         raise ValueError("Audio interval exceeds the source recording.")
 
     waveform, sample_rate = torchaudio.load(path, frame_offset=first_frame, num_frames=num_frames)
-    if waveform.shape[-1] == 0 or (num_frames > 0 and waveform.shape[-1] != num_frames):
+    _check_audio_length(waveform, num_frames)
+    return waveform, sample_rate
+
+
+def _run_audio_command(command: list[str]) -> bytes:
+    try:
+        return subprocess.run(command, capture_output=True, check=True).stdout
+    except FileNotFoundError as error:
+        raise AudioBackendError(
+            "MP4 audio requires the TorchAudio FFmpeg backend or both ffmpeg and ffprobe on PATH."
+        ) from error
+    except subprocess.CalledProcessError as error:
+        detail = error.stderr.decode(errors="replace").strip()
+        raise AudioBackendError(f"{command[0]} could not read MP4 audio: {detail}") from error
+
+
+def _load_mp4_with_ffmpeg(path: str, start: float | None, end: float | None) -> tuple[torch.Tensor, int]:
+    start = _validate_segment(start, end)
+    source = str(Path(path).absolute())
+    metadata = _run_audio_command(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=sample_rate,channels",
+            "-of",
+            "json",
+            source,
+        ]
+    )
+    streams = json.loads(metadata).get("streams", [])
+    if not streams:
+        raise AudioBackendError(f"No audio stream in {path}.")
+    try:
+        sample_rate = int(streams[0]["sample_rate"])
+        channels = int(streams[0]["channels"])
+    except (KeyError, ValueError) as error:
+        raise AudioBackendError(f"No usable audio stream metadata in {path}.") from error
+    if sample_rate <= 0 or channels <= 0:
+        raise AudioBackendError(f"No usable audio stream metadata in {path}.")
+    first_frame, num_frames = _segment_frames(start, end, sample_rate)
+
+    # Decode a short lead-in so predictive codecs can settle after a seek.
+    seek_frame = max(0, first_frame - sample_rate)
+    command = [
+        "ffmpeg",
+        "-nostdin",
+        "-v",
+        "error",
+        "-ss",
+        f"{seek_frame / sample_rate:.9f}",
+        "-i",
+        source,
+        "-map",
+        "0:a:0",
+        "-ss",
+        f"{(first_frame - seek_frame) / sample_rate:.9f}",
+    ]
+    if num_frames > 0:
+        command.extend(["-t", f"{num_frames / sample_rate:.9f}"])
+    command.extend(["-c:a", "pcm_f32le", "-f", "f32le", "pipe:1"])
+    samples = _run_audio_command(command)
+    if not samples:
         raise ValueError("Audio interval exceeds the source recording.")
+    waveform = torch.frombuffer(bytearray(samples), dtype=torch.float32).reshape(-1, channels).transpose(0, 1)
+    _check_audio_length(waveform, num_frames)
     return waveform, sample_rate
 
 

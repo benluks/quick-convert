@@ -116,3 +116,9 @@ The loader rounds both offsets to source sample indices, reads the half-open
 interval, and then applies any requested resampling. Bounds outside the
 recording raise an error. Samples reconstructed from a batch retain their
 source offsets.
+
+
+For MP4 sources, Quick Convert uses TorchAudio's FFmpeg backend when available.
+If that backend is unavailable, put `ffmpeg` and `ffprobe` on `PATH`. The
+fallback reads the first audio stream and decodes intervals on demand from the
+source MP4.
