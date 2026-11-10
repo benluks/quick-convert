@@ -1,3 +1,6 @@
+import shutil
+import subprocess
+
 import pytest
 import torch
 import torchaudio
@@ -61,3 +64,47 @@ def test_invalid_intervals_fail(recording, start, end, message):
     path, _ = recording
     with pytest.raises(ValueError, match=message):
         load_audio(path, start=start, end=end)
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="Requires FFmpeg tools")
+def test_mp4_intervals_load_without_torchaudio_ffmpeg(tmp_path, monkeypatch):
+    monkeypatch.setattr(torchaudio, "list_audio_backends", lambda: ["soundfile"])
+    path = tmp_path / "recording.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=s=32x32:r=10:d=4",
+            "-f",
+            "lavfi",
+            "-i",
+            "aevalsrc=0.4*sin(2*PI*(400*t+20*t*t)):s=44100:d=4",
+            "-c:v",
+            "mpeg4",
+            "-c:a",
+            "aac",
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    full, source_sr = load_audio(path)
+    start, end = 2.532, 3.032
+    manifest = tmp_path / "items.csv"
+    manifest.write_text(f"utt_id,path,start,end\nclip,{path},{start},{end}\n", encoding="utf-8")
+    dataset = ManifestDataset(manifest, load=["audio"], target_sr=16000)
+
+    clip = dataset[0]
+    expected = full[..., round(start * source_sr) : round(end * source_sr)]
+    expected = torchaudio.functional.resample(expected, source_sr, 16000)
+    assert clip.sample_rate == 16000
+    assert clip.waveform.shape == (1, 8000)
+    torch.testing.assert_close(clip.waveform, expected, atol=1e-5, rtol=1e-4)
+
+    with pytest.raises(ValueError, match="exceeds the source"):
+        load_audio(path, start=3.5, end=4.5)
