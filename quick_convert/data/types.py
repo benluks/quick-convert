@@ -46,13 +46,16 @@ class MetadataSample:
 
     ``MetadataSample`` does not imply that audio has been loaded. Dataset
     subclasses can construct these rows cheaply and allow ``BaseDataset`` to
-    materialize audio and resources later.
+    materialize audio and resources later. Optional ``start`` and ``end``
+    locate a half-open interval in source seconds.
     """
 
     utt_id: str
     path: Path
     split: str | None = None
     resources: ResourceCollection = field(default_factory=ResourceCollection)
+    start: float | None = field(default=None, kw_only=True)
+    end: float | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -81,7 +84,7 @@ class AudioSample(MetadataSample):
 
     def load_audio(self, *args, **kwargs) -> AudioSample:
         """Return a copy of the sample with its waveform loaded."""
-        waveform, sr = load_audio(self.path, *args, **kwargs)
+        waveform, sr = load_audio(self.path, *args, start=self.start, end=self.end, **kwargs)
         return replace(self, waveform=waveform, sample_rate=sr)
 
 
@@ -92,6 +95,8 @@ class MetadataBatch:
     splits: list[str | None]
     resources: dict[str, Any]
     resource_refs: list[ResourceCollection] | None = None
+    starts: list[float | None] | None = field(default=None, kw_only=True)
+    ends: list[float | None] | None = field(default=None, kw_only=True)
 
     def __len__(self) -> int:
         return len(self.paths)
@@ -101,6 +106,8 @@ class MetadataBatch:
             utt_id=self.utt_ids[idx],
             path=self.paths[idx],
             split=self.splits[idx],
+            start=self.starts[idx] if self.starts is not None else None,
+            end=self.ends[idx] if self.ends is not None else None,
             resources=self._sample_resources(idx),
         )
 
@@ -164,6 +171,8 @@ class AudioBatch(MetadataBatch):
             "utt_ids": [s.utt_id for s in samples],
             "paths": [s.path for s in samples],
             "splits": [s.split for s in samples],
+            "starts": [s.start for s in samples],
+            "ends": [s.end for s in samples],
             "resources": resources,
             "resource_refs": resource_refs,
         }
@@ -246,6 +255,8 @@ class AudioBatch(MetadataBatch):
             utt_id=self.utt_ids[idx],
             path=self.paths[idx],
             split=self.splits[idx],
+            start=self.starts[idx] if self.starts is not None else None,
+            end=self.ends[idx] if self.ends is not None else None,
             waveform=waveform,
             sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
             resources=self._sample_resources(idx),

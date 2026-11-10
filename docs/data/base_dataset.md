@@ -98,3 +98,21 @@ The base class is intended to remain corpus-agnostic. Corpus-specific code may
 construct rows, configure providers, or subclass the dataset when discovery
 rules differ, but should not add experiment-specific metadata to the shared
 sample contract.
+
+## Source intervals
+
+Supply optional `start` and `end` offsets in seconds on a metadata row or in a
+CSV manifest. The source path stays the same and each interval needs its own
+utterance ID. An empty start means the beginning of the recording. An empty
+end means the end of the recording.
+
+```csv
+utt_id,path,start,end
+clip-001,/data/recording.wav,12.5,18.0
+clip-002,/data/recording.wav,22.0,
+```
+
+The loader rounds both offsets to source sample indices, reads the half-open
+interval, and then applies any requested resampling. Bounds outside the
+recording raise an error. Samples reconstructed from a batch retain their
+source offsets.
