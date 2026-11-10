@@ -1,8 +1,15 @@
 """Group-disjoint fold assignment and selection for indexed datasets."""
 
+from __future__ import annotations
+
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from random import Random
+from typing import TYPE_CHECKING, Literal
+
+
+if TYPE_CHECKING:
+    from .types import MetadataSample
 
 
 def assign_folds(group_ids: Iterable[str], *, n_splits: int, seed: int = 0) -> dict[str, int]:
@@ -43,3 +50,32 @@ def fold_indices(group_ids: Iterable[str], assignments: Mapping[str, int], *, fo
     if not train or not held_out:
         raise ValueError(f"Fold {fold} must have both training and held-out items.")
     return train, held_out
+
+
+def select_fold_rows(
+    rows: Iterable[MetadataSample],
+    *,
+    group_resource: str,
+    n_splits: int,
+    fold: int,
+    partition: Literal["train", "held_out"],
+    seed: int = 0,
+) -> list[MetadataSample]:
+    """Select a partition of the full metadata index before loading audio.
+
+    Use the same full index, group resource, split count and seed for both
+    partitions. The resource must contain a materialized string group ID.
+    """
+    if partition not in ("train", "held_out"):
+        raise ValueError("partition must be 'train' or 'held_out'.")
+
+    rows = list(rows)
+    group_ids = []
+    for row in rows:
+        if group_resource not in row.resources.keys():
+            raise ValueError(f"Missing group resource {group_resource!r} on row {row.utt_id!r}.")
+        group_ids.append(row.resources[group_resource].value)
+    assignments = assign_folds(group_ids, n_splits=n_splits, seed=seed)
+    train, held_out = fold_indices(group_ids, assignments, fold=fold)
+    indices = train if partition == "train" else held_out
+    return [rows[index] for index in indices]

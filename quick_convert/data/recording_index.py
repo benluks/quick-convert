@@ -27,6 +27,29 @@ def read_csv_index(path: str | Path, *, columns: Sequence[str]) -> list[dict[str
         return result
 
 
+def split_index_column(
+    rows: Iterable[Mapping[str, str]],
+    *,
+    column: str,
+    separator: str,
+    output_columns: Sequence[str],
+) -> list[dict[str, str]]:
+    """Split a compound field into named string columns, preserving padding."""
+    output_names = set(output_columns)
+    if not separator or not output_columns or len(output_names) != len(output_columns) or "" in output_names:
+        raise ValueError("Supply a nonempty separator and distinct output columns.")
+
+    result = []
+    for row in rows:
+        if row.keys() & output_names:
+            raise ValueError("Split output columns already exist in the index.")
+        fields = row[column].split(separator)
+        if len(fields) != len(output_columns) or any(not field.strip() for field in fields):
+            raise ValueError(f"Column {column!r} must contain {len(output_columns)} nonempty fields.")
+        result.append({**row, **dict(zip(output_columns, fields, strict=True))})
+    return result
+
+
 def _join_key(row: Mapping[str, str], columns: Sequence[str]) -> tuple[str, ...]:
     key = tuple(row[column] for column in columns)
     if any(not value.strip() for value in key):
