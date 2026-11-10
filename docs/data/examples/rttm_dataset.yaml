@@ -5,31 +5,38 @@ dataset:
   _target_: quick_convert.data.BaseDataset
   load: [audio]
   target_sr: 16000
+  rows: ${segment_index}
+
+segment_index:
+  _target_: quick_convert.data.recording_index.segment_rows
+  recording_id_column: take
+  audio_path: "${data_root}/audio/{session}/{sequence}.wav"
+  annotation_path: "${data_root}/annotations/{take}.rttm"
+  interval_reader:
+    _target_: quick_convert.data.recording_index.read_rttm_intervals
+    _partial_: true
+  speaker: "{reader_track}"
+  resources:
+    spkid: linked_reader
   rows:
-    _target_: quick_convert.data.recording_index.segment_rows
-    recording_id_column: take
-    audio_path: "${data_root}/audio/{filename}"
-    annotation_path: "${data_root}/annotations/{take}.rttm"
-    interval_reader:
-      _target_: quick_convert.data.recording_index.read_rttm_intervals
-      _partial_: true
-    speaker: "{reader_track}"
-    resources:
-      spkid: linked_reader
+    _target_: quick_convert.data.recording_index.join_index
+    key_columns: [reader]
     rows:
-      _target_: quick_convert.data.recording_index.join_index
-      key_columns: [reader]
+      _target_: quick_convert.data.recording_index.split_index_column
+      column: take
+      separator: "-"
+      output_columns: [session, sequence]
       rows:
         _target_: quick_convert.data.recording_index.read_csv_index
         path: ${data_root}/takes.csv
-        columns: [take, reader, filename, reader_track]
-      lookup:
-        _target_: quick_convert.data.recording_index.link_identities
-        id_column: reader
-        links_column: aliases
-        output_column: linked_reader
-        separator: ";"
-        rows:
-          _target_: quick_convert.data.recording_index.read_csv_index
-          path: ${data_root}/readers.csv
-          columns: [reader, aliases]
+        columns: [take, reader, reader_track]
+    lookup:
+      _target_: quick_convert.data.recording_index.link_identities
+      id_column: reader
+      links_column: aliases
+      output_column: linked_reader
+      separator: ";"
+      rows:
+        _target_: quick_convert.data.recording_index.read_csv_index
+        path: ${data_root}/readers.csv
+        columns: [reader, aliases]

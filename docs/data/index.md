@@ -124,14 +124,16 @@ uses row indices and does not load audio or rewrite the manifest.
 Supply the result of an index to `BaseDataset(rows=...)` to construct a
 dataset from recording metadata and RTTM annotations. The
 [example Hydra config](examples/rttm_dataset.yaml)
-reads selected CSV columns, links equivalent identities, joins the tables,
+reads selected CSV columns, splits compound recording IDs into path fields,
+links equivalent identities, joins the tables,
 and selects a configured speaker label per recording. The example supplies
 an RTTM reader to the segment builder. Other annotation formats can supply
 their own reader returning start and end times in seconds.
 
-The example expects `takes.csv` with `take,reader,filename,reader_track` and
-`readers.csv` with `reader,aliases`. Put source audio under `audio/` and name
-the annotations `annotations/<take>.rttm`. Aliases in this example are
+The example expects `takes.csv` with `take,reader,reader_track` and
+`readers.csv` with `reader,aliases`. For a take such as `studio-003`, the
+index derives `studio` and `003` from the ID to locate `audio/studio/003.wav`.
+The annotations are named `annotations/<take>.rttm`. Aliases are
 semicolon-separated reader IDs. A blank alias field adds no links.
 
 ```python
@@ -148,3 +150,23 @@ Each selected turn becomes a row with its source path, time bounds, and
 configured resources. The index reads annotation metadata at construction.
 Audio is loaded when the row is accessed. This example uses individual RTTM
 turns as annotated, including any overlap present in those turns.
+
+
+### Select a fold from config
+
+Replace `dataset.rows` in the example with the following mapping to select
+one partition from the complete `segment_index`:
+
+```yaml
+rows:
+  _target_: quick_convert.data.cross_validation.select_fold_rows
+  rows: ${segment_index}
+  group_resource: spkid
+  n_splits: 2
+  fold: 0
+  partition: held_out
+```
+
+Use `partition: train` for the complement. Both configs must use the same
+complete index and fold settings. Folds are balanced by item count, and
+linked speakers stay together even if their recordings have different IDs.
