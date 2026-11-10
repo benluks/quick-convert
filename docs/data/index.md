@@ -118,3 +118,33 @@ held_out = DataLoader(Subset(dataset, held_out_indices), collate_fn=dataset.coll
 
 This example uses speaker IDs already attached to metadata rows. Fold selection
 uses row indices and does not load audio or rewrite the manifest.
+
+## Build dataset rows from tables and RTTM
+
+Supply the result of an index to `BaseDataset(rows=...)` to construct a
+dataset from recording metadata and RTTM annotations. The
+[example Hydra config](examples/rttm_dataset.yaml)
+reads selected CSV columns, links equivalent identities, joins the tables,
+and selects a configured speaker label per recording. The example supplies
+an RTTM reader to the segment builder. Other annotation formats can supply
+their own reader returning start and end times in seconds.
+
+The example expects `takes.csv` with `take,reader,filename,reader_track` and
+`readers.csv` with `reader,aliases`. Put source audio under `audio/` and name
+the annotations `annotations/<take>.rttm`. Aliases in this example are
+semicolon-separated reader IDs. A blank alias field adds no links.
+
+```python
+from hydra.utils import instantiate
+from omegaconf import OmegaConf
+
+config = OmegaConf.load("docs/data/examples/rttm_dataset.yaml")
+config.data_root = "/path/to/recordings"
+dataset = instantiate(config.dataset)
+clip = dataset[0]
+```
+
+Each selected turn becomes a row with its source path, time bounds, and
+configured resources. The index reads annotation metadata at construction.
+Audio is loaded when the row is accessed. This example uses individual RTTM
+turns as annotated, including any overlap present in those turns.
