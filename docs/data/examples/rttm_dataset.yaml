@@ -1,0 +1,32 @@
+# Set this to the directory holding the example tables, audio and annotations.
+data_root: ???
+
+dataset:
+  _target_: quick_convert.data.BaseDataset
+  load: [audio]
+  target_sr: 16000
+  rows:
+    _target_: quick_convert.data.indexing.rttm_segment_rows
+    recording_id_column: take
+    audio_path: "${data_root}/audio/{filename}"
+    rttm_path: "${data_root}/annotations/{take}.rttm"
+    speaker: "{reader_track}"
+    resources:
+      spkid: linked_reader
+    rows:
+      _target_: quick_convert.data.indexing.join_index
+      key_columns: [reader]
+      rows:
+        _target_: quick_convert.data.indexing.read_csv_index
+        path: ${data_root}/takes.csv
+        columns: [take, reader, filename, reader_track]
+      lookup:
+        _target_: quick_convert.data.indexing.link_identities
+        id_column: reader
+        links_column: aliases
+        output_column: linked_reader
+        separator: ";"
+        rows:
+          _target_: quick_convert.data.indexing.read_csv_index
+          path: ${data_root}/readers.csv
+          columns: [reader, aliases]
