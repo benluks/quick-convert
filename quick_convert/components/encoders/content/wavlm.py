@@ -14,6 +14,7 @@ from quick_convert.utils.audio import load_audio
 
 class WavLMContentEncoder(ContentEncoder):
     FEATURE_DIM = 1024
+    N_LAYERS = 24
     TIME_D = 1
 
     def __init__(
