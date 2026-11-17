@@ -12,6 +12,7 @@ from quick_convert.data.types import AudioBatch
 
 class W2VBertContentEncoder(ContentEncoder):
     FEATURE_DIM = 1024
+    N_LAYERS = 24
     SAMPLE_RATE = 16_000
     FRAME_HZ = 50
     FBANK_HOP_LENGTH = 160
