@@ -13,8 +13,10 @@ project_name: waveform_reconstruction
 exp_name: wavlm_l6_hifigan
 
 system:
-  _target_: quick_convert.systems.conversion.waveform_reconstruction.WaveformReconstructionSystem
-  hop_size: 320
+  _target_: quick_convert.systems.conversion.ssl_reconstruction.SSLReconstructionConversionSystem
+  reconstruction:
+    _target_: quick_convert.components.conditioning.waveform_reconstruction.WaveformReconstruction
+    hop_size: 320
   online_encoders:
     content:
       _target_: quick_convert.components.encoders.content.wavlm.WavLMContentEncoder
