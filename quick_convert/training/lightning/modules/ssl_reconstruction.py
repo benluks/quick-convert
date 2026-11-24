@@ -37,6 +37,11 @@ class SSLReconstructionOutput:
     encoder_output: RVQOutput | None = None
 
 
+@dataclass
+class ObjectiveOutput:
+    loss: torch.Tensor
+
+
 class SSLReconstructionTrainingModule(BaseTrainingModule):
     def __init__(
         self,
@@ -50,6 +55,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         enable_grad_norm_logging: bool = True,
         reference_seconds: float | None = None,
         content_audio_resource: str | None = None,
+        objective: nn.Module | None = None,
     ):
         super().__init__(optimization=optimization, enable_grad_norm_logging=enable_grad_norm_logging)
 
@@ -66,6 +72,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
                 encoder=encoder,
             )
         self.system = system
+        self.objective = objective
         if reference_seconds is not None:
             if not math.isfinite(reference_seconds) or reference_seconds <= 0:
                 raise ValueError("reference_seconds must be finite and positive.")
@@ -87,6 +94,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             logger=False,
             ignore=[
                 "optimization",
+                "objective",
                 "system",
                 "decoder",
                 "feature_transform",
@@ -129,6 +137,8 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
 
     @property
     def grad_norm_modules(self) -> dict[str, nn.Module]:
+        if self.objective is not None:
+            return {"decoder": self.decoder, "objective": self.objective}
         modules = {f"flow/{name}": module for name, module in self.decoder.flow.named_children()}
         modules["feature_transform"] = self.feature_transform
         if getattr(self.decoder, "content_encoder", None) is not None:
@@ -192,11 +202,27 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         features, lengths, _ = self._encode_content(self.system.get_resource(reference, "content"))
         return {"streams": streams, "prefix_content": (features, lengths)}
 
+    def phase_parameters(self):
+        return self.objective.phase_parameters(self.system)
+
+    def execute_phases(self, batch):
+        return super().execute_phases(self.objective.prepare_batch(self.system, batch, training=True))
+
+    def phase_step(self, batch, phase):
+        loss = self.objective.phase_loss(self.system, batch, phase)
+        self.log(f"train/{phase}/loss", loss, on_step=True, on_epoch=True)
+        return ObjectiveOutput(loss)
+
     def _shared_step(
         self,
         batch: AudioBatch,
         stage: str,
     ) -> SSLReconstructionOutput:
+        if self.objective is not None:
+            prepared = self.objective.prepare_batch(self.system, batch, training=False)
+            loss = self.objective.phase_loss(self.system, prepared, "generator")
+            self.log(f"{stage}/loss", loss, on_epoch=True, batch_size=len(batch))
+            return ObjectiveOutput(loss)
         content = self._content_resource(batch)
         speaker_embedding = self.system.speaker_condition(batch)
 
@@ -296,7 +322,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         self.log_dict(metrics, on_step=True, on_epoch=False, sync_dist=False)
 
     def log_validation_output(self, batch, output, batch_idx):
-        if batch_idx != 0:
+        if self.objective is not None or batch_idx != 0:
             return
 
         stream_kwargs = {}
