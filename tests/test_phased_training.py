@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 
-import lightning as L
 import pytest
+
+L = pytest.importorskip("lightning")
 import torch
 from torch.utils.data import DataLoader
 
@@ -16,16 +17,18 @@ class Output:
 
 class ToyGAN(BaseTrainingModule):
     def __init__(self):
-        super().__init__(optimization={
-            name: Optimization(
-                optimizer=torch.optim.SGD,
-                optimizer_kwargs={"lr": 0.1},
-                lr_scheduler=torch.optim.lr_scheduler.ExponentialLR,
-                lr_scheduler_kwargs={"gamma": 0.5},
-                interval="epoch",
-            )
-            for name in ("discriminator", "generator")
-        })
+        super().__init__(
+            optimization={
+                name: Optimization(
+                    optimizer=torch.optim.SGD,
+                    optimizer_kwargs={"lr": 0.1},
+                    lr_scheduler=torch.optim.lr_scheduler.ExponentialLR,
+                    lr_scheduler_kwargs={"gamma": 0.5},
+                    interval="epoch",
+                )
+                for name in ("discriminator", "generator")
+            }
+        )
         self.generator = torch.nn.Linear(1, 1, bias=False)
         self.discriminator = torch.nn.Linear(1, 1, bias=False)
         self.generator.weight.data.fill_(0.5)
@@ -57,9 +60,13 @@ class ToyGAN(BaseTrainingModule):
 def test_phases_update_and_schedule():
     model = ToyGAN()
     trainer = L.Trainer(
-        accelerator="cpu", devices=1, max_epochs=1,
-        logger=False, enable_checkpointing=False,
-        enable_progress_bar=False, enable_model_summary=False,
+        accelerator="cpu",
+        devices=1,
+        max_epochs=1,
+        logger=False,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
     )
     trainer.fit(model, train_dataloaders=DataLoader(torch.ones(2, 1), batch_size=1))
     assert model.events == ["discriminator", "generator"] * 2
@@ -72,8 +79,6 @@ def test_phases_update_and_schedule():
 
 def test_overlapping_groups_rejected():
     model = ToyGAN()
-    model.phase_parameters = lambda: {
-        name: model.parameters() for name in model.phase_names
-    }
+    model.phase_parameters = lambda: {name: model.parameters() for name in model.phase_names}
     with pytest.raises(ValueError, match="overlapping"):
         model.configure_optimizers()
