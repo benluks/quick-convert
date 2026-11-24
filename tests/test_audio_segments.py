@@ -133,3 +133,48 @@ def test_mp4_intervals_do_not_treat_codec_frames_as_pcm_samples(monkeypatch):
         load_audio("recording.mp4", start=3.5, end=4.5)
     with pytest.raises(ValueError, match="exceeds the source"):
         load_audio("recording.mp4", start=4.5)
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="Requires FFmpeg tools")
+def test_probe_duration_and_clip_mp4_tail_before_strict_loading(tmp_path, monkeypatch):
+    from quick_convert.data import MetadataSample
+    from quick_convert.data.recording_index import clip_segment_rows
+    from quick_convert.utils.audio import probe_audio_duration
+
+    monkeypatch.setattr(torchaudio, "list_audio_backends", lambda: ["soundfile"])
+    path = tmp_path / "tail.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=220:sample_rate=48000:duration=2",
+            "-c:a",
+            "aac",
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    assert probe_audio_duration(path) == pytest.approx(2.0)
+    row = MetadataSample(utt_id="tail-34", path=path, start=1.0, end=2.057)
+    clipped = clip_segment_rows([row])[0]
+    assert clipped.utt_id == row.utt_id
+    waveform, sr = load_audio(path, start=clipped.start, end=clipped.end)
+    assert sr == 48000
+    assert waveform.shape[-1] == 48000
+
+
+@pytest.mark.parametrize("streams", [[], [{}], [{"duration": "N/A"}], [{"duration": "nan"}], [{"duration": "0"}]])
+def test_probe_rejects_missing_or_invalid_audio_stream_duration(monkeypatch, streams):
+    import json
+
+    from quick_convert.utils import audio
+
+    monkeypatch.setattr(audio, "_run_audio_command", lambda command: json.dumps({"streams": streams}).encode())
+    with pytest.raises(audio.AudioBackendError, match="No usable audio stream duration"):
+        audio.probe_audio_duration("source.mp4")

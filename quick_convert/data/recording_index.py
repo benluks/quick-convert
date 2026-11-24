@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import csv
+import json
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import replace
 from math import isfinite
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from .resources import ResourceCollection, ResourceRef
 from .types import MetadataSample
@@ -206,4 +209,94 @@ def segment_rows(
         )
     if not result:
         raise ValueError("No intervals matched the configured speaker labels.")
+    return result
+
+
+def clip_segment_rows(
+    rows: Iterable[MetadataSample],
+    *,
+    report_path: str | Path | None = None,
+    duration_reader: Callable[[Path], float] | None = None,
+) -> list[MetadataSample]:
+    """Clip annotated ends to audio duration; exclude starts at/after EOF.
+
+    Explicitly opt into this operation before fold selection and loading.
+    Probe each source once without decoding audio. Keep input order, IDs,
+    resources and caller-owned rows intact. Missing/invalid durations or
+    annotations fail rather than silently excluding data. A JSON report,
+    when requested, records source durations and every changed interval.
+    """
+    if duration_reader is None:
+        from quick_convert.utils.audio import probe_audio_duration
+
+        duration_reader = probe_audio_duration
+
+    durations = {}
+    result = []
+    changes = []
+    total = clipped = excluded = 0
+    removed_seconds = 0.0
+    for row in rows:
+        total += 1
+        start, end = row.start, row.end
+        if start is None or end is None or not isfinite(start) or not isfinite(end) or start < 0 or end <= start:
+            raise ValueError(f"Expected a finite nonnegative bounded interval for {row.utt_id!r}.")
+        path = Path(row.path)
+        if path not in durations:
+            duration = float(duration_reader(path))
+            if not isfinite(duration) or duration <= 0:
+                raise ValueError(f"Invalid audio duration for {path}: {duration}.")
+            durations[path] = duration
+        duration = durations[path]
+        if end <= duration:
+            result.append(row)
+            continue
+        new_end = min(end, duration)
+        drop = start >= duration
+        removed = end - start if drop else end - new_end
+        removed_seconds += removed
+        changes.append(
+            {
+                "utt_id": row.utt_id,
+                "path": str(path),
+                "start": start,
+                "original_end": end,
+                "audio_duration": duration,
+                "end": None if drop else new_end,
+                "action": "exclude" if drop else "clip",
+                "removed_seconds": removed,
+            }
+        )
+        if drop:
+            excluded += 1
+        else:
+            clipped += 1
+            result.append(replace(row, end=new_end))
+
+    report = {
+        "schema_version": 1,
+        "policy": "clip_end_exclude_start_at_or_after_eof",
+        "input_segments": total,
+        "output_segments": len(result),
+        "clipped_segments": clipped,
+        "excluded_segments": excluded,
+        "removed_seconds": removed_seconds,
+        "recordings": [{"path": str(path), "audio_duration": duration} for path, duration in durations.items()],
+        "changes": changes,
+    }
+    if report_path is not None:
+        destination = Path(report_path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = None
+        try:
+            with NamedTemporaryFile(mode="w", encoding="utf-8", dir=destination.parent, delete=False) as stream:
+                temporary = Path(stream.name)
+                json.dump(report, stream, indent=2, allow_nan=False)
+                stream.write("\n")
+            temporary.replace(destination)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+    if not result:
+        raise ValueError("No intervals remain within the source audio boundaries.")
     return result
