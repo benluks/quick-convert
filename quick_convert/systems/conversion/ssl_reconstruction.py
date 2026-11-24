@@ -94,9 +94,7 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
         for name, encoder in self.online_encoders.items():
             if name not in self.trainable_online_encoders:
                 encoder.eval()
-        vocoder = getattr(self.decoder, "vocoder", None)
-        if vocoder is not None and not any(parameter.requires_grad for parameter in vocoder.parameters()):
-            vocoder.eval()
+        self.reconstruction.set_mode(self, mode)
         return self
 
     def encode_features(
@@ -194,7 +192,7 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
         content_sample_rate = getattr(content_encoder, "sample_rate", None)
         if content_sample_rate is None:
             raise ValueError("Content encoder must declare its input sample rate.")
-        if getattr(self.decoder, "requires_speaker_embedding", True):
+        if self.reconstruction.requires_speaker(self):
             if "speaker" not in self.online_encoders:
                 raise RuntimeError("Audio reconstruction requires a `speaker` online encoder.")
             speaker_sample_rate = getattr(self.online_encoders["speaker"], "sample_rate", None)
