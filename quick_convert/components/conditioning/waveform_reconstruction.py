@@ -20,6 +20,12 @@ class WaveformReconstruction:
             raise ValueError("hop_size must be positive.")
         self.hop_size = hop_size
 
+    def set_mode(self, system, mode):
+        pass
+
+    def requires_speaker(self, system):
+        return False
+
     def input_frame_rate(self, system):
         return system.decoder.sample_rate / self.hop_size
 
