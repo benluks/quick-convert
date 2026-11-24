@@ -5,7 +5,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader
 
-from quick_convert.training.lightning.modules.phased import PhasedTrainingModule
+from quick_convert.training.lightning.modules.base import BaseTrainingModule
 from quick_convert.training.lightning.optim import Optimization
 
 
@@ -14,7 +14,7 @@ class Output:
     loss: torch.Tensor
 
 
-class ToyGAN(PhasedTrainingModule):
+class ToyGAN(BaseTrainingModule):
     def __init__(self):
         super().__init__(optimization={
             name: Optimization(
