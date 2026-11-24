@@ -66,8 +66,12 @@ def _load_audio_segment(path: str, start: float | None, end: float | None) -> tu
     start = _validate_segment(start, end)
     info = torchaudio.info(path)
     first_frame, num_frames = _segment_frames(start, end, info.sample_rate)
-    if info.num_frames > 0 and (
-        first_frame >= info.num_frames or (num_frames > 0 and first_frame + num_frames > info.num_frames)
+    # MP4/AAC metadata can report codec frames rather than decoded PCM samples.
+    # Validate those intervals against the decoded waveform below instead.
+    if (
+        Path(path).suffix.lower() != ".mp4"
+        and info.num_frames > 0
+        and (first_frame >= info.num_frames or (num_frames > 0 and first_frame + num_frames > info.num_frames))
     ):
         raise ValueError("Audio interval exceeds the source recording.")
 

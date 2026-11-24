@@ -170,3 +170,9 @@ rows:
 Use `partition: train` for the complement. Both configs must use the same
 complete index and fold settings. Folds are balanced by item count, and
 linked speakers stay together even if their recordings have different IDs.
+
+### MP4 segment lengths
+
+MP4 audio intervals use decoded sample counts for length validation. Codec-frame
+counts reported by container metadata are not treated as PCM recording lengths.
+Empty or truncated decoded intervals still raise an error.
