@@ -1,0 +1,15 @@
+discriminator:
+  _target_: quick_convert.training.lightning.optim.Optimization
+  optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: true
+  optimizer_kwargs:
+    lr: 0.0002
+    betas: [0.8, 0.99]
+  lr_scheduler:
+    _target_: torch.optim.lr_scheduler.ExponentialLR
+    _partial_: true
+  lr_scheduler_kwargs:
+    gamma: 0.999
+  interval: epoch
+generator: ${.discriminator}
