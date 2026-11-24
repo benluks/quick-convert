@@ -1,4 +1,5 @@
 """Ordered, named optimization phases for Lightning training."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Iterable
@@ -6,7 +7,6 @@ from collections.abc import Mapping, Iterable
 import torch
 
 from ..optim import Optimization
-
 
 
 class PhasedOptimizationMixin:
