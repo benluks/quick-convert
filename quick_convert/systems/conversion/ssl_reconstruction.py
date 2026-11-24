@@ -12,17 +12,12 @@ import torch
 import torchaudio
 from torch import nn
 
-from quick_convert.components.generators.acoustic import (
-    ConditioningStream,
-    CosyVoiceGenerationOutput,
-    CosyVoiceSpectrogramGenerator,
-)
+from quick_convert.components.conditioning.cosyvoice_reconstruction import CosyVoiceReconstruction
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.resources.resolution import OnlineResourceMixin
 from quick_convert.data import AudioBatch
 from quick_convert.systems._content import content_frame_rate, quantize_content, transform_content
 from quick_convert.systems.base import InferenceSystem
-from quick_convert.components.conditioning.cosyvoice_reconstruction import CosyVoiceReconstructionMixin
 from quick_convert.types import AudioInput
 from quick_convert.utils.audio import load_audio_input
 
@@ -31,29 +26,31 @@ from quick_convert.utils.audio import load_audio_input
 class SSLReconstructionResult:
     """Generated speech and the representations used to produce it."""
 
-    generation: CosyVoiceGenerationOutput
+    generation: Any
     features: torch.Tensor
     lengths: torch.Tensor
     speaker_embedding: torch.Tensor | None
     encoder_output: RVQOutput | None = None
 
 
-class SSLReconstructionConversionSystem(CosyVoiceReconstructionMixin, OnlineResourceMixin, InferenceSystem):
+class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
     """Inference-ready SSL speech reconstruction independent of Lightning."""
 
     def __init__(
         self,
-        decoder: CosyVoiceSpectrogramGenerator,
+        decoder: nn.Module,
         feature_transform: nn.Module | None = None,
         *,
         online_encoders: dict[str, nn.Module] | None = None,
         trainable_online_encoders: tuple[str, ...] = (),
         encoder: BaseResidualVectorQuantizer | None = None,
+        reconstruction=None,
     ) -> None:
         super().__init__()
         self._target_space = str(uuid4())
         self.encoder = encoder
         self.decoder = decoder
+        self.reconstruction = reconstruction if reconstruction is not None else CosyVoiceReconstruction()
         self.feature_transform = feature_transform or nn.Identity()
         self.configure_online_encoders(
             {name: encoder for name, encoder in (online_encoders or {}).items() if encoder is not None},
@@ -77,6 +74,21 @@ class SSLReconstructionConversionSystem(CosyVoiceReconstructionMixin, OnlineReso
             sample_rates=torch.tensor([sample_rate], device=device),
         )
 
+    def prepare_target(self, target):
+        return self.reconstruction.prepare_target(self, target)
+
+    def convert_batch(self, batch, *, target, **kwargs):
+        return self.reconstruction.convert_batch(self, batch, target=target, **kwargs)
+
+    def decode_features(self, features, lengths, speaker_embedding=None, **kwargs):
+        return self.reconstruction.decode_features(self, features, lengths, speaker_embedding, **kwargs)
+
+    def speaker_condition(self, batch):
+        return self.reconstruction.speaker_condition(self, batch)
+
+    def conditioning_streams(self, batch, target_lengths=None):
+        return self.reconstruction.conditioning_streams(self, batch, target_lengths)
+
     def train(self, mode: bool = True):
         super().train(mode)
         for name, encoder in self.online_encoders.items():
@@ -96,7 +108,7 @@ class SSLReconstructionConversionSystem(CosyVoiceReconstructionMixin, OnlineReso
     ) -> tuple[torch.Tensor, torch.Tensor, RVQOutput | None]:
         """Adapt continuous content to decoder features, optionally checking source metadata."""
         rate = content_frame_rate(metadata, self.feature_transform, self.encoder)
-        expected_rate = getattr(getattr(self.decoder, "flow", None), "input_frame_rate", None)
+        expected_rate = self.reconstruction.input_frame_rate(self)
         if rate is not None and expected_rate is not None and not math.isclose(rate, expected_rate, rel_tol=1e-6):
             raise ValueError(
                 f"Adapted content frame rate {rate} differs from decoder input frame rate {expected_rate}."
@@ -114,7 +126,7 @@ class SSLReconstructionConversionSystem(CosyVoiceReconstructionMixin, OnlineReso
         speaker_embedding: torch.Tensor | None = None,
         *,
         run_vocoder: bool = True,
-        streams: dict[str, ConditioningStream] | None = None,
+        streams: dict[str, Any] | None = None,
         duration_ratio: float | torch.Tensor = 1.0,
         content_metadata: Mapping[str, Any] | None = None,
     ) -> SSLReconstructionResult:
@@ -137,7 +149,7 @@ class SSLReconstructionConversionSystem(CosyVoiceReconstructionMixin, OnlineReso
         )
 
     @staticmethod
-    def save_generation(generation: CosyVoiceGenerationOutput, path: PathLike) -> None:
+    def save_generation(generation: Any, path: PathLike) -> None:
         """Save a single generated waveform."""
         if generation.audio is None:
             raise ValueError("Saving generated audio requires run_vocoder=True.")
@@ -150,7 +162,7 @@ class SSLReconstructionConversionSystem(CosyVoiceReconstructionMixin, OnlineReso
         )
 
     def forward(
-        self, batch: AudioBatch, *, run_vocoder: bool = True, streams: dict[str, ConditioningStream] | None = None
+        self, batch: AudioBatch, *, run_vocoder: bool = True, streams: dict[str, Any] | None = None
     ) -> SSLReconstructionResult:
         content = self.get_resource(batch, "content")
         if content.lengths is None:
@@ -173,7 +185,7 @@ class SSLReconstructionConversionSystem(CosyVoiceReconstructionMixin, OnlineReso
         sample_rate: int | None = None,
         run_vocoder: bool = True,
         to_file: PathLike | None = None,
-        streams: dict[str, ConditioningStream] | None = None,
+        streams: dict[str, Any] | None = None,
     ) -> SSLReconstructionResult:
         """Reconstruct a single audio file or in-memory waveform tensor."""
         if "content" not in self.online_encoders:
