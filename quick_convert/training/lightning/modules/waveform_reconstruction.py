@@ -30,13 +30,16 @@ class WaveformReconstructionTrainingModule(BaseTrainingModule):
     def _pair(self, batch, random):
         if torch.any(batch.sample_rates != self.system.decoder.sample_rate):
             raise ValueError("Waveform sample rate must match decoder sample rate.")
-        features, lengths = self.system.encode(batch)
+        content = self.system.get_resource(batch, "content")
+        if content.lengths is None:
+            raise ValueError("Content requires valid frame lengths.")
+        features, lengths, _ = self.system.encode_features(content.values, content.lengths, metadata=content.metadata)
         return aligned_crop(
             features,
             lengths,
             batch.waveforms,
             batch.lengths,
-            hop_size=self.system.hop_size,
+            hop_size=self.system.reconstruction.hop_size,
             frames=self.crop_frames,
             random=random,
         )
