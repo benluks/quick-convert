@@ -19,6 +19,16 @@ class CosyVoiceReconstruction:
     """CosyVoice conditioning and generation behaviour."""
 
     @staticmethod
+    def set_mode(system, mode):
+        vocoder = getattr(system.decoder, "vocoder", None)
+        if vocoder is not None and not any(parameter.requires_grad for parameter in vocoder.parameters()):
+            vocoder.eval()
+
+    @staticmethod
+    def requires_speaker(system):
+        return getattr(system.decoder, "requires_speaker_embedding", True)
+
+    @staticmethod
     def input_frame_rate(system):
         return getattr(getattr(system.decoder, "flow", None), "input_frame_rate", None)
 
