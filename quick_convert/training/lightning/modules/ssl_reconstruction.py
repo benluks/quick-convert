@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from os import PathLike
-from pathlib import Path
 
 import torch
 from torch import nn
 
+from quick_convert.components.conditioning.paired_audio import paired_audio
 from quick_convert.components.generators.acoustic import (
     CosyVoiceDecoderOutput,
     CosyVoiceSpectrogramGenerator,
@@ -72,7 +72,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             )
         self.system = system
         self.objective = objective
-        self.flow_objective = CosyVoiceFlowObjective()
+        self.flow_objective = CosyVoiceFlowObjective(reference_seconds=reference_seconds)
         if reference_seconds is not None:
             if not math.isfinite(reference_seconds) or reference_seconds <= 0:
                 raise ValueError("reference_seconds must be finite and positive.")
@@ -155,30 +155,10 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             raise ValueError("Content features require valid lengths for SSL reconstruction.")
         return self.system.encode_features(content.values, content.lengths, metadata=content.metadata)
 
-    def _paired_audio(self, batch, name, sample_rate, max_samples=None):
-        """Apply pairing and prefix policy to an already loaded audio resource."""
-        audio = batch.resources.get(name)
-        if not isinstance(audio, AudioBatch) or audio.waveforms is None or len(audio) != len(batch):
-            raise ValueError(f"Paired audio requires a loaded {name!r} audio resource per example.")
-        if audio.lengths is None or audio.sample_rates is None or torch.any(audio.sample_rates != sample_rate):
-            raise ValueError(f"Configure audio resource {name!r} with sample_rate={sample_rate}.")
-        if any(
-            Path(path).resolve() == Path(target).resolve()
-            for path, target in zip(audio.paths, batch.paths, strict=True)
-        ):
-            raise ValueError(f"The {name} recording must differ from the target recording.")
-        device = batch.waveforms.device
-        return replace(
-            audio,
-            waveforms=audio.waveforms[:, :max_samples].to(device),
-            lengths=(audio.lengths if max_samples is None else audio.lengths.clamp_max(max_samples)).to(device),
-            sample_rates=audio.sample_rates.to(device),
-        )
-
     def _content_resource(self, batch):
         if self.content_audio_resource is not None:
             encoder = self.system.online_encoders["content"]
-            batch = self._paired_audio(batch, self.content_audio_resource, encoder.sample_rate)
+            batch = paired_audio(batch, self.content_audio_resource, encoder.sample_rate)
         return self.system.get_resource(batch, "content")
 
     def phase_parameters(self):
@@ -207,7 +187,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
 
         features, lengths, encoder_output = self._encode_content(content)
 
-        decoder_output = self.flow_objective.compute_loss(self, batch, features, lengths, speaker_embedding)
+        decoder_output = self.flow_objective.compute_loss(self.system, batch, features, lengths, speaker_embedding)
 
         encoder_loss = features.new_zeros(()) if encoder_output is None else encoder_output.loss.loss
         loss = decoder_output.loss + encoder_loss
@@ -287,7 +267,8 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         if self.objective is not None or batch_idx != 0:
             return
 
-        self.flow_objective.log_validation(self, batch, output)
+        media = self.flow_objective.validation_media(self.system, batch, output)
+        self.media_logger.log_reconstructed_audio(key="val/reconstruction", media=media, step=self.global_step)
 
     @torch.inference_mode()
     def inference(self, batch: AudioBatch, run_vocoder: bool = True, to_file: PathLike | None = None):
