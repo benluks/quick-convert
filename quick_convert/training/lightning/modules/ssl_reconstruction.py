@@ -11,18 +11,17 @@ import torch
 from torch import nn
 
 from quick_convert.components.generators.acoustic import (
-    ConditioningStream,
     CosyVoiceDecoderOutput,
     CosyVoiceSpectrogramGenerator,
 )
 from quick_convert.components.layers import LayerWeightedSum
+from quick_convert.components.losses.cosyvoice_flow import CosyVoiceFlowObjective
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.resources.resolution import ResolvedResource
 from quick_convert.data import AudioBatch
 from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 from quick_convert.utils.masking import make_padding_mask
 
-from ..logging.media_logger import ReconstructedAudio
 from ..modules.base import BaseTrainingModule
 from ..optim import Optimization
 
@@ -73,6 +72,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             )
         self.system = system
         self.objective = objective
+        self.flow_objective = CosyVoiceFlowObjective()
         if reference_seconds is not None:
             if not math.isfinite(reference_seconds) or reference_seconds <= 0:
                 raise ValueError("reference_seconds must be finite and positive.")
@@ -181,27 +181,6 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             batch = self._paired_audio(batch, self.content_audio_resource, encoder.sample_rate)
         return self.system.get_resource(batch, "content")
 
-    def _conditioning_kwargs(self, batch, target_lengths=None):
-        """Extract prefixes from selected references, retaining original targets."""
-        if self.reference_seconds is None:
-            return {"streams": self.system.conditioning_streams(batch, target_lengths)}
-        if batch.sample_rates is None or torch.any(batch.sample_rates != batch.sample_rates[0]):
-            raise ValueError("Reference conditioning requires a common source sample rate.")
-        sample_rate = int(batch.sample_rates[0])
-        max_samples = int(sample_rate * self.reference_seconds)
-        if max_samples < 1:
-            raise ValueError("reference_seconds must contain at least one sample.")
-        reference = self._paired_audio(batch, "reference_path", sample_rate, max_samples)
-        streams = self.system.conditioning_streams(reference)
-        if "mel" in self.decoder.stream_conditioning.dimensions:
-            mels, mel_lengths = self.decoder._compute_mels(reference.waveforms, reference.lengths, sample_rate)
-            prefix_lengths = self.decoder.stream_conditioning.sample_prefix_lengths(mel_lengths)
-            streams["mel"] = ConditioningStream(
-                mels.transpose(1, 2)[:, : int(prefix_lengths.max())], prefix_lengths, is_prefix=True
-            )
-        features, lengths, _ = self._encode_content(self.system.get_resource(reference, "content"))
-        return {"streams": streams, "prefix_content": (features, lengths)}
-
     def phase_parameters(self):
         return self.objective.phase_parameters(self.system)
 
@@ -228,24 +207,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
 
         features, lengths, encoder_output = self._encode_content(content)
 
-        decoder_output = self.decoder.compute_loss(
-            features=features,
-            lengths=lengths,
-            target_wav=batch.waveforms,
-            wav_lens=batch.lengths,
-            sampling_rate=batch.sample_rates[0],
-            speaker_embedding=speaker_embedding,
-            **(
-                self._conditioning_kwargs(
-                    batch,
-                    None
-                    if getattr(self.decoder, "content_encoder", None) is not None
-                    else self.decoder.flow.output_lengths(lengths),
-                )
-                if getattr(self.decoder, "stream_conditioning", None) is not None
-                else {}
-            ),
-        )
+        decoder_output = self.flow_objective.compute_loss(self, batch, features, lengths, speaker_embedding)
 
         encoder_loss = features.new_zeros(()) if encoder_output is None else encoder_output.loss.loss
         loss = decoder_output.loss + encoder_loss
@@ -325,61 +287,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         if self.objective is not None or batch_idx != 0:
             return
 
-        stream_kwargs = {}
-        if getattr(self.decoder, "stream_conditioning", None) is not None:
-            stream_kwargs = self._conditioning_kwargs(
-                batch,
-                None
-                if getattr(self.decoder, "content_encoder", None) is not None
-                else self.decoder.flow.output_lengths(output.lengths),
-            )
-            streams = stream_kwargs["streams"]
-            if "mel" in self.decoder.stream_conditioning.dimensions and "mel" not in streams:
-                mels, mel_lengths = self.decoder._compute_mels(
-                    batch.waveforms, batch.lengths, sampling_rate=batch.sample_rates[0]
-                )
-                streams["mel"] = ConditioningStream(mels.transpose(1, 2), mel_lengths)
-            # Validation exercises prefix-only inference rather than leaking target streams.
-            prefixes = {}
-            for name, stream in streams.items():
-                if stream.is_prefix:
-                    prefixes[name] = stream
-                    continue
-                lengths = (stream.lengths // 5).clamp_min(1)
-                prefixes[name] = ConditioningStream(stream.values[:, : int(lengths.max())], lengths)
-            stream_kwargs["streams"] = prefixes
-        if getattr(self.decoder, "content_encoder", None) is not None:
-            target_lengths = self.decoder.mel_output_lengths(batch.lengths, int(batch.sample_rates[0]))
-            stream_kwargs["duration_ratio"] = target_lengths / self.decoder.flow.output_lengths(output.lengths)
-        generation = self.system.decode_features(
-            output.features,
-            output.lengths,
-            output.speaker_embedding,
-            run_vocoder=True,
-            **stream_kwargs,
-        )
-        if generation.audio is None:
-            raise RuntimeError("Decoder did not return audio when run_vocoder=True.")
-        original_mel, original_mel_lengths = self.decoder._compute_mels(
-            batch.waveforms, batch.lengths, sampling_rate=batch.sample_rates[0]
-        )
-        self.media_logger.log_reconstructed_audio(
-            key="val/reconstruction",
-            media=ReconstructedAudio(
-                original_audio=batch.waveforms,
-                reconstructed_audio=generation.audio.waveforms,
-                original_mel=original_mel,
-                reconstructed_mel=generation.mel,
-                original_audio_lengths=batch.lengths,
-                reconstructed_audio_lengths=generation.audio.lengths,
-                original_mel_lengths=original_mel_lengths,
-                reconstructed_mel_lengths=generation.mel_lengths,
-                original_sample_rate=batch.sample_rates[0],
-                reconstructed_sample_rate=generation.audio.sample_rate,
-                ids=batch.utt_ids,
-            ),
-            step=self.global_step,
-        )
+        self.flow_objective.log_validation(self, batch, output)
 
     @torch.inference_mode()
     def inference(self, batch: AudioBatch, run_vocoder: bool = True, to_file: PathLike | None = None):
