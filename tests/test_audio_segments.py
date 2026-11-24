@@ -1,5 +1,6 @@
 import shutil
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -108,3 +109,27 @@ def test_mp4_intervals_load_without_torchaudio_ffmpeg(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="exceeds the source"):
         load_audio(path, start=3.5, end=4.5)
+
+
+def test_mp4_intervals_do_not_treat_codec_frames_as_pcm_samples(monkeypatch):
+    monkeypatch.setattr(torchaudio, "list_audio_backends", lambda: ["ffmpeg"])
+    monkeypatch.setattr(
+        torchaudio,
+        "info",
+        lambda path: SimpleNamespace(sample_rate=44100, num_frames=174),
+    )
+    source = torch.arange(4 * 44100, dtype=torch.float32).unsqueeze(0)
+
+    def decode(path, frame_offset, num_frames):
+        stop = None if num_frames == -1 else frame_offset + num_frames
+        return source[..., frame_offset:stop], 44100
+
+    monkeypatch.setattr(torchaudio, "load", decode)
+    start, end = 0.013, 1.713
+    clip, sr = load_audio("recording.mp4", start=start, end=end)
+    assert sr == 44100
+    torch.testing.assert_close(clip, source[..., round(start * sr) : round(end * sr)])
+    with pytest.raises(ValueError, match="exceeds the source"):
+        load_audio("recording.mp4", start=3.5, end=4.5)
+    with pytest.raises(ValueError, match="exceeds the source"):
+        load_audio("recording.mp4", start=4.5)
