@@ -19,6 +19,10 @@ class CosyVoiceReconstruction:
     """CosyVoice conditioning and generation behaviour."""
 
     @staticmethod
+    def input_frame_rate(system):
+        return getattr(getattr(system.decoder, "flow", None), "input_frame_rate", None)
+
+    @staticmethod
     def _validate_prepared_target(system, target: PreparedTarget) -> None:
         if target.representation == "ssl-source-v1":
             if target.space != system.target_space or target.conditioning is not None:
