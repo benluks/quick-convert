@@ -40,3 +40,11 @@ segment_index:
         _target_: quick_convert.data.recording_index.read_csv_index
         path: ${data_root}/readers.csv
         columns: [reader, aliases]
+
+# Optional: set dataset.rows to ${bounded_segment_index} to clip annotated
+# ends to the audio stream duration and exclude starts at/after EOF.
+# Use the same bounded index as the input to any fold selection.
+bounded_segment_index:
+  _target_: quick_convert.data.recording_index.clip_segment_rows
+  rows: ${segment_index}
+  report_path: outputs/data/segment_boundaries.json

@@ -84,12 +84,40 @@ def _run_audio_command(command: list[str]) -> bytes:
     try:
         return subprocess.run(command, capture_output=True, check=True).stdout
     except FileNotFoundError as error:
-        raise AudioBackendError(
-            "MP4 audio requires the TorchAudio FFmpeg backend or both ffmpeg and ffprobe on PATH."
-        ) from error
+        raise AudioBackendError("This audio operation requires ffmpeg/ffprobe command-line tools on PATH.") from error
     except subprocess.CalledProcessError as error:
         detail = error.stderr.decode(errors="replace").strip()
-        raise AudioBackendError(f"{command[0]} could not read MP4 audio: {detail}") from error
+        raise AudioBackendError(f"{command[0]} could not read audio: {detail}") from error
+
+
+def probe_audio_duration(path: str | PathLike) -> float:
+    """Read the first audio stream's duration in seconds without decoding.
+
+    Requires ffprobe on PATH. Container/video duration and compressed-frame
+    counts are deliberately not used as substitutes for audio stream duration.
+    """
+    metadata = _run_audio_command(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=duration",
+            "-of",
+            "json",
+            str(Path(path).absolute()),
+        ]
+    )
+    streams = json.loads(metadata).get("streams", [])
+    try:
+        duration = float(streams[0]["duration"])
+    except (IndexError, KeyError, TypeError, ValueError) as error:
+        raise AudioBackendError(f"No usable audio stream duration in {path}.") from error
+    if not isfinite(duration) or duration <= 0:
+        raise AudioBackendError(f"No usable audio stream duration in {path}.")
+    return duration
 
 
 def _load_mp4_with_ffmpeg(path: str, start: float | None, end: float | None) -> tuple[torch.Tensor, int]:

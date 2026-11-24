@@ -176,3 +176,43 @@ linked speakers stay together even if their recordings have different IDs.
 MP4 audio intervals use decoded sample counts for length validation. Codec-frame
 counts reported by container metadata are not treated as PCM recording lengths.
 Empty or truncated decoded intervals still raise an error.
+
+### Audit and clip segment boundaries
+
+Annotations can extend beyond the source audio stream. Opt into
+`quick_convert.data.recording_index.clip_segment_rows` around the complete
+segment index **before** selecting folds:
+
+```yaml
+dataset:
+  rows: ${bounded_segment_index}
+
+bounded_segment_index:
+  _target_: quick_convert.data.recording_index.clip_segment_rows
+  rows: ${segment_index}
+  report_path: outputs/data/segment_boundaries.json
+```
+
+The [RTTM example](examples/rttm_dataset.yaml) includes this optional node.
+Use `${bounded_segment_index}` for `select_fold_rows.rows` too. Ends beyond
+the audio duration are clipped; segments starting at or beyond the duration
+are excluded. IDs, ordering, and resources are preserved, and input rows are
+not mutated. The audio loader retains its strict decoded-length validation.
+
+The operation probes each distinct source once with `ffprobe`, without decoding
+audio. It uses the **first audio stream's duration**, not video/container
+length or compressed-frame counts. `ffprobe` must be on PATH. Missing or invalid
+duration metadata fails explicitly. Python callers may supply a different
+`duration_reader(path)` returning a positive finite duration in seconds.
+
+The JSON audit records source durations, input/output and clipped/excluded
+counts, original and corrected intervals, removed seconds, and every affected
+utterance ID. It is replaced atomically after a successful scan. If all segments
+are excluded, the audit is saved and dataset construction fails. The scan also
+runs before an extraction sample limit is applied. Keep the audit alongside your
+experiment records; this operation does not cache durations across invocations.
+
+Previously extracted features can be reused for unchanged intervals. Features
+for a clipped ID must be regenerated if they already exist; excluding a segment
+does not delete any old feature file. Audits describe the annotation bounds,
+while actual decoding can still fail on damaged or inconsistent recordings.
