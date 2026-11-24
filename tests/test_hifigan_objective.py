@@ -1,7 +1,8 @@
 import torch
 from torch import nn
 
-from quick_convert.training.hifigan import HiFiGANObjective
+from quick_convert.components.features.mel.torchaudio import TorchaudioLogMel
+from quick_convert.components.losses.waveform_gan import WaveformGANObjective
 
 
 class TinyDiscriminator(nn.Module):
@@ -15,7 +16,7 @@ class TinyDiscriminator(nn.Module):
 
 
 def test_discriminator_detaches_generator():
-    objective = HiFiGANObjective(discriminators=[TinyDiscriminator()])
+    objective = WaveformGANObjective(discriminators=[TinyDiscriminator()], mel=TorchaudioLogMel())
     real = torch.randn(2, 1280)
     fake = torch.randn_like(real, requires_grad=True)
     objective(real, fake, "discriminator").backward()
@@ -24,7 +25,7 @@ def test_discriminator_detaches_generator():
 
 
 def test_generator_gradient_through_frozen_discriminator():
-    objective = HiFiGANObjective(discriminators=[TinyDiscriminator()])
+    objective = WaveformGANObjective(discriminators=[TinyDiscriminator()], mel=TorchaudioLogMel())
     objective.requires_grad_(False)
     real = torch.randn(2, 1280)
     fake = torch.randn_like(real, requires_grad=True)
