@@ -32,9 +32,8 @@ system:
 
 trainer:
   module:
-    _target_: quick_convert.training.lightning.modules.waveform_reconstruction.WaveformReconstructionTrainingModule
+    _target_: quick_convert.training.lightning.modules.ssl_reconstruction.SSLReconstructionTrainingModule
     system: ${system}
-    crop_frames: 22
     objective:
       _target_: quick_convert.components.losses.waveform_gan.WaveformGANObjective
       discriminators:
@@ -43,6 +42,8 @@ trainer:
       mel:
         _target_: quick_convert.components.features.mel.torchaudio.TorchaudioLogMel
       mel_weight: 45
+      crop_frames: 22
+      hop_size: 320
   train_dataloader_kwargs:
     batch_size: 16
     num_workers: 4
