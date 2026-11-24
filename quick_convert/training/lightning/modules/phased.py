@@ -6,20 +6,19 @@ from collections.abc import Mapping, Iterable
 import torch
 
 from ..optim import Optimization
-from .base import BaseTrainingModule, TrainingStepOutput
 
 
-class PhasedTrainingModule(BaseTrainingModule):
+
+class PhasedOptimizationMixin:
     """One optimizer update per named phase, in configuration order.
 
     Subclasses supply parameter groups and phase losses. Each loss is computed
     after preceding updates, with only the active optimizer's parameters enabled.
     """
 
-    def __init__(self, optimization: Mapping[str, Optimization], **kwargs):
+    def _init_phases(self, optimization: Mapping[str, Optimization]):
         if not optimization:
             raise ValueError("At least one optimization phase is required.")
-        super().__init__(optimization=optimization, **kwargs)
         self.automatic_optimization = False
         self.phase_names = tuple(optimization)
         self._phase_schedulers = {}
@@ -27,10 +26,10 @@ class PhasedTrainingModule(BaseTrainingModule):
     def phase_parameters(self) -> Mapping[str, Iterable[torch.nn.Parameter]]:
         raise NotImplementedError
 
-    def phase_step(self, batch, phase: str) -> TrainingStepOutput:
+    def phase_step(self, batch, phase: str):
         raise NotImplementedError
 
-    def configure_optimizers(self):
+    def configure_phase_optimizers(self):
         groups = self.phase_parameters()
         if set(groups) != set(self.phase_names):
             raise ValueError("Parameter groups must match optimization phase names.")
@@ -61,8 +60,7 @@ class PhasedTrainingModule(BaseTrainingModule):
             raise ValueError("Every trainable parameter must belong to exactly one phase.")
         return optimizers, schedulers
 
-    def on_train_start(self):
-        super().on_train_start()
+    def validate_phase_settings(self):
         if self.trainer.accumulate_grad_batches != 1:
             raise ValueError("Phased optimization does not support gradient accumulation yet.")
         if self.trainer.gradient_clip_val:
@@ -76,7 +74,7 @@ class PhasedTrainingModule(BaseTrainingModule):
             schedulers = [schedulers]
         schedulers[self._phase_schedulers[name]].step()
 
-    def training_step(self, batch, batch_idx):
+    def execute_phases(self, batch):
         optimizers = self.optimizers()
         if not isinstance(optimizers, (list, tuple)):
             optimizers = [optimizers]
@@ -95,7 +93,6 @@ class PhasedTrainingModule(BaseTrainingModule):
             self._step_scheduler(name, "step")
         return losses
 
-    def on_train_epoch_end(self):
+    def step_epoch_phase_schedulers(self):
         for name in self.phase_names:
             self._step_scheduler(name, "epoch")
-        super().on_train_epoch_end()
