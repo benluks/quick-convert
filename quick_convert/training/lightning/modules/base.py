@@ -22,6 +22,7 @@ from quick_convert.utils.device import DeviceLike, configure_device, override_de
 
 from ..logging.media_logger import MediaLogger, make_media_logger
 from ..optim import Optimization
+from .phased import PhasedOptimizationMixin
 
 
 class TrainingStepOutput(Protocol):
@@ -31,7 +32,7 @@ class TrainingStepOutput(Protocol):
 StepOutputT = TypeVar("StepOutputT", bound=TrainingStepOutput)
 
 
-class BaseTrainingModule(L.LightningModule, abc.ABC):
+class BaseTrainingModule(PhasedOptimizationMixin, L.LightningModule, abc.ABC):
     """Base Lightning module for trainable systems.
 
     Subclasses implement :meth:`_shared_step` and return an object containing
@@ -50,13 +51,15 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
 
     def __init__(
         self,
-        optimization: Optimization,
+        optimization: Optimization | Mapping[str, Optimization],
         checkpoint_exclude_prefixes: Iterable[str] = (),
         enable_grad_norm_logging: bool = True,
     ) -> None:
         super().__init__()
 
         self.optimization = optimization
+        if isinstance(optimization, Mapping):
+            self._init_phases(optimization)
         self._inference_description = None
         self.checkpoint_exclude_prefixes = tuple(
             self._normalize_checkpoint_prefix(prefix) for prefix in checkpoint_exclude_prefixes
@@ -260,6 +263,8 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
         batch: AudioBatch,
         batch_idx: int,
     ) -> torch.Tensor:
+        if isinstance(self.optimization, Mapping):
+            return self.execute_phases(batch)
         output = self._shared_step(batch, "train")
         return output.loss
 
@@ -287,7 +292,19 @@ class BaseTrainingModule(L.LightningModule, abc.ABC):
     ) -> None:
         """Optionally log qualitative validation outputs."""
 
+    def on_train_start(self):
+        super().on_train_start()
+        if isinstance(self.optimization, Mapping):
+            self.validate_phase_settings()
+
+    def on_train_epoch_end(self):
+        if isinstance(self.optimization, Mapping):
+            self.step_epoch_phase_schedulers()
+        super().on_train_epoch_end()
+
     def configure_optimizers(self):
+        if isinstance(self.optimization, Mapping):
+            return self.configure_phase_optimizers()
         return self.optimization.configure(
             parameters=self.parameters(),
             total_steps=self.trainer.estimated_stepping_batches,
