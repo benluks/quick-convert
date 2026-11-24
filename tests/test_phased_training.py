@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 
 import pytest
-
-L = pytest.importorskip("lightning")
 import torch
 from torch.utils.data import DataLoader
+
+
+L = pytest.importorskip("lightning")
 
 from quick_convert.training.lightning.modules.base import BaseTrainingModule
 from quick_convert.training.lightning.optim import Optimization
