@@ -12,6 +12,7 @@ include = ["quick_convert*"]
 quick_convert = [
     "configs/**/*.yaml",
     "external/cosyvoice/tokenizer/assets/*.tiktoken",
+    "external/wavlm/LICENSE",
     "external/matcha/VERSION",
     "external/matcha/hifigan/LICENSE",
     "external/matcha/hifigan/README.md",

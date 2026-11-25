@@ -9,7 +9,7 @@ import torchaudio
 
 from quick_convert.components.conditioning.nearest_neighbour import CosineTopK, NearestNeighbourMatching
 from quick_convert.components.conditioning.nearest_neighbour_reference import NearestNeighbourReferenceConditioning
-from quick_convert.components.encoders.content.wavlm import WavLMContentEncoder
+from quick_convert.components.encoders.content.microsoft_wavlm import MicrosoftWavLMContentEncoder
 from quick_convert.components.generators.waveform.knnvc_hifigan import KnnVCHifiGanDecoder
 from quick_convert.systems.conversion.ssl_reconstruction import SSLReconstructionConversionSystem
 from quick_convert.systems.conversion.targets import ReferenceSpeech
@@ -60,7 +60,7 @@ def main():
     decoder = KnnVCHifiGanDecoder.from_pretrained(device=args.device).eval()
     report["decoder_same_input"] = compare(upstream.vocode(matched[None]), decoder(matched[None]))
     del upstream
-    encoder = WavLMContentEncoder(use_original_checkpoint=True, layer=6, device=args.device)
+    encoder = MicrosoftWavLMContentEncoder(do_normalize=False, layer=6, device=args.device)
     system = SSLReconstructionConversionSystem(
         decoder=decoder,
         online_encoders={"content": encoder},

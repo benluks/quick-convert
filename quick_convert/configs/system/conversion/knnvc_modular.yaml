@@ -1,8 +1,8 @@
 _target_: quick_convert.systems.conversion.ssl_reconstruction.SSLReconstructionConversionSystem
 online_encoders:
   content:
-    _target_: quick_convert.components.encoders.content.wavlm.WavLMContentEncoder
-    use_original_checkpoint: true
+    _target_: quick_convert.components.encoders.content.microsoft_wavlm.MicrosoftWavLMContentEncoder
+    do_normalize: false
     layer: 6
     device: ${device}
 decoder:
