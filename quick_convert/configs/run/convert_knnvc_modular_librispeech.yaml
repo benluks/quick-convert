@@ -1,0 +1,11 @@
+# @package _global_
+defaults:
+  - convert_knnvc_librispeech
+  - override /system/conversion@system: knnvc_modular
+  - _self_
+
+dataset:
+  load: [audio]
+pipeline:
+  metadata:
+    system: knnvc_modular

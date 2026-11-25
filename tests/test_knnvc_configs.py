@@ -101,3 +101,13 @@ def test_reference_split_scope_is_independent_of_source_split(tmp_path, splits, 
     assert {p.stem for p in target.paths} == expected
     assert cfg.dataset.splits == ["test-clean"]
     assert cfg.pipeline.metadata.reference_splits == cfg.target_dataset.splits
+
+
+def test_modular_knnvc_librispeech_composes_pretrained_conversion():
+    with initialize_config_dir(config_dir=str(Path("quick_convert/configs").resolve()), version_base=None):
+        cfg = compose(config_name="run/convert_knnvc_modular_librispeech")
+    assert cfg.dataset.load == ["audio"]
+    assert cfg.pipeline.metadata.system == "knnvc_modular"
+    assert cfg.system.online_encoders.content._target_.endswith(".OriginalWavLMContentEncoder")
+    assert cfg.system.decoder._target_.endswith(".KnnVCHifiGanDecoder.from_pretrained")
+    assert cfg.system.reference_conditioning._target_.endswith(".NearestNeighbourReferenceConditioning")
