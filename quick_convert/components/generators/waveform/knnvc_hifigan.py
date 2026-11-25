@@ -5,12 +5,14 @@ The residual and synthesis backbone is shared with other HiFi-GAN adapters.
 
 from dataclasses import dataclass
 from functools import partial
+from math import prod
 
 import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.nn import Conv1d
 from torch.nn.utils import remove_weight_norm, weight_norm
+from torch.nn.utils.rnn import pad_sequence
 
 from quick_convert.components.generators.waveform.base import BaseDecoder
 from quick_convert.components.generators.waveform.hifigan import (
@@ -19,6 +21,7 @@ from quick_convert.components.generators.waveform.hifigan import (
     get_padding,
     init_weights,
 )
+from quick_convert.data import GeneratedAudio
 from quick_convert.utils.device import DeviceLike, configure_device
 
 
@@ -142,7 +145,47 @@ PRETRAINED_URLS = {
 }
 
 
+@dataclass
+class WaveformGeneration:
+    audio: GeneratedAudio
+
+
 class KnnVCHifiGanDecoder(BaseDecoder):
+    requires_speaker_embedding = False
+    supports_reference_conditioning = False
+
+    @property
+    def hop_size(self):
+        return prod(self.generator.h.upsample_rates)
+
+    @property
+    def input_frame_rate(self):
+        return self.sample_rate / self.hop_size
+
+    def generate(
+        self,
+        features,
+        lengths,
+        speaker_embedding=None,
+        *,
+        run_vocoder=True,
+        duration_ratio=1.0,
+        streams=None,
+        prefix_content=None,
+    ):
+        if (
+            speaker_embedding is not None
+            or not run_vocoder
+            or streams
+            or prefix_content is not None
+            or torch.any(torch.as_tensor(duration_ratio) != 1)
+        ):
+            raise ValueError("Direct waveform generation does not support these decoding options.")
+        waves = [self(x[None, : int(n)])[0] for x, n in zip(features, lengths, strict=True)]
+        return WaveformGeneration(
+            GeneratedAudio(pad_sequence(waves, batch_first=True), lengths * self.hop_size, self.sample_rate)
+        )
+
     def __init__(
         self,
         generator: Generator,

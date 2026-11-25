@@ -40,6 +40,28 @@ class FakeEncoder(nn.Module):
 
 
 class FakeDecoder(nn.Module):
+    supports_reference_conditioning = True
+
+    @property
+    def input_frame_rate(self):
+        return getattr(getattr(self, "flow", None), "input_frame_rate", None)
+
+    def train(self, mode=True):
+        super().train(mode)
+        vocoder = getattr(self, "vocoder", None)
+        if vocoder is not None and not any(p.requires_grad for p in vocoder.parameters()):
+            vocoder.eval()
+        return self
+
+    def generate(self, features, lengths, speaker_embedding=None, *, run_vocoder=True, duration_ratio=1.0, **kwargs):
+        if getattr(self, "content_encoder", None) is not None:
+            kwargs["duration_ratio"] = duration_ratio
+        elif torch.any(torch.as_tensor(duration_ratio) != 1):
+            raise ValueError("duration_ratio requires a duration-controlled content encoder.")
+        return self(
+            feature=features, length=lengths, speaker_embedding=speaker_embedding, run_vocoder=run_vocoder, **kwargs
+        )
+
     def forward(self, *, feature, length, speaker_embedding, run_vocoder):
         assert feature.shape[0] == length.shape[0] == speaker_embedding.shape[0]
         assert feature.shape[-1] == 4
@@ -321,7 +343,7 @@ def test_native_reference_conversion_prepares_content_mels_and_global_embedding(
     def load(path, **kwargs):
         return torch.full((1, 3200 if Path(path).stem == "b" else 1600), 3.0 if Path(path).stem == "b" else 1.0)
 
-    monkeypatch.setattr("quick_convert.systems.conversion.ssl_reconstruction.load_audio_input", load)
+    monkeypatch.setattr("quick_convert.components.conditioning.cosyvoice_reference.load_audio_input", load)
     system = SSLReconstructionConversionSystem(
         NativeDecoder(),
         online_encoders={

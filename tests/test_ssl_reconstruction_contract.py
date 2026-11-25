@@ -45,6 +45,28 @@ class FakeRVQEncoder(nn.Module):
 
 
 class FakeDecoder(nn.Module):
+    supports_reference_conditioning = True
+
+    @property
+    def input_frame_rate(self):
+        return getattr(getattr(self, "flow", None), "input_frame_rate", None)
+
+    def train(self, mode=True):
+        super().train(mode)
+        vocoder = getattr(self, "vocoder", None)
+        if vocoder is not None and not any(p.requires_grad for p in vocoder.parameters()):
+            vocoder.eval()
+        return self
+
+    def generate(self, features, lengths, speaker_embedding=None, *, run_vocoder=True, duration_ratio=1.0, **kwargs):
+        if getattr(self, "content_encoder", None) is not None:
+            kwargs["duration_ratio"] = duration_ratio
+        elif torch.any(torch.as_tensor(duration_ratio) != 1):
+            raise ValueError("duration_ratio requires a duration-controlled content encoder.")
+        return self(
+            feature=features, length=lengths, speaker_embedding=speaker_embedding, run_vocoder=run_vocoder, **kwargs
+        )
+
     def __init__(self):
         super().__init__()
         self.flow = nn.Module()

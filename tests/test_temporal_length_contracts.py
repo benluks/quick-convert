@@ -1,6 +1,5 @@
 from copy import deepcopy
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 import torch
@@ -143,7 +142,7 @@ def test_source_metadata_is_checked_before_adaptation(task, metadata):
 
 def test_frame_rate_checks_require_explicit_preservation_and_do_not_change_source_metadata():
     decoder = nn.Identity()
-    decoder.flow = SimpleNamespace(input_frame_rate=50)
+    decoder.input_frame_rate = 50
     metadata = {"frame_hz": 25.0, "feature_dim": 4}
     system = SSLReconstructionConversionSystem(decoder)
     values, lengths = torch.ones(2, 3, 4), torch.tensor([3, 2])

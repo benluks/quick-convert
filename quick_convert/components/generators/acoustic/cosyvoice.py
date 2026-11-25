@@ -114,6 +114,28 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
         if flow.vocab_size is None and projection_dim != flow.input_size:
             self.input_projection = nn.Linear(projection_dim, flow.input_size, device=self.device)
 
+    supports_reference_conditioning = True
+
+    @property
+    def input_frame_rate(self):
+        return getattr(self.flow, "input_frame_rate", None)
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        vocoder = getattr(self, "vocoder", None)
+        if vocoder is not None and not any(p.requires_grad for p in vocoder.parameters()):
+            vocoder.eval()
+        return self
+
+    def generate(self, features, lengths, speaker_embedding=None, *, run_vocoder=True, **kwargs):
+        return self(
+            feature=features,
+            length=lengths,
+            speaker_embedding=speaker_embedding,
+            run_vocoder=run_vocoder,
+            **kwargs,
+        )
+
     def requested_mel_lengths(self, lengths, duration_ratio=1.0):
         """Convert source feature lengths and a duration multiplier to mel lengths."""
         ratio = torch.as_tensor(duration_ratio, device=lengths.device, dtype=torch.float32)

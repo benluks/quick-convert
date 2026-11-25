@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from os import PathLike
-from pathlib import Path
 
 import torch
 from torch import nn
 
+from quick_convert.components.conditioning.cosyvoice_training import training_reference_kwargs
+from quick_convert.components.conditioning.paired_audio import paired_audio
 from quick_convert.components.generators.acoustic import (
-    ConditioningStream,
     CosyVoiceDecoderOutput,
     CosyVoiceSpectrogramGenerator,
 )
@@ -22,7 +22,7 @@ from quick_convert.data import AudioBatch
 from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 from quick_convert.utils.masking import make_padding_mask
 
-from ..logging.media_logger import ReconstructedAudio
+from ..logging.cosyvoice import cosyvoice_validation_media
 from ..modules.base import BaseTrainingModule
 from ..optim import Optimization
 
@@ -35,6 +35,11 @@ class SSLReconstructionOutput:
     loss: torch.Tensor
     decoder_output: CosyVoiceDecoderOutput
     encoder_output: RVQOutput | None = None
+
+
+@dataclass
+class SupervisionOutput:
+    loss: torch.Tensor
 
 
 class SSLReconstructionTrainingModule(BaseTrainingModule):
@@ -50,6 +55,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         enable_grad_norm_logging: bool = True,
         reference_seconds: float | None = None,
         content_audio_resource: str | None = None,
+        supervision: nn.Module | None = None,
     ):
         super().__init__(optimization=optimization, enable_grad_norm_logging=enable_grad_norm_logging)
 
@@ -66,6 +72,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
                 encoder=encoder,
             )
         self.system = system
+        self.supervision = supervision
         if reference_seconds is not None:
             if not math.isfinite(reference_seconds) or reference_seconds <= 0:
                 raise ValueError("reference_seconds must be finite and positive.")
@@ -87,6 +94,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             logger=False,
             ignore=[
                 "optimization",
+                "supervision",
                 "system",
                 "decoder",
                 "feature_transform",
@@ -129,6 +137,8 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
 
     @property
     def grad_norm_modules(self) -> dict[str, nn.Module]:
+        if self.supervision is not None:
+            return {"decoder": self.decoder, "supervision": self.supervision}
         modules = {f"flow/{name}": module for name, module in self.decoder.flow.named_children()}
         modules["feature_transform"] = self.feature_transform
         if getattr(self.decoder, "content_encoder", None) is not None:
@@ -145,64 +155,50 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             raise ValueError("Content features require valid lengths for SSL reconstruction.")
         return self.system.encode_features(content.values, content.lengths, metadata=content.metadata)
 
-    def _paired_audio(self, batch, name, sample_rate, max_samples=None):
-        """Apply pairing and prefix policy to an already loaded audio resource."""
-        audio = batch.resources.get(name)
-        if not isinstance(audio, AudioBatch) or audio.waveforms is None or len(audio) != len(batch):
-            raise ValueError(f"Paired audio requires a loaded {name!r} audio resource per example.")
-        if audio.lengths is None or audio.sample_rates is None or torch.any(audio.sample_rates != sample_rate):
-            raise ValueError(f"Configure audio resource {name!r} with sample_rate={sample_rate}.")
-        if any(
-            Path(path).resolve() == Path(target).resolve()
-            for path, target in zip(audio.paths, batch.paths, strict=True)
-        ):
-            raise ValueError(f"The {name} recording must differ from the target recording.")
-        device = batch.waveforms.device
-        return replace(
-            audio,
-            waveforms=audio.waveforms[:, :max_samples].to(device),
-            lengths=(audio.lengths if max_samples is None else audio.lengths.clamp_max(max_samples)).to(device),
-            sample_rates=audio.sample_rates.to(device),
-        )
-
     def _content_resource(self, batch):
         if self.content_audio_resource is not None:
             encoder = self.system.online_encoders["content"]
-            batch = self._paired_audio(batch, self.content_audio_resource, encoder.sample_rate)
+            batch = paired_audio(batch, self.content_audio_resource, encoder.sample_rate)
         return self.system.get_resource(batch, "content")
 
-    def _conditioning_kwargs(self, batch, target_lengths=None):
-        """Extract prefixes from selected references, retaining original targets."""
-        if self.reference_seconds is None:
-            return {"streams": self.system.conditioning_streams(batch, target_lengths)}
-        if batch.sample_rates is None or torch.any(batch.sample_rates != batch.sample_rates[0]):
-            raise ValueError("Reference conditioning requires a common source sample rate.")
-        sample_rate = int(batch.sample_rates[0])
-        max_samples = int(sample_rate * self.reference_seconds)
-        if max_samples < 1:
-            raise ValueError("reference_seconds must contain at least one sample.")
-        reference = self._paired_audio(batch, "reference_path", sample_rate, max_samples)
-        streams = self.system.conditioning_streams(reference)
-        if "mel" in self.decoder.stream_conditioning.dimensions:
-            mels, mel_lengths = self.decoder._compute_mels(reference.waveforms, reference.lengths, sample_rate)
-            prefix_lengths = self.decoder.stream_conditioning.sample_prefix_lengths(mel_lengths)
-            streams["mel"] = ConditioningStream(
-                mels.transpose(1, 2)[:, : int(prefix_lengths.max())], prefix_lengths, is_prefix=True
-            )
-        features, lengths, _ = self._encode_content(self.system.get_resource(reference, "content"))
-        return {"streams": streams, "prefix_content": (features, lengths)}
+    def phase_parameters(self):
+        return self.supervision.phase_parameters(self.system)
+
+    def execute_phases(self, batch):
+        # Share crop positions across phases, but rebuild the representation graph
+        # after optimizer toggling so trainable encoders receive generator gradients.
+        return super().execute_phases((batch, torch.rand(len(batch))))
+
+    def phase_step(self, batch, phase):
+        batch, positions = batch
+        loss = self._supervised_loss(batch, phase, positions=positions)
+        self.log(f"train/{phase}/loss", loss, on_step=True, on_epoch=True, batch_size=len(batch))
+        return SupervisionOutput(loss)
+
+    def _supervised_loss(self, batch, phase, *, positions=None):
+        content = self._content_resource(batch)
+        features, lengths, encoder_output = self._encode_content(content)
+        prepared = self.supervision.prepare_batch(self.system, batch, features, lengths, positions=positions)
+        loss = self.supervision.phase_loss(self.system, prepared, phase)
+        if phase == "generator" and encoder_output is not None:
+            loss = loss + encoder_output.loss.loss
+        return loss
 
     def _shared_step(
         self,
         batch: AudioBatch,
         stage: str,
     ) -> SSLReconstructionOutput:
+        if self.supervision is not None:
+            loss = self._supervised_loss(batch, "generator")
+            self.log(f"{stage}/loss", loss, on_epoch=True, batch_size=len(batch))
+            return SupervisionOutput(loss)
         content = self._content_resource(batch)
         speaker_embedding = self.system.speaker_condition(batch)
 
         features, lengths, encoder_output = self._encode_content(content)
 
-        decoder_output = self.decoder.compute_loss(
+        decoder_output = self.system.decoder.compute_loss(
             features=features,
             lengths=lengths,
             target_wav=batch.waveforms,
@@ -210,13 +206,15 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             sampling_rate=batch.sample_rates[0],
             speaker_embedding=speaker_embedding,
             **(
-                self._conditioning_kwargs(
+                training_reference_kwargs(
+                    self.system,
                     batch,
                     None
-                    if getattr(self.decoder, "content_encoder", None) is not None
-                    else self.decoder.flow.output_lengths(lengths),
+                    if getattr(self.system.decoder, "content_encoder", None) is not None
+                    else self.system.decoder.flow.output_lengths(lengths),
+                    reference_seconds=self.reference_seconds,
                 )
-                if getattr(self.decoder, "stream_conditioning", None) is not None
+                if getattr(self.system.decoder, "stream_conditioning", None) is not None
                 else {}
             ),
         )
@@ -298,62 +296,11 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
     def log_validation_output(self, batch, output, batch_idx):
         if batch_idx != 0:
             return
+        if self.supervision is not None:
+            return
 
-        stream_kwargs = {}
-        if getattr(self.decoder, "stream_conditioning", None) is not None:
-            stream_kwargs = self._conditioning_kwargs(
-                batch,
-                None
-                if getattr(self.decoder, "content_encoder", None) is not None
-                else self.decoder.flow.output_lengths(output.lengths),
-            )
-            streams = stream_kwargs["streams"]
-            if "mel" in self.decoder.stream_conditioning.dimensions and "mel" not in streams:
-                mels, mel_lengths = self.decoder._compute_mels(
-                    batch.waveforms, batch.lengths, sampling_rate=batch.sample_rates[0]
-                )
-                streams["mel"] = ConditioningStream(mels.transpose(1, 2), mel_lengths)
-            # Validation exercises prefix-only inference rather than leaking target streams.
-            prefixes = {}
-            for name, stream in streams.items():
-                if stream.is_prefix:
-                    prefixes[name] = stream
-                    continue
-                lengths = (stream.lengths // 5).clamp_min(1)
-                prefixes[name] = ConditioningStream(stream.values[:, : int(lengths.max())], lengths)
-            stream_kwargs["streams"] = prefixes
-        if getattr(self.decoder, "content_encoder", None) is not None:
-            target_lengths = self.decoder.mel_output_lengths(batch.lengths, int(batch.sample_rates[0]))
-            stream_kwargs["duration_ratio"] = target_lengths / self.decoder.flow.output_lengths(output.lengths)
-        generation = self.system.decode_features(
-            output.features,
-            output.lengths,
-            output.speaker_embedding,
-            run_vocoder=True,
-            **stream_kwargs,
-        )
-        if generation.audio is None:
-            raise RuntimeError("Decoder did not return audio when run_vocoder=True.")
-        original_mel, original_mel_lengths = self.decoder._compute_mels(
-            batch.waveforms, batch.lengths, sampling_rate=batch.sample_rates[0]
-        )
-        self.media_logger.log_reconstructed_audio(
-            key="val/reconstruction",
-            media=ReconstructedAudio(
-                original_audio=batch.waveforms,
-                reconstructed_audio=generation.audio.waveforms,
-                original_mel=original_mel,
-                reconstructed_mel=generation.mel,
-                original_audio_lengths=batch.lengths,
-                reconstructed_audio_lengths=generation.audio.lengths,
-                original_mel_lengths=original_mel_lengths,
-                reconstructed_mel_lengths=generation.mel_lengths,
-                original_sample_rate=batch.sample_rates[0],
-                reconstructed_sample_rate=generation.audio.sample_rate,
-                ids=batch.utt_ids,
-            ),
-            step=self.global_step,
-        )
+        media = cosyvoice_validation_media(self.system, batch, output, reference_seconds=self.reference_seconds)
+        self.media_logger.log_reconstructed_audio(key="val/reconstruction", media=media, step=self.global_step)
 
     @torch.inference_mode()
     def inference(self, batch: AudioBatch, run_vocoder: bool = True, to_file: PathLike | None = None):

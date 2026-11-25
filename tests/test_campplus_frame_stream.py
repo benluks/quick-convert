@@ -110,6 +110,7 @@ def test_system_samples_prefix_before_contextual_encoder_and_does_not_resample_i
     )
 
     class Decoder(nn.Module):
+        supports_reference_conditioning = True
         stream_conditioning = conditioning
         mel_config = SimpleNamespace(sample_rate=16000, hop_size=320)
         flow = SimpleNamespace(token_mel_ratio=1)

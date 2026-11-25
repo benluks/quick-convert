@@ -1,0 +1,60 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: lightning
+  - /optimization@trainer.module.optimization: gan
+  - /dataset@train_dataset: librispeech
+  - /dataset@val_dataset: librispeech
+  - _self_
+
+seed: 1234
+project_name: waveform_reconstruction
+exp_name: wavlm_l6_hifigan
+
+system:
+  _target_: quick_convert.systems.conversion.ssl_reconstruction.SSLReconstructionConversionSystem
+  online_encoders:
+    content:
+      _target_: quick_convert.components.encoders.content.wavlm.WavLMContentEncoder
+      layer: 6
+      device: ${device}
+  decoder:
+    _target_: quick_convert.components.generators.waveform.knnvc_hifigan.KnnVCHifiGanDecoder
+    device: ${device}
+    generator:
+      _target_: quick_convert.components.generators.waveform.knnvc_hifigan.Generator
+      h:
+        _target_: quick_convert.components.generators.waveform.knnvc_hifigan.KnnVCHifiGanConfig
+
+trainer:
+  module:
+    _convert_: object
+    _target_: quick_convert.training.lightning.modules.ssl_reconstruction.SSLReconstructionTrainingModule
+    system: ${system}
+    supervision:
+      _target_: quick_convert.components.losses.waveform_gan.WaveformGANObjective
+      discriminators:
+        - _target_: quick_convert.external.matcha.hifigan.models.MultiPeriodDiscriminator
+        - _target_: quick_convert.external.matcha.hifigan.models.MultiScaleDiscriminator
+      mel:
+        _target_: quick_convert.components.features.mel.torchaudio.TorchaudioLogMel
+      mel_weight: 45
+      crop_frames: 22
+  train_dataloader_kwargs:
+    batch_size: 16
+    num_workers: 4
+  val_dataloader_kwargs:
+    batch_size: 1
+    drop_last: false
+  trainer_kwargs:
+    max_epochs: 1800
+
+train_dataset:
+  splits: [train-clean-100]
+  load: [audio]
+  target_sr: 16000
+val_dataset:
+  splits: [dev-clean]
+  load: [audio]
+  target_sr: 16000

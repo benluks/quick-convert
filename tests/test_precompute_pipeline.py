@@ -170,8 +170,6 @@ def test_precompute_rejects_legacy_cache_and_duplicate_destinations(tmp_path):
 
 
 def test_cached_content_preserves_online_representation_contract(tmp_path):
-    from types import SimpleNamespace
-
     from quick_convert.components.encoders.content.base import ContentFeatures
     from quick_convert.components.layers import LayerWeightedSum
     from quick_convert.components.resources.content import ContentFeatureExtractor
@@ -196,7 +194,7 @@ def test_cached_content_preserves_online_representation_contract(tmp_path):
     dataset = make_dataset(tmp_path)
     encoder = Encoder()
     decoder = torch.nn.Identity()
-    decoder.flow = SimpleNamespace(input_frame_rate=25)
+    decoder.input_frame_rate = 25
     system = SSLReconstructionConversionSystem(
         decoder, feature_transform=LayerWeightedSum(2), online_encoders={"content": encoder}
     )
@@ -223,7 +221,7 @@ def test_cached_content_preserves_online_representation_contract(tmp_path):
         return system.encode_features(resource.values, resource.lengths, metadata=resource.metadata)[:2]
 
     torch.testing.assert_close(adapt(cached), adapt(online))
-    decoder.flow.input_frame_rate = 50
+    decoder.input_frame_rate = 50
     for resource in (online, cached):
         with pytest.raises(ValueError, match="frame rate"):
             adapt(resource)
