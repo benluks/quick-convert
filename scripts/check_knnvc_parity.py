@@ -37,8 +37,8 @@ def main():
     upstream = torch.hub.load(
         "bshall/knn-vc", "knn_vc", prematched=True, trust_repo=True, pretrained=True, device=args.device
     ).eval()
-    query = upstream.get_features(args.source)
-    pool = upstream.get_matching_set(args.reference, vad_trigger_level=0).to(query.device)
+    query = upstream.get_features(str(args.source))
+    pool = upstream.get_matching_set([str(path) for path in args.reference], vad_trigger_level=0).to(query.device)
     # Reproduce upstream's actual distance arithmetic, not just its mathematical equivalent.
     from matcher import fast_cosine_dist
 
