@@ -286,12 +286,19 @@ class BaseDataset(Dataset):
                 options["max_batch_cost"] = budget
             batch_sampler = LengthAwareBatchSampler(
                 resolve_durations(self.rows, cache_path=cache_path),
-                batch_size, shuffle=shuffle, drop_last=drop_last, **options,
+                batch_size,
+                shuffle=shuffle,
+                drop_last=drop_last,
+                **options,
             )
         if batch_sampler is not None:
             return DataLoader(
-                self, batch_sampler=batch_sampler, num_workers=num_workers,
-                pin_memory=pin_memory, collate_fn=self.collate_fn, **kwargs,
+                self,
+                batch_sampler=batch_sampler,
+                num_workers=num_workers,
+                pin_memory=pin_memory,
+                collate_fn=self.collate_fn,
+                **kwargs,
             )
         return DataLoader(
             self,
