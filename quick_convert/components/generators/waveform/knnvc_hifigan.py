@@ -163,8 +163,15 @@ class KnnVCHifiGanDecoder(BaseDecoder):
         return self.sample_rate / self.hop_size
 
     def generate(
-        self, features, lengths, speaker_embedding=None, *, run_vocoder=True,
-        duration_ratio=1.0, streams=None, prefix_content=None,
+        self,
+        features,
+        lengths,
+        speaker_embedding=None,
+        *,
+        run_vocoder=True,
+        duration_ratio=1.0,
+        streams=None,
+        prefix_content=None,
     ):
         if (
             speaker_embedding is not None
