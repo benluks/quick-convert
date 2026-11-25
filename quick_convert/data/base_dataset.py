@@ -12,7 +12,7 @@ from quick_convert.utils.paths import TemplateFormatter
 
 from ..utils.audio import get_supported_formats
 from .resources import BaseResourceProvider, ResourceCollection, ResourceRef, load_resource
-from .sampling import SamplingPolicy
+from .sampling import DistributedBatchSampler, SamplingPolicy
 from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 
 
@@ -267,6 +267,7 @@ class BaseDataset(Dataset):
         drop_last: bool = False,
         batch_sampler=None,
         sampling: SamplingPolicy | None = None,
+        distributed: tuple[int, int] | None = None,
         **kwargs,
     ) -> DataLoader:
         """Build a PyTorch dataloader using this dataset's collation contract."""
@@ -274,6 +275,17 @@ class BaseDataset(Dataset):
             if batch_sampler is not None or kwargs.get("sampler") is not None:
                 raise ValueError("sampling cannot be combined with another sampler.")
             batch_sampler = sampling.build(self, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last)
+        if distributed is not None:
+            rank, world_size = distributed
+            if batch_sampler is not None:
+                batch_sampler = DistributedBatchSampler(batch_sampler, rank=rank, world_size=world_size)
+            else:
+                if kwargs.get("sampler") is not None:
+                    raise ValueError("Cannot automatically shard an explicit sampler.")
+                from torch.utils.data import DistributedSampler
+
+                kwargs["sampler"] = DistributedSampler(self, num_replicas=world_size, rank=rank, shuffle=shuffle)
+                shuffle = False
         if batch_sampler is not None:
             return DataLoader(
                 self,
