@@ -1,3 +1,4 @@
+_convert_: object
 discriminator:
   _target_: quick_convert.training.lightning.optim.Optimization
   optimizer:
