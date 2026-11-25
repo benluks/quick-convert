@@ -149,8 +149,13 @@ Omit max_batch_seconds for fixed-size batches. The budget bounds the
 number of examples times the longest audio duration in each batch.
 Alternatively, max_batch_cost with cost_power: 2 bounds squared duration
 cost. Durations are estimated from audio headers and segment boundaries,
-not decoded audio or resource lengths. Fixed waveform padding and
-distributed training are not supported with this option yet.
+not decoded audio or resource lengths. Fixed waveform padding is not supported. Under Lightning distributed training,
+whole batches are assigned round-robin to ranks. The final schedule repeats
+batches when necessary to give every rank equal steps. All ranks must build
+the same deterministic global schedule. Batch size and cost budgets are per rank.
+Ordinary loaders paired with a custom policy use PyTorch DistributedSampler.
+Dynamic batch counts may vary between epochs; scheduler step estimates and
+sample-weighted loss aggregation require care.
 
 For metadata-only comparisons, use resolve_durations from
 quick_convert.data.durations and batching_statistics from
