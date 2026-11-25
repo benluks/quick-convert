@@ -4,6 +4,8 @@ from collections.abc import Mapping
 
 
 _TARGETS = {
+    "quick_convert.components.decoders.CosyVoiceSpectrogramGenerator": "quick_convert.components.generators.acoustic.cosyvoice.CosyVoiceSpectrogramGenerator",
+    "quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusSpeakerEncoder": "quick_convert.components.encoders.speaker.cosyvoice_campplus.CosyVoiceCAMPPlusSpeakerEncoder",
     "quick_convert.components.ssl.W2VBertContentEncoder": "quick_convert.components.encoders.content.W2VBertContentEncoder",
     "quick_convert.pipelines.training.lightning_trainer.LightningTrainer": "quick_convert.training.lightning.trainer.LightningTrainer",
     "quick_convert.pipelines.training.sentencepiece_trainer.TokenizerTrainer": "quick_convert.training.tokenizer.TokenizerTrainer",
