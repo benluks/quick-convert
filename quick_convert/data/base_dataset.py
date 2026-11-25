@@ -12,6 +12,7 @@ from quick_convert.utils.paths import TemplateFormatter
 
 from ..utils.audio import get_supported_formats
 from .resources import BaseResourceProvider, ResourceCollection, ResourceRef, load_resource
+from .sampling import SamplingPolicy
 from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 
 
@@ -265,32 +266,14 @@ class BaseDataset(Dataset):
         pin_memory: bool = False,
         drop_last: bool = False,
         batch_sampler=None,
-        length_aware: dict | None = None,
+        sampling: SamplingPolicy | None = None,
         **kwargs,
     ) -> DataLoader:
         """Build a PyTorch dataloader using this dataset's collation contract."""
-        if length_aware is not None:
-            from .durations import resolve_durations
-            from .sampling import LengthAwareBatchSampler
-
+        if sampling is not None:
             if batch_sampler is not None or kwargs.get("sampler") is not None:
-                raise ValueError("length_aware cannot be combined with another sampler.")
-            if self.max_length is not None:
-                raise ValueError("length_aware requires variable-length collation.")
-            options = dict(length_aware)
-            cache_path = options.pop("duration_cache", None)
-            budget = options.pop("max_batch_seconds", None)
-            if budget is not None:
-                if options.get("cost_power", 1) != 1 or "max_batch_cost" in options:
-                    raise ValueError("max_batch_seconds requires linear cost and no other budget.")
-                options["max_batch_cost"] = budget
-            batch_sampler = LengthAwareBatchSampler(
-                resolve_durations(self.rows, cache_path=cache_path),
-                batch_size,
-                shuffle=shuffle,
-                drop_last=drop_last,
-                **options,
-            )
+                raise ValueError("sampling cannot be combined with another sampler.")
+            batch_sampler = sampling.build(self, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last)
         if batch_sampler is not None:
             return DataLoader(
                 self,
