@@ -7,6 +7,7 @@ from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import torch
 from tqdm import tqdm
 
 from quick_convert.data import AudioBatch, BaseDataset
@@ -251,6 +252,8 @@ class SpeechConversionPipeline:
         }
 
     def run(self) -> Path:
+        if isinstance(self.system, torch.nn.Module):
+            self.system.eval()
         logger.info(
             "Starting speech conversion: output=%s, batch_size=%d, workers=%d",
             self.out_dir,
