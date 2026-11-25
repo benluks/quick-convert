@@ -82,6 +82,7 @@ targets:
   quick_convert.components.encoders.content.W2VBertContentEncoder: [transformers]
   quick_convert.components.encoders.content.VoiceFMContentEncoder: [voicefm]
   quick_convert.components.encoders.content.WavLMContentEncoder: [transformers]
+  quick_convert.components.encoders.content.wavlm.WavLMContentEncoder: [transformers]
   quick_convert.pipelines.evaluation.metrics.JiwerWER: [wer]
   quick_convert.systems.asr.WhisperASR: [whisper]
   quick_convert.systems.ser.odyssey_ser.OdysseySER: [transformers]

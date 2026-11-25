@@ -8,6 +8,7 @@ import torch
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 
+from quick_convert.components.encoders.content._wavlm_checkpoint import load_microsoft_wavlm_large
 from quick_convert.components.encoders.content.base import ContentEncoder, ContentFeatures
 from quick_convert.data.types import AudioBatch
 from quick_convert.utils.audio import load_audio
@@ -27,14 +28,12 @@ class WavLMContentEncoder(ContentEncoder):
         downsample_factor: int = 0,
         max_length: int | None = None,
         do_normalize: bool = False,
-        backend: str = "transformers",
+        use_original_checkpoint: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(device=device)
 
-        if backend not in ("transformers", "original"):
-            raise ValueError(f"Unknown WavLM backend: {backend!r}.")
-        self.backend = backend
+        self.use_original_checkpoint = use_original_checkpoint
         self.model_name = model_name
         self._sample_rate = sample_rate
         self.layer = layer
@@ -45,29 +44,23 @@ class WavLMContentEncoder(ContentEncoder):
         if downsample_factor > 1 and layer is not None:
             raise ValueError("Layer-dimension downsampling requires all layers to be preserved. Set `layer=None`.")
 
-        if backend == "original":
-            if layer is None or not 1 <= layer <= 24:
-                raise ValueError("Original WavLM requires a layer from 1 to 24.")
-            if model_name != "microsoft/wavlm-large" or sample_rate != 16000:
-                raise ValueError("Original WavLM supports only WavLM-Large at 16000 Hz.")
-            if do_normalize or local_files_only or kwargs:
-                raise ValueError("Original WavLM does not support Transformers loading or normalization options.")
-            self.model_name = "WavLM-Large"
-            self.model = torch.hub.load(
-                "bshall/knn-vc", "wavlm_large", trust_repo=True, device=str(self.device)
-            ).eval()
-            return
+        if use_original_checkpoint and (model_name != "microsoft/wavlm-large" or sample_rate != 16000):
+            raise ValueError("The original checkpoint requires microsoft/wavlm-large at 16000 Hz.")
 
         from transformers import AutoFeatureExtractor, AutoModel
 
         self.processor = AutoFeatureExtractor.from_pretrained(
             model_name, local_files_only=local_files_only, do_normalize=do_normalize
         )
-        self.model = AutoModel.from_pretrained(
-            model_name,
-            local_files_only=local_files_only,
-            **kwargs,
-        ).to(self.device)
+        if use_original_checkpoint:
+            from transformers import AutoConfig
+
+            config = AutoConfig.from_pretrained(model_name, local_files_only=local_files_only)
+            model = AutoModel.from_config(config, **kwargs)
+            load_microsoft_wavlm_large(model, local_files_only=local_files_only)
+        else:
+            model = AutoModel.from_pretrained(model_name, local_files_only=local_files_only, **kwargs)
+        self.model = model.to(self.device)
         self.model.eval()
 
     @property
@@ -76,8 +69,6 @@ class WavLMContentEncoder(ContentEncoder):
 
     @property
     def frame_hz(self) -> float:
-        if self.backend == "original":
-            return 50.0
         return self.sample_rate / math.prod(self.model.config.conv_stride)
 
     def encode_file(self, path: PathLike) -> ContentFeatures:
@@ -185,29 +176,28 @@ class WavLMContentEncoder(ContentEncoder):
                 f"{int(lengths.max())}."
             )
 
-        if self.backend == "original":
-            device = next(self.model.parameters()).device
-            features = [
-                self.model.extract_features(waveform[None, :length].to(device), output_layer=self.layer)[0][0]
-                for waveform, length in zip(waveforms, lengths.tolist(), strict=True)
-            ]
-            selected = pad_sequence(features, batch_first=True)
-            output_lengths = torch.tensor([feature.shape[0] for feature in features], device=selected.device)
-            return self._finish_features(selected, output_lengths, max_length)
+        waveform_list = [
+            waveform[:length].detach().cpu().numpy()
+            for waveform, length in zip(waveforms, lengths.tolist(), strict=True)
+        ]
+        if self.use_original_checkpoint:
+            # kNN-VC extracts each utterance independently, without batch padding.
+            selected = pad_sequence(
+                [self._encode_inputs([waveform], input_sample_rate)[0] for waveform in waveform_list],
+                batch_first=True,
+            )
+        else:
+            selected = self._encode_inputs(waveform_list, input_sample_rate)
+        return self._finish_features(selected, self.output_lengths(lengths).to(selected.device), max_length)
 
-        # Hugging Face's audio processor accepts unpadded individual
-        # waveforms, then pads them and constructs the sample-level mask.
-        waveform_list = [waveforms[i, : int(lengths[i])].detach().cpu().numpy() for i in range(batch_size)]
-
+    def _encode_inputs(self, waveform_list, input_sample_rate):
         inputs = self.processor(
             waveform_list,
             sampling_rate=input_sample_rate,
             return_tensors="pt",
             padding=True,
-            return_attention_mask=True,
+            return_attention_mask=not self.use_original_checkpoint,
         ).to(self.device)
-
-        # inputs = {name: value.to(self.device) for name, value in inputs.items()}
 
         outputs = self.model(
             **inputs,
@@ -236,10 +226,7 @@ class WavLMContentEncoder(ContentEncoder):
                     f"indices are 0 through {len(hidden_states) - 1}."
                 ) from error
 
-        output_lengths = self.output_lengths(lengths)
-        output_lengths = output_lengths.to(selected.device)
-
-        return self._finish_features(selected, output_lengths, max_length)
+        return selected
 
     def _finish_features(self, selected, output_lengths, max_length):
         effective_max_length = max_length or self.max_length
@@ -262,8 +249,8 @@ class WavLMContentEncoder(ContentEncoder):
             feature_dim=selected.shape[-1],
             representation_type="continuous",
             temporal_granularity="frame",
-            backend="original_wavlm" if self.backend == "original" else "transformers",
-            model_name=self.model_name,
+            backend="transformers",
+            model_name=f"{self.model_name}:original" if self.use_original_checkpoint else self.model_name,
             layer=self.layer,
             frame_hz=self.frame_hz,
         )
@@ -282,11 +269,9 @@ class WavLMContentEncoder(ContentEncoder):
         """
         output_lengths = input_lengths.clone()
 
-        kernels = (10, 3, 3, 3, 3, 2, 2) if self.backend == "original" else self.model.config.conv_kernel
-        strides = (5, 2, 2, 2, 2, 2, 2) if self.backend == "original" else self.model.config.conv_stride
         for kernel_size, stride in zip(
-            kernels,
-            strides,
+            self.model.config.conv_kernel,
+            self.model.config.conv_stride,
             strict=True,
         ):
             output_lengths = (

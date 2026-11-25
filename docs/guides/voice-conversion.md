@@ -107,19 +107,23 @@ the configuration interface; full pretrained execution is environment-dependent.
 To use the modular pretrained system with LibriSpeech, run:
 
 ```bash
-uv run quick-convert convert_knnvc_modular_librispeech \
+uv run --extra transformers quick-convert convert_knnvc_modular_librispeech \
   root=/data/LibriSpeech source_split=test-clean source_speaker=1089 \
   target_speaker=1069
 ```
 
-This preset composes the original WavLM-Large layer 6 extractor, cosine top-4
-matching, mean aggregation, and the published prematched HiFi-GAN. It uses
+This preset composes Transformers WavLM-Large layer 6, cosine top-4
+matching, mean aggregation, and the published prematched HiFi-GAN.
+It uses Microsoft's original WavLM-Large checkpoint because the weights
+published in the Transformers model repository yield different features.
+The checkpoint downloads from the link in Microsoft's WavLM README and is
+cached by Torch Hub. It uses
 raw reference audio and returns the decoder waveform without loudness
 normalization. The upstream matcher defaults to reference VAD and output
 loudness normalization, so the parity script disables both in the upstream call.
 
 ```bash
-uv run python scripts/check_knnvc_parity.py source.flac reference.flac --device cpu
+uv run --extra transformers python scripts/check_knnvc_parity.py source.flac reference.flac --device cpu
 ```
 
 The script writes the stage comparisons and both waveforms to

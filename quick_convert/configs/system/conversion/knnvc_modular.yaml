@@ -2,7 +2,7 @@ _target_: quick_convert.systems.conversion.ssl_reconstruction.SSLReconstructionC
 online_encoders:
   content:
     _target_: quick_convert.components.encoders.content.wavlm.WavLMContentEncoder
-    backend: original
+    use_original_checkpoint: true
     layer: 6
     device: ${device}
 decoder:

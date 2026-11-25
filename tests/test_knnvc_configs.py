@@ -109,7 +109,7 @@ def test_modular_knnvc_librispeech_composes_pretrained_conversion():
     assert cfg.dataset.load == ["audio"]
     assert cfg.pipeline.metadata.system == "knnvc_modular"
     assert cfg.system.online_encoders.content._target_.endswith(".WavLMContentEncoder")
-    assert cfg.system.online_encoders.content.backend == "original"
+    assert cfg.system.online_encoders.content.use_original_checkpoint is True
     assert cfg.system.online_encoders.content.layer == 6
     assert cfg.system.decoder._target_.endswith(".KnnVCHifiGanDecoder.from_pretrained")
     assert cfg.system.reference_conditioning._target_.endswith(".NearestNeighbourReferenceConditioning")

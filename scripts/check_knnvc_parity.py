@@ -60,7 +60,7 @@ def main():
     decoder = KnnVCHifiGanDecoder.from_pretrained(device=args.device).eval()
     report["decoder_same_input"] = compare(upstream.vocode(matched[None]), decoder(matched[None]))
     del upstream
-    encoder = WavLMContentEncoder(backend="original", layer=6, device=args.device)
+    encoder = WavLMContentEncoder(use_original_checkpoint=True, layer=6, device=args.device)
     system = SSLReconstructionConversionSystem(
         decoder=decoder,
         online_encoders={"content": encoder},
