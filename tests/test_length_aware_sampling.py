@@ -86,3 +86,46 @@ def test_lightning_advances_batch_sampler_epoch():
         assert model.seen[epoch] == list(sampler)
     assert model.seen[0] != model.seen[1]
     assert model.seen[1] != model.seen[2]
+
+
+def test_composable_sampling_policy(tmp_path):
+    import soundfile as sf
+    import torch
+    from hydra.utils import instantiate
+
+    from quick_convert.data import BaseDataset
+
+    paths = []
+    for i in range(4):
+        path = tmp_path / f"{i}.wav"
+        sf.write(path, torch.zeros(1600 * (i + 1)).numpy(), 16000)
+        paths.append(path)
+    dataset = BaseDataset(paths=paths, utt_id_template="{path.stem}")
+    policy = instantiate(
+        {
+            "_target_": "quick_convert.data.sampling.LengthAwareSampling",
+            "pool_size": 4,
+            "max_batch_seconds": 1.0,
+        }
+    )
+    loader = dataset.make_dataloader(batch_size=2, sampling=policy)
+    assert isinstance(loader.batch_sampler, LengthAwareBatchSampler)
+    assert sorted(i for batch in loader.batch_sampler for i in batch) == list(range(4))
+    assert all(len(batch) <= 2 for batch in loader.batch_sampler)
+    with pytest.raises(ValueError, match="another sampler"):
+        dataset.make_dataloader(sampling=policy, batch_sampler=loader.batch_sampler)
+
+
+def test_dataset_accepts_independent_sampling_policy():
+    from quick_convert.data import BaseDataset
+
+    class ReverseSampling:
+        def build(self, dataset, *, batch_size, shuffle, drop_last):
+            assert batch_size == 2
+            assert not shuffle
+            assert not drop_last
+            return [[1, 0]]
+
+    dataset = BaseDataset(rows=[])
+    loader = dataset.make_dataloader(batch_size=2, sampling=ReverseSampling())
+    assert list(loader.batch_sampler) == [[1, 0]]
