@@ -133,12 +133,17 @@ trainer:
   train_dataloader_kwargs:
     batch_size: 64
     shuffle: true
-    length_aware:
+    sampling:
+      _target_: quick_convert.data.sampling.LengthAwareSampling
       pool_size: 1024
       max_batch_seconds: 128
       duration_cache: /scratch/audio-durations.json
       seed: 42
 ```
+
+Sampling policies implement `build(dataset, *, batch_size, shuffle, drop_last)`.
+They construct index batch samplers; the dataset loader owns collation and
+worker configuration. In Python, pass a policy instance as `sampling`.
 
 Omit max_batch_seconds for fixed-size batches. The budget bounds the
 number of examples times the longest audio duration in each batch.
