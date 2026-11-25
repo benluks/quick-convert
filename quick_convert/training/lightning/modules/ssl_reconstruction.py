@@ -178,9 +178,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
     def _supervised_loss(self, batch, phase, *, positions=None):
         content = self._content_resource(batch)
         features, lengths, encoder_output = self._encode_content(content)
-        prepared = self.supervision.prepare_batch(
-            self.system, batch, features, lengths, positions=positions
-        )
+        prepared = self.supervision.prepare_batch(self.system, batch, features, lengths, positions=positions)
         loss = self.supervision.phase_loss(self.system, prepared, phase)
         if phase == "generator" and encoder_output is not None:
             loss = loss + encoder_output.loss.loss
