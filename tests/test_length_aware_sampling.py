@@ -129,3 +129,28 @@ def test_dataset_accepts_independent_sampling_policy():
     dataset = BaseDataset(rows=[])
     loader = dataset.make_dataloader(batch_size=2, sampling=ReverseSampling())
     assert list(loader.batch_sampler) == [[1, 0]]
+
+
+@pytest.mark.parametrize("extension", ["wav", "flac"])
+def test_duration_metadata_without_ffprobe(tmp_path, monkeypatch, extension):
+    import soundfile as sf
+    import torch
+
+    from quick_convert.data import durations
+
+    def unexpected_probe(path):
+        pytest.fail(f"Unexpected ffprobe call for {path}")
+
+    monkeypatch.setattr(durations, "probe_audio_duration", unexpected_probe)
+    path = tmp_path / f"audio.{extension}"
+    sf.write(path, torch.zeros(4000).numpy(), 16000)
+    assert durations.read_audio_duration(path) == pytest.approx(0.25)
+
+
+def test_duration_metadata_fallback(tmp_path, monkeypatch):
+    from quick_convert.data import durations
+
+    path = tmp_path / "audio.mp4"
+    path.touch()
+    monkeypatch.setattr(durations, "probe_audio_duration", lambda p: 2.5)
+    assert durations.read_audio_duration(path) == 2.5
