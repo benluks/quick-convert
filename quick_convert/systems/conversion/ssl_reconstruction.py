@@ -12,7 +12,8 @@ import torch
 import torchaudio
 from torch import nn
 
-from quick_convert.components.conditioning.cosyvoice_reconstruction import CosyVoiceReconstruction
+from quick_convert.components.conditioning.cosyvoice_reference import CosyVoiceReferenceConditioning
+from quick_convert.systems.conversion.targets import PreparedTarget, SourceVoice
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.resources.resolution import OnlineResourceMixin
 from quick_convert.data import AudioBatch
@@ -44,13 +45,15 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
         online_encoders: dict[str, nn.Module] | None = None,
         trainable_online_encoders: tuple[str, ...] = (),
         encoder: BaseResidualVectorQuantizer | None = None,
-        reconstruction=None,
+        reference_conditioning=None,
     ) -> None:
         super().__init__()
         self._target_space = str(uuid4())
         self.encoder = encoder
         self.decoder = decoder
-        self.reconstruction = reconstruction if reconstruction is not None else CosyVoiceReconstruction()
+        self.reference_conditioning = reference_conditioning
+        if reference_conditioning is None and not callable(getattr(decoder, 'generate', None)):
+            self.reference_conditioning = CosyVoiceReferenceConditioning()
         self.feature_transform = feature_transform or nn.Identity()
         self.configure_online_encoders(
             {name: encoder for name, encoder in (online_encoders or {}).items() if encoder is not None},
@@ -75,26 +78,63 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
         )
 
     def prepare_target(self, target):
-        return self.reconstruction.prepare_target(self, target)
+        if self.training:
+            raise RuntimeError("Call eval() before preparing targets.")
+        if isinstance(target, SourceVoice):
+            return PreparedTarget(None, self.target_space, "ssl-source-v1")
+        if isinstance(target, PreparedTarget) and target.representation == "ssl-source-v1":
+            if target.space != self.target_space or target.conditioning is not None:
+                raise ValueError("Invalid prepared source target.")
+            return target
+        if self.reference_conditioning is None:
+            raise ValueError("Decoder has no reference conditioning configured.")
+        return self.reference_conditioning.prepare_target(self, target)
 
+    @torch.inference_mode()
     def convert_batch(self, batch, *, target, **kwargs):
-        return self.reconstruction.convert_batch(self, batch, target=target, **kwargs)
+        target = self.prepare_target(target)
+        if target.representation == "ssl-source-v1":
+            if any(value is not None for value in kwargs.values()):
+                raise ValueError("SourceVoice does not accept inference overrides.")
+            return self(batch).generation.audio
+        return self.reference_conditioning.convert_batch(self, batch, target=target, **kwargs)
 
-    def decode_features(self, features, lengths, speaker_embedding=None, **kwargs):
-        return self.reconstruction.decode_features(self, features, lengths, speaker_embedding, **kwargs)
+    def decode_features(self, features, lengths, speaker_embedding=None, *, run_vocoder=True,
+                        duration_ratio=1.0, streams=None, prefix_content=None):
+        generate = getattr(self.decoder, "generate", None)
+        if callable(generate):
+            if speaker_embedding is not None or not run_vocoder or streams or prefix_content is not None or torch.any(torch.as_tensor(duration_ratio) != 1):
+                raise ValueError("Direct waveform generation does not support these decoding options.")
+            return generate(features, lengths)
+        duration_control = getattr(self.decoder, "content_encoder", None) is not None
+        if not duration_control and torch.any(torch.as_tensor(duration_ratio) != 1):
+            raise ValueError("duration_ratio requires a duration-controlled content encoder.")
+        return self.decoder(
+            feature=features, length=lengths, speaker_embedding=speaker_embedding,
+            run_vocoder=run_vocoder,
+            **({"duration_ratio": duration_ratio} if duration_control else {}),
+            **({"streams": streams} if streams is not None else {}),
+            **({"prefix_content": prefix_content} if prefix_content is not None else {}),
+        )
 
     def speaker_condition(self, batch):
-        return self.reconstruction.speaker_condition(self, batch)
+        if not getattr(self.decoder, "requires_speaker_embedding", True):
+            return None
+        return self.get_resource(batch, "speaker").values
 
     def conditioning_streams(self, batch, target_lengths=None):
-        return self.reconstruction.conditioning_streams(self, batch, target_lengths)
+        if self.reference_conditioning is None:
+            return {}
+        return self.reference_conditioning.conditioning_streams(self, batch, target_lengths)
 
     def train(self, mode: bool = True):
         super().train(mode)
         for name, encoder in self.online_encoders.items():
             if name not in self.trainable_online_encoders:
                 encoder.eval()
-        self.reconstruction.set_mode(self, mode)
+        vocoder = getattr(self.decoder, "vocoder", None)
+        if vocoder is not None and not any(p.requires_grad for p in vocoder.parameters()):
+            vocoder.eval()
         return self
 
     def encode_features(
@@ -106,7 +146,7 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
     ) -> tuple[torch.Tensor, torch.Tensor, RVQOutput | None]:
         """Adapt continuous content to decoder features, optionally checking source metadata."""
         rate = content_frame_rate(metadata, self.feature_transform, self.encoder)
-        expected_rate = self.reconstruction.input_frame_rate(self)
+        expected_rate = getattr(self.decoder, "input_frame_rate", getattr(getattr(self.decoder, "flow", None), "input_frame_rate", None))
         if rate is not None and expected_rate is not None and not math.isclose(rate, expected_rate, rel_tol=1e-6):
             raise ValueError(
                 f"Adapted content frame rate {rate} differs from decoder input frame rate {expected_rate}."
@@ -192,7 +232,7 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
         content_sample_rate = getattr(content_encoder, "sample_rate", None)
         if content_sample_rate is None:
             raise ValueError("Content encoder must declare its input sample rate.")
-        if self.reconstruction.requires_speaker(self):
+        if getattr(self.decoder, "requires_speaker_embedding", True):
             if "speaker" not in self.online_encoders:
                 raise RuntimeError("Audio reconstruction requires a `speaker` online encoder.")
             speaker_sample_rate = getattr(self.online_encoders["speaker"], "sample_rate", None)
