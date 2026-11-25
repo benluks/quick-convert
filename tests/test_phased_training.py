@@ -22,7 +22,9 @@ class Output:
 class ToyGAN(BaseTrainingModule):
     def __init__(self, optimization=None):
         super().__init__(
-            optimization=optimization if optimization is not None else {
+            optimization=optimization
+            if optimization is not None
+            else {
                 name: Optimization(
                     optimizer=torch.optim.SGD,
                     optimizer_kwargs={"lr": 0.1},
@@ -95,11 +97,13 @@ def test_hydra_gan_recipe_instantiates_phased_optimizers():
     configs = Path(__file__).resolve().parents[1] / "quick_convert/configs"
     recipe = OmegaConf.load(configs / "run/train_waveform_knnvc_librispeech.yaml")
     module = recipe.trainer.module
-    config = OmegaConf.create({
-        "_target_": f"{ToyGAN.__module__}.ToyGAN",
-        "_convert_": module.get("_convert_", "none"),
-        "optimization": OmegaConf.load(configs / "optimization/gan.yaml"),
-    })
+    config = OmegaConf.create(
+        {
+            "_target_": f"{ToyGAN.__module__}.ToyGAN",
+            "_convert_": module.get("_convert_", "none"),
+            "optimization": OmegaConf.load(configs / "optimization/gan.yaml"),
+        }
+    )
     model = instantiate(config)
     assert model.phase_names == ("discriminator", "generator")
     assert all(isinstance(value, Optimization) for value in model.optimization.values())
