@@ -96,8 +96,7 @@ class LengthAwareBatchSampler(torch.utils.data.Sampler):
         for idx in ordered:
             length = self.lengths[idx]
             exceeds_budget = any(
-                (len(batch) + 1) * max(longest, length) ** power > budget
-                for power, budget in self.budgets.items()
+                (len(batch) + 1) * max(longest, length) ** power > budget for power, budget in self.budgets.items()
             )
             if batch and (len(batch) == self.batch_size or exceeds_budget):
                 batches.append(batch)
