@@ -20,7 +20,12 @@ class Policy:
 
     def build(self, dataset, *, batch_size, shuffle, drop_last):
         return LengthAwareBatchSampler(
-            LENGTHS, batch_size, pool_size=8, seed=42, shuffle=shuffle, drop_last=drop_last,
+            LENGTHS,
+            batch_size,
+            pool_size=8,
+            seed=42,
+            shuffle=shuffle,
+            drop_last=drop_last,
             max_batch_cost=self.budget,
         )
 
