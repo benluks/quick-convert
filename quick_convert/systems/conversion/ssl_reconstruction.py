@@ -13,12 +13,12 @@ import torchaudio
 from torch import nn
 
 from quick_convert.components.conditioning.cosyvoice_reference import CosyVoiceReferenceConditioning
-from quick_convert.systems.conversion.targets import PreparedTarget, SourceVoice
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.resources.resolution import OnlineResourceMixin
 from quick_convert.data import AudioBatch
 from quick_convert.systems._content import content_frame_rate, quantize_content, transform_content
 from quick_convert.systems.base import InferenceSystem
+from quick_convert.systems.conversion.targets import PreparedTarget, SourceVoice
 from quick_convert.types import AudioInput
 from quick_convert.utils.audio import load_audio_input
 
