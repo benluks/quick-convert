@@ -62,6 +62,11 @@ class LengthAwareBatchSampler(torch.utils.data.Sampler):
         self.seed = seed
         self.epoch = 0
 
+    @property
+    def sampler(self):
+        """Expose the epoch-aware sampler through the BatchSampler protocol."""
+        return self
+
     def set_epoch(self, epoch):
         self.epoch = epoch
 
