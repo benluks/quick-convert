@@ -48,4 +48,4 @@ jobs:
       - name: Verify Lightning sampler lifecycle
         run: |
           uv run --no-sync python -c "import lightning.pytorch"
-          uv run --no-sync pytest tests/test_length_aware_sampling.py -k lightning
+          uv run --no-sync pytest tests/test_length_aware_sampling.py tests/test_training_throughput.py -k lightning
