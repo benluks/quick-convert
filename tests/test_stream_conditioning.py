@@ -526,7 +526,7 @@ def test_named_reference_conversion_keeps_reference_content_in_both_guidance_bra
     # while exercising real reference and source content extraction.
     monkeypatch.setattr(system, "speaker_condition", lambda batch: torch.ones(len(batch), 2))
     monkeypatch.setattr(
-        "quick_convert.systems.conversion.ssl_reconstruction.load_audio_input",
+        "quick_convert.components.conditioning.cosyvoice_reference.load_audio_input",
         lambda *args, **kwargs: torch.full((1, 640), 7.0),
     )
     target = system.prepare_target(ReferenceSpeech([tmp_path / "ref.wav"], prompt_seconds=0.04))
