@@ -45,3 +45,38 @@ def test_duration_cache(tmp_path):
     assert resolve_durations(rows, cache_path=cache, duration_reader=reader) == [10, 3]
     assert resolve_durations(rows, cache_path=cache, duration_reader=reader) == [10, 3]
     assert len(calls) == 1
+
+
+def test_lightning_advances_batch_sampler_epoch():
+    lightning = pytest.importorskip("lightning.pytorch")
+    import torch
+    from torch.utils.data import DataLoader
+
+    lengths = list(range(1, 65))
+    sampler = LengthAwareBatchSampler(lengths, 4, pool_size=16, seed=42)
+
+    class Model(lightning.LightningModule):
+        def __init__(self):
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.ones(()))
+            self.seen = {}
+
+        def training_step(self, batch, batch_idx):
+            self.seen.setdefault(self.current_epoch, []).append(batch.tolist())
+            return self.weight.square()
+
+        def configure_optimizers(self):
+            return torch.optim.SGD(self.parameters(), lr=0.01)
+
+    model = Model()
+    trainer = lightning.Trainer(
+        accelerator="cpu", devices=1, max_epochs=3, logger=False,
+        enable_checkpointing=False, enable_progress_bar=False,
+        enable_model_summary=False, use_distributed_sampler=False,
+    )
+    trainer.fit(model, train_dataloaders=DataLoader(list(range(64)), batch_sampler=sampler))
+    for epoch in range(3):
+        sampler.set_epoch(epoch)
+        assert model.seen[epoch] == list(sampler)
+    assert model.seen[0] != model.seen[1]
+    assert model.seen[1] != model.seen[2]
