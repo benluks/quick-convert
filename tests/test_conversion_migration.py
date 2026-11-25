@@ -130,3 +130,11 @@ def test_historical_training_yaml_migrates_nested_targets():
     assert migrated.tokenizer_trainer.tokenizer._target_ == (
         "quick_convert.training.tokenizers.sentencepiece.SentencePieceBPETrainer"
     )
+
+
+def test_historical_w2vbert_target_migrates():
+    config = {"online_encoders": {"content": {"_target_": "quick_convert.components.ssl.W2VBertContentEncoder"}}}
+    migrated = migrate_system_config(config)
+    assert migrated["online_encoders"]["content"]["_target_"] == (
+        "quick_convert.components.encoders.content.W2VBertContentEncoder"
+    )
