@@ -6,11 +6,13 @@ import hashlib
 import json
 from os import PathLike
 from pathlib import Path
+from types import SimpleNamespace
 
 import torch
 from tqdm import tqdm
 
 from quick_convert.data import BaseDataset
+from quick_convert.data.sampling import SamplingPolicy
 from quick_convert.pipelines.provenance import execution_metadata, resolved_config
 from quick_convert.utils.atomic_files import atomic_file
 
@@ -25,6 +27,9 @@ class PrecomputeFeaturesPipeline:
         batch_size: int = 1,
         num_workers: int = 0,
         cache_key: str | None = None,
+        sampling: SamplingPolicy | None = None,
+        shuffle: bool = False,
+        drop_last: bool = False,
     ):
         self.dataset = dataset
         self.extractor = extractor
@@ -33,6 +38,10 @@ class PrecomputeFeaturesPipeline:
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.cache_key = cache_key
+        if drop_last:
+            raise ValueError("Precomputation must retain every sample.")
+        self.sampling = sampling
+        self.shuffle = shuffle
         self.config = None
 
     def write_config(self, config: str) -> None:
@@ -104,25 +113,37 @@ class PrecomputeFeaturesPipeline:
         self._check_identity(inputs_digest)
 
         if pending:
-            loader = self.dataset.make_dataloader(
-                batch_size=self.batch_size, num_workers=self.num_workers, sampler=pending
-            )
-            pending_rows = iter(rows[index] for index in pending)
+            if self.sampling is None:
+                loader = self.dataset.make_dataloader(
+                    batch_size=self.batch_size, num_workers=self.num_workers, sampler=pending
+                )
+            else:
+                subset = SimpleNamespace(
+                    rows=[self.dataset.rows[index] for index in pending],
+                    max_length=self.dataset.max_length,
+                )
+                batches = self.sampling.build(
+                    subset, batch_size=self.batch_size, shuffle=self.shuffle, drop_last=False
+                )
+                loader = self.dataset.make_dataloader(
+                    batch_sampler=[[pending[index] for index in batch] for batch in batches],
+                    num_workers=self.num_workers,
+                )
+            pending_rows = {
+                (rows[index]["utt_id"], rows[index]["path"], rows[index]["split"]): rows[index]
+                for index in pending
+            }
             for batch in tqdm(loader):
                 outputs = self.extractor.extract_batch(batch)
                 if len(outputs) != len(batch):
                     raise ValueError(f"Extractor returned {len(outputs)} outputs for batch of size {len(batch)}")
                 for sample, output in zip(batch, outputs, strict=True):
-                    row = next(pending_rows, None)
-                    if row is None or (sample.utt_id, str(sample.path), sample.split) != (
-                        row["utt_id"],
-                        row["path"],
-                        row["split"],
-                    ):
-                        raise ValueError("Precompute loader did not preserve the selected sample order.")
+                    row = pending_rows.pop((sample.utt_id, str(sample.path), sample.split), None)
+                    if row is None:
+                        raise ValueError("Precompute loader returned an unexpected or duplicate sample.")
                     with atomic_file(Path(row["feature_path"]), "wb") as stream:
                         torch.save(output, stream)
-            if next(pending_rows, None) is not None:
+            if pending_rows:
                 raise ValueError("Precompute loader omitted selected samples.")
 
         with atomic_file(self.out_root / "manifest.jsonl") as stream:
