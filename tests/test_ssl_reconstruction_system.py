@@ -58,7 +58,9 @@ class FakeDecoder(nn.Module):
             kwargs["duration_ratio"] = duration_ratio
         elif torch.any(torch.as_tensor(duration_ratio) != 1):
             raise ValueError("duration_ratio requires a duration-controlled content encoder.")
-        return self(feature=features, length=lengths, speaker_embedding=speaker_embedding, run_vocoder=run_vocoder, **kwargs)
+        return self(
+            feature=features, length=lengths, speaker_embedding=speaker_embedding, run_vocoder=run_vocoder, **kwargs
+        )
 
     def forward(self, *, feature, length, speaker_embedding, run_vocoder):
         assert feature.shape[0] == length.shape[0] == speaker_embedding.shape[0]
