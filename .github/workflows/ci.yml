@@ -35,3 +35,17 @@ jobs:
           /tmp/quick-convert-wheel-smoke/bin/pip install --no-deps dist/*.whl
           cd /tmp
           /tmp/quick-convert-wheel-smoke/bin/quick-convert --help 2>&1 | grep train_vq_asr_librispeech
+  lightning-sampling:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - name: Install training environment
+        run: uv sync --group dev --extra training
+      - name: Verify Lightning sampler lifecycle
+        run: |
+          uv run --no-sync python -c "import lightning.pytorch"
+          uv run --no-sync pytest tests/test_length_aware_sampling.py -k lightning

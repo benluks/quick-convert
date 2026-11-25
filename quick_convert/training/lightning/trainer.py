@@ -11,6 +11,31 @@ from ..base import BaseTrainer
 from .logging.resume import LoggerRunCheckpoint, resolve_loggers
 
 
+class _SamplingDataModule(L.LightningDataModule):
+    """Build rank-local loaders after Lightning initializes the strategy."""
+
+    def __init__(self, train_dataset, val_dataset, train_options, val_options):
+        super().__init__()
+        self.train_dataset = train_dataset
+        self.val_dataset = val_dataset
+        self.train_options = train_options
+        self.val_options = val_options
+
+    def _loader(self, dataset, options):
+        options = dict(options)
+        if self.trainer.world_size > 1:
+            options["distributed"] = (self.trainer.global_rank, self.trainer.world_size)
+        return dataset.make_dataloader(**options)
+
+    def train_dataloader(self):
+        return self._loader(self.train_dataset, self.train_options)
+
+    def val_dataloader(self):
+        if self.val_dataset is None:
+            return []
+        return self._loader(self.val_dataset, self.val_options)
+
+
 class LightningTrainer(BaseTrainer):
     def __init__(
         self,
@@ -101,6 +126,12 @@ class LightningTrainer(BaseTrainer):
         self.module.setup_training(train_dataset)
         trainer_kwargs = self._trainer_kwargs_with_ddp(self.trainer_kwargs)
 
+        if any(
+            options.get("sampling") is not None
+            for options in (self.train_dataloader_kwargs, self.val_dataloader_kwargs)
+        ):
+            trainer_kwargs["use_distributed_sampler"] = False
+
         # `ckpt_path` is a Trainer.fit() argument, not a Trainer() constructor
         # argument. Prefer `trainer.ckpt_path=/path/to/last.ckpt` to
         # resume a timed-out / crashed run from its last checkpoint; Lightning
@@ -181,6 +212,18 @@ class LightningTrainer(BaseTrainer):
 
         self._maybe_enable_cudnn_benchmark()
         self._maybe_compile_module()
+
+        if any(
+            options.get("sampling") is not None
+            for options in (self.train_dataloader_kwargs, self.val_dataloader_kwargs)
+        ):
+            return self.pl_trainer.fit(
+                model=self.module,
+                datamodule=_SamplingDataModule(
+                    train_dataset, val_dataset, self.train_dataloader_kwargs, self.val_dataloader_kwargs
+                ),
+                ckpt_path=self.ckpt_path,
+            )
 
         train_loader = train_dataset.make_dataloader(**self.train_dataloader_kwargs)
         val_loader = val_dataset.make_dataloader(**self.val_dataloader_kwargs) if val_dataset else None

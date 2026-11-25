@@ -122,3 +122,41 @@ For MP4 sources, Quick Convert uses TorchAudio's FFmpeg backend when available.
 If that backend is unavailable, put `ffmpeg` and `ffprobe` on `PATH`. The
 fallback reads the first audio stream and decodes intervals on demand from the
 source MP4.
+
+
+### Length-aware batching
+
+Opt in through the existing loader settings:
+
+```yaml
+trainer:
+  train_dataloader_kwargs:
+    batch_size: 64
+    shuffle: true
+    sampling:
+      _target_: quick_convert.data.sampling.LengthAwareSampling
+      pool_size: 1024
+      max_batch_seconds: 128
+      duration_cache: /scratch/audio-durations.json
+      seed: 42
+```
+
+Sampling policies implement `build(dataset, *, batch_size, shuffle, drop_last)`.
+They construct index batch samplers; the dataset loader owns collation and
+worker configuration. In Python, pass a policy instance as `sampling`.
+
+Omit max_batch_seconds for fixed-size batches. The budget bounds the
+number of examples times the longest audio duration in each batch.
+Alternatively, max_batch_cost with cost_power: 2 bounds squared duration
+cost. Durations are estimated from audio headers and segment boundaries,
+not decoded audio or resource lengths. Fixed waveform padding is not supported. Under Lightning distributed training,
+whole batches are assigned round-robin to ranks. The final schedule repeats
+batches when necessary to give every rank equal steps. All ranks must build
+the same deterministic global schedule. Batch size and cost budgets are per rank.
+Ordinary loaders paired with a custom policy use PyTorch DistributedSampler.
+Dynamic batch counts may vary between epochs; scheduler step estimates and
+sample-weighted loss aggregation require care.
+
+For metadata-only comparisons, use resolve_durations from
+quick_convert.data.durations and batching_statistics from
+quick_convert.data.sampling with any iterable of index batches.
