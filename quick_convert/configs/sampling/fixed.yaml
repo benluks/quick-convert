@@ -1,0 +1,7 @@
+batch_size: 32
+shuffle: true
+drop_last: false
+sampling: 
+  _target_: quick_convert.data.sampling.LengthAwareSampling
+  pool_size: 1024
+  seed: ${seed}
