@@ -197,3 +197,23 @@ def test_lightning_distributed_loader_construction():
     assert isinstance(loader.batch_sampler, DistributedBatchSampler)
     assert list(loader.batch_sampler) == [[2, 3], [6, 7]]
     assert datamodule.val_dataloader().sampler.rank == 1
+
+
+@pytest.mark.parametrize("budget", ["fixed", "dynamic"])
+def test_lightning_multiprocess_ddp(tmp_path, budget):
+    pytest.importorskip("lightning.pytorch")
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    script = Path(__file__).with_name("sampling_ddp_worker.py")
+    env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
+    result = subprocess.run(
+        [sys.executable, str(script), str(tmp_path), budget],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
