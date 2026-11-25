@@ -1,0 +1,4 @@
+batch_size: 32
+shuffle: true
+drop_last: false
+sampling: null
