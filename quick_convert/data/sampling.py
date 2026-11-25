@@ -27,8 +27,18 @@ def shuffled_sample_indices(size: int, max_samples: int | None, sample_seed: int
 class LengthAwareBatchSampler(torch.utils.data.Sampler):
     """Pool-sort indices and shuffle batches using an epoch-local RNG."""
 
-    def __init__(self, lengths, batch_size, *, max_batch_cost=None,
-                 pool_size=1024, cost_power=1, shuffle=True, drop_last=False, seed=0):
+    def __init__(
+        self,
+        lengths,
+        batch_size,
+        *,
+        max_batch_cost=None,
+        pool_size=1024,
+        cost_power=1,
+        shuffle=True,
+        drop_last=False,
+        seed=0,
+    ):
         import math
 
         self.lengths = tuple(float(x) for x in lengths)
@@ -39,7 +49,7 @@ class LengthAwareBatchSampler(torch.utils.data.Sampler):
         if max_batch_cost is not None:
             if not math.isfinite(max_batch_cost) or max_batch_cost <= 0:
                 raise ValueError("Batch cost must be finite and positive.")
-            if any(x ** cost_power > max_batch_cost for x in self.lengths):
+            if any(x**cost_power > max_batch_cost for x in self.lengths):
                 raise ValueError("An individual sample exceeds the batch cost budget.")
             if drop_last:
                 raise ValueError("drop_last is ambiguous with dynamic batching.")
@@ -57,19 +67,23 @@ class LengthAwareBatchSampler(torch.utils.data.Sampler):
 
     def _batches(self):
         rng = torch.Generator().manual_seed(self.seed + self.epoch)
-        indices = (torch.randperm(len(self.lengths), generator=rng).tolist()
-                   if self.shuffle else list(range(len(self.lengths))))
+        indices = (
+            torch.randperm(len(self.lengths), generator=rng).tolist()
+            if self.shuffle
+            else list(range(len(self.lengths)))
+        )
         ordered = []
         for start in range(0, len(indices), self.pool_size):
-            ordered.extend(sorted(indices[start:start + self.pool_size], key=self.lengths.__getitem__))
+            ordered.extend(sorted(indices[start : start + self.pool_size], key=self.lengths.__getitem__))
         batches = []
         batch = []
         longest = 0.0
         for idx in ordered:
             length = self.lengths[idx]
             cost = (len(batch) + 1) * max(longest, length) ** self.cost_power
-            if batch and (len(batch) == self.batch_size or
-                          (self.max_batch_cost is not None and cost > self.max_batch_cost)):
+            if batch and (
+                len(batch) == self.batch_size or (self.max_batch_cost is not None and cost > self.max_batch_cost)
+            ):
                 batches.append(batch)
                 batch = []
                 longest = 0.0
@@ -100,6 +114,11 @@ def batching_statistics(lengths, batches):
         attention += len(values) * max(values) ** 2
         count += len(values)
         steps += 1
-    return dict(examples=count, batches=steps, valid_volume=valid,
-                padded_volume=padded, attention_cost=attention,
-                padding_fraction=1 - valid / padded if padded else 0.0)
+    return dict(
+        examples=count,
+        batches=steps,
+        valid_volume=valid,
+        padded_volume=padded,
+        attention_cost=attention,
+        padding_fraction=1 - valid / padded if padded else 0.0,
+    )
