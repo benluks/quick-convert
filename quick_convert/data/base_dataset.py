@@ -270,8 +270,8 @@ class BaseDataset(Dataset):
     ) -> DataLoader:
         """Build a PyTorch dataloader using this dataset's collation contract."""
         if length_aware is not None:
-            from .sampling import LengthAwareBatchSampler
             from .durations import resolve_durations
+            from .sampling import LengthAwareBatchSampler
 
             if batch_sampler is not None or kwargs.get("sampler") is not None:
                 raise ValueError("length_aware cannot be combined with another sampler.")
