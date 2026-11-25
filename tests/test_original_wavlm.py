@@ -2,7 +2,7 @@ import pytest
 import torch
 from torch import nn
 
-from quick_convert.components.encoders.content.original_wavlm import OriginalWavLMContentEncoder
+from quick_convert.components.encoders.content.wavlm import WavLMContentEncoder
 
 
 def test_original_wavlm_preserves_unpadded_waveform_and_frame_lengths(monkeypatch):
@@ -12,7 +12,7 @@ def test_original_wavlm_preserves_unpadded_waveform_and_frame_lengths(monkeypatc
             return waveform[:, ::2, None].expand(-1, -1, 1024), None
 
     monkeypatch.setattr(torch.hub, "load", lambda *args, **kwargs: FakeWavLM(1, 1))
-    encoder = OriginalWavLMContentEncoder(device="cpu")
+    encoder = WavLMContentEncoder(backend="original", layer=6, device="cpu")
     waveform = torch.tensor([[1.0, 2.0, 3.0, 4.0, 5.0], [6.0, 7.0, 8.0, 9.0, 999.0]])
     result = encoder.encode_waveforms(waveform, torch.tensor([5, 4]))
 
