@@ -9,19 +9,20 @@ from os import PathLike
 import torch
 from torch import nn
 
+from quick_convert.components.conditioning.cosyvoice_training import training_reference_kwargs
 from quick_convert.components.conditioning.paired_audio import paired_audio
 from quick_convert.components.generators.acoustic import (
     CosyVoiceDecoderOutput,
     CosyVoiceSpectrogramGenerator,
 )
 from quick_convert.components.layers import LayerWeightedSum
-from quick_convert.components.losses.cosyvoice_flow import CosyVoiceFlowObjective
 from quick_convert.components.layers.rvq import BaseResidualVectorQuantizer, RVQOutput
 from quick_convert.components.resources.resolution import ResolvedResource
 from quick_convert.data import AudioBatch
 from quick_convert.systems.conversion import SSLReconstructionConversionSystem
 from quick_convert.utils.masking import make_padding_mask
 
+from ..logging.cosyvoice import cosyvoice_validation_media
 from ..modules.base import BaseTrainingModule
 from ..optim import Optimization
 
@@ -37,7 +38,7 @@ class SSLReconstructionOutput:
 
 
 @dataclass
-class ObjectiveOutput:
+class SupervisionOutput:
     loss: torch.Tensor
 
 
@@ -54,7 +55,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         enable_grad_norm_logging: bool = True,
         reference_seconds: float | None = None,
         content_audio_resource: str | None = None,
-        objective: nn.Module | None = None,
+        supervision: nn.Module | None = None,
     ):
         super().__init__(optimization=optimization, enable_grad_norm_logging=enable_grad_norm_logging)
 
@@ -71,8 +72,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
                 encoder=encoder,
             )
         self.system = system
-        self.objective = objective
-        self.flow_objective = CosyVoiceFlowObjective(reference_seconds=reference_seconds)
+        self.supervision = supervision
         if reference_seconds is not None:
             if not math.isfinite(reference_seconds) or reference_seconds <= 0:
                 raise ValueError("reference_seconds must be finite and positive.")
@@ -94,7 +94,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
             logger=False,
             ignore=[
                 "optimization",
-                "objective",
+                "supervision",
                 "system",
                 "decoder",
                 "feature_transform",
@@ -137,8 +137,8 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
 
     @property
     def grad_norm_modules(self) -> dict[str, nn.Module]:
-        if self.objective is not None:
-            return {"decoder": self.decoder, "objective": self.objective}
+        if self.supervision is not None:
+            return {"decoder": self.decoder, "supervision": self.supervision}
         modules = {f"flow/{name}": module for name, module in self.decoder.flow.named_children()}
         modules["feature_transform"] = self.feature_transform
         if getattr(self.decoder, "content_encoder", None) is not None:
@@ -162,32 +162,52 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         return self.system.get_resource(batch, "content")
 
     def phase_parameters(self):
-        return self.objective.phase_parameters(self.system)
+        return self.supervision.phase_parameters(self.system)
 
     def execute_phases(self, batch):
-        return super().execute_phases(self.objective.prepare_batch(self.system, batch, training=True))
+        return super().execute_phases(self.supervision.prepare_batch(self.system, batch, training=True))
 
     def phase_step(self, batch, phase):
-        loss = self.objective.phase_loss(self.system, batch, phase)
+        loss = self.supervision.phase_loss(self.system, batch, phase)
         self.log(f"train/{phase}/loss", loss, on_step=True, on_epoch=True)
-        return ObjectiveOutput(loss)
+        return SupervisionOutput(loss)
 
     def _shared_step(
         self,
         batch: AudioBatch,
         stage: str,
     ) -> SSLReconstructionOutput:
-        if self.objective is not None:
-            prepared = self.objective.prepare_batch(self.system, batch, training=False)
-            loss = self.objective.phase_loss(self.system, prepared, "generator")
+        if self.supervision is not None:
+            prepared = self.supervision.prepare_batch(self.system, batch, training=False)
+            loss = self.supervision.phase_loss(self.system, prepared, "generator")
             self.log(f"{stage}/loss", loss, on_epoch=True, batch_size=len(batch))
-            return ObjectiveOutput(loss)
+            return SupervisionOutput(loss)
         content = self._content_resource(batch)
         speaker_embedding = self.system.speaker_condition(batch)
 
         features, lengths, encoder_output = self._encode_content(content)
 
-        decoder_output = self.flow_objective.compute_loss(self.system, batch, features, lengths, speaker_embedding)
+        decoder_output = self.system.decoder.compute_loss(
+            features=features,
+            lengths=lengths,
+            target_wav=batch.waveforms,
+            wav_lens=batch.lengths,
+            sampling_rate=batch.sample_rates[0],
+            speaker_embedding=speaker_embedding,
+            **(
+                training_reference_kwargs(
+                    self.system,
+                    batch,
+                    None
+                    if getattr(self.system.decoder, "content_encoder", None) is not None
+                    else self.system.decoder.flow.output_lengths(lengths),
+                    reference_seconds=self.reference_seconds,
+                )
+                if getattr(self.system.decoder, "stream_conditioning", None) is not None
+                else {}
+            ),
+        )
+
 
         encoder_loss = features.new_zeros(()) if encoder_output is None else encoder_output.loss.loss
         loss = decoder_output.loss + encoder_loss
@@ -264,10 +284,10 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         self.log_dict(metrics, on_step=True, on_epoch=False, sync_dist=False)
 
     def log_validation_output(self, batch, output, batch_idx):
-        if self.objective is not None or batch_idx != 0:
+        if self.supervision is not None or batch_idx != 0:
             return
 
-        media = self.flow_objective.validation_media(self.system, batch, output)
+        media = cosyvoice_validation_media(self.system, batch, output, reference_seconds=self.reference_seconds)
         self.media_logger.log_reconstructed_audio(key="val/reconstruction", media=media, step=self.global_step)
 
     @torch.inference_mode()
