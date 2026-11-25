@@ -172,7 +172,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
     def phase_step(self, batch, phase):
         batch, positions = batch
         loss = self._supervised_loss(batch, phase, positions=positions)
-        self.log(f"train/{phase}/loss", loss, on_step=True, on_epoch=True)
+        self.log(f"train/{phase}/loss", loss, on_step=True, on_epoch=True, batch_size=len(batch))
         return SupervisionOutput(loss)
 
     def _supervised_loss(self, batch, phase, *, positions=None):
