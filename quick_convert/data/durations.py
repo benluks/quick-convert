@@ -1,4 +1,5 @@
 """Metadata-only duration resolution."""
+
 import json
 import math
 from pathlib import Path
