@@ -48,9 +48,7 @@ class NearestNeighbourMatching(nn.Module):
         self.selector = selector if selector is not None else CosineTopK()
         self.aggregation = aggregation if aggregation is not None else MeanAggregation()
 
-    def forward(
-        self, query: torch.Tensor, keys: torch.Tensor, values: torch.Tensor | None = None
-    ) -> torch.Tensor:
+    def forward(self, query: torch.Tensor, keys: torch.Tensor, values: torch.Tensor | None = None) -> torch.Tensor:
         values = keys if values is None else values
         if values.ndim != 2 or values.shape[0] != keys.shape[0]:
             raise ValueError("Reference keys and values must have aligned frames.")
