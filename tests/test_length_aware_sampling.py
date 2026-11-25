@@ -217,3 +217,34 @@ def test_lightning_multiprocess_ddp(tmp_path, budget):
         timeout=120,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_hybrid_budget():
+    lengths = list(range(1, 21)) * 8
+    sampler = LengthAwareBatchSampler(
+        lengths, 8, pool_size=32, max_batch_seconds=64, max_batch_attention_cost=400
+    )
+    for epoch in range(3):
+        sampler.set_epoch(epoch)
+        batches = list(sampler)
+        assert sorted(i for batch in batches for i in batch) == list(range(len(lengths)))
+        assert len(batches) == len(sampler)
+        for batch in batches:
+            longest = max(lengths[i] for i in batch)
+            assert len(batch) <= 8
+            assert len(batch) * longest <= 64
+            assert len(batch) * longest**2 <= 400
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"max_batch_seconds": 0},
+        {"max_batch_attention_cost": 399},
+        {"max_batch_seconds": 64, "max_batch_cost": 64},
+        {"max_batch_attention_cost": 400, "drop_last": True},
+    ],
+)
+def test_invalid_hybrid_budget(options):
+    with pytest.raises(ValueError):
+        LengthAwareBatchSampler([20], 8, **options)
