@@ -152,6 +152,7 @@ class WaveformGeneration:
 
 class KnnVCHifiGanDecoder(BaseDecoder):
     requires_speaker_embedding = False
+    supports_reference_conditioning = False
 
     @property
     def hop_size(self):
@@ -161,7 +162,18 @@ class KnnVCHifiGanDecoder(BaseDecoder):
     def input_frame_rate(self):
         return self.sample_rate / self.hop_size
 
-    def generate(self, features, lengths):
+    def generate(
+        self, features, lengths, speaker_embedding=None, *, run_vocoder=True,
+        duration_ratio=1.0, streams=None, prefix_content=None,
+    ):
+        if (
+            speaker_embedding is not None
+            or not run_vocoder
+            or streams
+            or prefix_content is not None
+            or torch.any(torch.as_tensor(duration_ratio) != 1)
+        ):
+            raise ValueError("Direct waveform generation does not support these decoding options.")
         waves = [self(x[None, : int(n)])[0] for x, n in zip(features, lengths, strict=True)]
         return WaveformGeneration(
             GeneratedAudio(pad_sequence(waves, batch_first=True), lengths * self.hop_size, self.sample_rate)
