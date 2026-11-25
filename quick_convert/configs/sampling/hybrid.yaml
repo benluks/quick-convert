@@ -1,0 +1,9 @@
+batch_size: 64
+shuffle: true
+drop_last: false
+sampling: 
+  _target_: quick_convert.data.sampling.LengthAwareSampling
+  pool_size: 1024
+  seed: ${seed}
+  max_batch_seconds: 512
+  max_batch_attention_cost: 8000
