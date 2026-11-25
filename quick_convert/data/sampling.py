@@ -1,5 +1,7 @@
 """Seeded source-subset selection through the native dataloader sampler."""
 
+from typing import Protocol
+
 import torch
 
 
@@ -127,3 +129,47 @@ def batching_statistics(lengths, batches):
         attention_cost=attention,
         padding_fraction=1 - valid / padded if padded else 0.0,
     )
+
+
+class SamplingPolicy(Protocol):
+    """Construct an index batch sampler from dataset metadata."""
+
+    def build(self, dataset, *, batch_size: int, shuffle: bool, drop_last: bool) -> torch.utils.data.Sampler: ...
+
+
+class LengthAwareSampling:
+    """Configure duration-based batching independently of the dataset loader."""
+
+    def __init__(
+        self,
+        pool_size: int = 1024,
+        max_batch_seconds: float | None = None,
+        max_batch_cost: float | None = None,
+        cost_power: int = 1,
+        duration_cache: str | None = None,
+        seed: int = 0,
+    ):
+        if max_batch_seconds is not None:
+            if cost_power != 1 or max_batch_cost is not None:
+                raise ValueError("max_batch_seconds requires linear cost and no other budget.")
+            max_batch_cost = max_batch_seconds
+        self.duration_cache = duration_cache
+        self.options = dict(
+            pool_size=pool_size,
+            max_batch_cost=max_batch_cost,
+            cost_power=cost_power,
+            seed=seed,
+        )
+
+    def build(self, dataset, *, batch_size: int, shuffle: bool, drop_last: bool) -> LengthAwareBatchSampler:
+        from .durations import resolve_durations
+
+        if dataset.max_length is not None:
+            raise ValueError("Length-aware sampling requires variable-length collation.")
+        return LengthAwareBatchSampler(
+            resolve_durations(dataset.rows, cache_path=self.duration_cache),
+            batch_size,
+            shuffle=shuffle,
+            drop_last=drop_last,
+            **self.options,
+        )
