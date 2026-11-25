@@ -138,3 +138,20 @@ def test_historical_w2vbert_target_migrates():
     assert migrated["online_encoders"]["content"]["_target_"] == (
         "quick_convert.components.encoders.content.W2VBertContentEncoder"
     )
+
+
+@pytest.mark.parametrize(
+    "old_target,new_target",
+    [
+        (
+            "quick_convert.components.decoders.CosyVoiceSpectrogramGenerator",
+            "quick_convert.components.generators.acoustic.cosyvoice.CosyVoiceSpectrogramGenerator",
+        ),
+        (
+            "quick_convert.components.speaker.speaker_encoders.CosyVoiceCAMPPlusSpeakerEncoder",
+            "quick_convert.components.encoders.speaker.cosyvoice_campplus.CosyVoiceCAMPPlusSpeakerEncoder",
+        ),
+    ],
+)
+def test_historical_cosyvoice_component_targets_migrate(old_target, new_target):
+    assert migrate_system_config({"_target_": old_target})["_target_"] == new_target
