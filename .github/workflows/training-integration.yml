@@ -47,16 +47,16 @@ jobs:
           assert LightningTrainer is not None
           PY
       - name: Run Lightning tests without skips
+        shell: bash
         run: |
-          output=$(uv run --no-sync pytest -q \
+          uv run --no-sync pytest -q \
             tests/test_phased_training.py \
             tests/test_media_logger.py \
             tests/test_reference_configs.py \
             tests/test_ssl_reconstruction_contract.py \
             tests/test_vq_asr_training_wrapper.py \
-            -r s)
-          echo "$output"
-          if grep -Eq '[0-9]+ skipped' <<< "$output"; then
+            -r s | tee /tmp/training-tests.log
+          if grep -Eq '[0-9]+ skipped' /tmp/training-tests.log; then
             echo "Lightning tests were unexpectedly skipped."
             exit 1
           fi
