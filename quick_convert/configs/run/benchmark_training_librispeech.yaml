@@ -1,0 +1,45 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /pipeline: training
+  - /trainer: ssl_reconstruction
+  - /system/conversion@system: w2vbert_dit_cosyvoice
+  - /dataset@train_dataset: librispeech
+  - /sampling@trainer.train_dataloader_kwargs: random
+  - _self_
+
+seed: 1234
+project_name: benchmarks/training
+exp_name: ${hydra:runtime.choices.sampling@trainer.train_dataloader_kwargs}
+root: ${data_root}/librispeech/LibriSpeech
+split: train-clean-100
+num_workers: 24
+
+train_dataset:
+  root: ${root}
+  splits: ["${split}"]
+  target_sr: 16000
+  load: [audio]
+
+val_dataset: null
+
+trainer:
+  module:
+    enable_grad_norm_logging: false
+  train_dataloader_kwargs:
+    num_workers: ${num_workers}
+  trainer_kwargs:
+    accelerator: gpu
+    devices: 1
+    precision: bf16-mixed
+    max_epochs: 2
+    logger: false
+    enable_checkpointing: false
+    enable_progress_bar: false
+    enable_model_summary: false
+    limit_val_batches: 0
+    num_sanity_val_steps: 0
+    callbacks:
+      - _target_: quick_convert.training.lightning.throughput.TrainingThroughput
+        warmup_batches: 10
+        output: throughput.json
