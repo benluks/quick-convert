@@ -6,7 +6,9 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
+from torch.nn.utils.rnn import pad_sequence
 
+from quick_convert.components.encoders.content._wavlm_checkpoint import load_microsoft_wavlm_large
 from quick_convert.components.encoders.content.base import ContentEncoder, ContentFeatures
 from quick_convert.data.types import AudioBatch
 from quick_convert.utils.audio import load_audio
@@ -26,10 +28,12 @@ class WavLMContentEncoder(ContentEncoder):
         downsample_factor: int = 0,
         max_length: int | None = None,
         do_normalize: bool = False,
+        use_original_checkpoint: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(device=device)
 
+        self.use_original_checkpoint = use_original_checkpoint
         self.model_name = model_name
         self._sample_rate = sample_rate
         self.layer = layer
@@ -40,16 +44,23 @@ class WavLMContentEncoder(ContentEncoder):
         if downsample_factor > 1 and layer is not None:
             raise ValueError("Layer-dimension downsampling requires all layers to be preserved. Set `layer=None`.")
 
+        if use_original_checkpoint and (model_name != "microsoft/wavlm-large" or sample_rate != 16000):
+            raise ValueError("The original checkpoint requires microsoft/wavlm-large at 16000 Hz.")
+
         from transformers import AutoFeatureExtractor, AutoModel
 
         self.processor = AutoFeatureExtractor.from_pretrained(
             model_name, local_files_only=local_files_only, do_normalize=do_normalize
         )
-        self.model = AutoModel.from_pretrained(
-            model_name,
-            local_files_only=local_files_only,
-            **kwargs,
-        ).to(self.device)
+        if use_original_checkpoint:
+            from transformers import AutoConfig
+
+            config = AutoConfig.from_pretrained(model_name, local_files_only=local_files_only)
+            model = AutoModel.from_config(config, **kwargs)
+            load_microsoft_wavlm_large(model, local_files_only=local_files_only)
+        else:
+            model = AutoModel.from_pretrained(model_name, local_files_only=local_files_only, **kwargs)
+        self.model = model.to(self.device)
         self.model.eval()
 
     @property
@@ -165,19 +176,28 @@ class WavLMContentEncoder(ContentEncoder):
                 f"{int(lengths.max())}."
             )
 
-        # Hugging Face's audio processor accepts unpadded individual
-        # waveforms, then pads them and constructs the sample-level mask.
-        waveform_list = [waveforms[i, : int(lengths[i])].detach().cpu().numpy() for i in range(batch_size)]
+        waveform_list = [
+            waveform[:length].detach().cpu().numpy()
+            for waveform, length in zip(waveforms, lengths.tolist(), strict=True)
+        ]
+        if self.use_original_checkpoint:
+            # kNN-VC extracts each utterance independently, without batch padding.
+            selected = pad_sequence(
+                [self._encode_inputs([waveform], input_sample_rate)[0] for waveform in waveform_list],
+                batch_first=True,
+            )
+        else:
+            selected = self._encode_inputs(waveform_list, input_sample_rate)
+        return self._finish_features(selected, self.output_lengths(lengths).to(selected.device), max_length)
 
+    def _encode_inputs(self, waveform_list, input_sample_rate):
         inputs = self.processor(
             waveform_list,
             sampling_rate=input_sample_rate,
             return_tensors="pt",
             padding=True,
-            return_attention_mask=True,
+            return_attention_mask=not self.use_original_checkpoint,
         ).to(self.device)
-
-        # inputs = {name: value.to(self.device) for name, value in inputs.items()}
 
         outputs = self.model(
             **inputs,
@@ -206,9 +226,9 @@ class WavLMContentEncoder(ContentEncoder):
                     f"indices are 0 through {len(hidden_states) - 1}."
                 ) from error
 
-        output_lengths = self.output_lengths(lengths)
-        output_lengths = output_lengths.to(selected.device)
+        return selected
 
+    def _finish_features(self, selected, output_lengths, max_length):
         effective_max_length = max_length or self.max_length
         if effective_max_length is not None:
             selected = self._pad_or_trim_time(
@@ -230,7 +250,7 @@ class WavLMContentEncoder(ContentEncoder):
             representation_type="continuous",
             temporal_granularity="frame",
             backend="transformers",
-            model_name=self.model_name,
+            model_name=f"{self.model_name}:original" if self.use_original_checkpoint else self.model_name,
             layer=self.layer,
             frame_hz=self.frame_hz,
         )
