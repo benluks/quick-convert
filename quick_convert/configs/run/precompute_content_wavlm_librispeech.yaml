@@ -1,0 +1,29 @@
+# @package _global_
+defaults:
+  - /global: default
+  - /pipeline: precompute_features
+  - /dataset: librispeech
+  - /components/resources@feature_extractor: content
+  - /sampling@pipeline: quadratic
+  - _self_
+
+seed: 1234
+encoder:
+  _target_: quick_convert.components.encoders.content.wavlm.WavLMContentEncoder
+  model_name: microsoft/wavlm-large
+  layer: 24
+  device: ${device}
+
+dataset:
+  splits: [train-clean-100, dev-clean]
+  load: [audio]
+  target_sr: 16000
+
+feature_extractor:
+  storage_dtype: float16
+
+pipeline:
+  out_dir: ${out_root}/precomputed/librispeech/wavlm_l${encoder.layer}_${feature_extractor.storage_dtype}
+  batch_size: 16
+  sampling:
+    max_batch_attention_cost: 2000
