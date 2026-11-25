@@ -165,12 +165,26 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         return self.supervision.phase_parameters(self.system)
 
     def execute_phases(self, batch):
-        return super().execute_phases(self.supervision.prepare_batch(self.system, batch, training=True))
+        # Share crop positions across phases, but rebuild the representation graph
+        # after optimizer toggling so trainable encoders receive generator gradients.
+        return super().execute_phases((batch, torch.rand(len(batch))))
 
     def phase_step(self, batch, phase):
-        loss = self.supervision.phase_loss(self.system, batch, phase)
+        batch, positions = batch
+        loss = self._supervised_loss(batch, phase, positions=positions)
         self.log(f"train/{phase}/loss", loss, on_step=True, on_epoch=True)
         return SupervisionOutput(loss)
+
+    def _supervised_loss(self, batch, phase, *, positions=None):
+        content = self._content_resource(batch)
+        features, lengths, encoder_output = self._encode_content(content)
+        prepared = self.supervision.prepare_batch(
+            self.system, batch, features, lengths, positions=positions
+        )
+        loss = self.supervision.phase_loss(self.system, prepared, phase)
+        if phase == "generator" and encoder_output is not None:
+            loss = loss + encoder_output.loss.loss
+        return loss
 
     def _shared_step(
         self,
@@ -178,8 +192,7 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         stage: str,
     ) -> SSLReconstructionOutput:
         if self.supervision is not None:
-            prepared = self.supervision.prepare_batch(self.system, batch, training=False)
-            loss = self.supervision.phase_loss(self.system, prepared, "generator")
+            loss = self._supervised_loss(batch, "generator")
             self.log(f"{stage}/loss", loss, on_epoch=True, batch_size=len(batch))
             return SupervisionOutput(loss)
         content = self._content_resource(batch)
@@ -207,7 +220,6 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
                 else {}
             ),
         )
-
 
         encoder_loss = features.new_zeros(()) if encoder_output is None else encoder_output.loss.loss
         loss = decoder_output.loss + encoder_loss
