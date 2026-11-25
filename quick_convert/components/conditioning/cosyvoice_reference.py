@@ -92,7 +92,9 @@ class CosyVoiceReferenceConditioning:
         content = system.get_resource(batch, "content")
         if content.lengths is None:
             raise ValueError("Reference content requires valid lengths.")
-        features, content_lengths, _ = system.encode_features(content.values, content.lengths, metadata=content.metadata)
+        features, content_lengths, _ = system.encode_features(
+            content.values, content.lengths, metadata=content.metadata
+        )
         streams = None
         reference = None
         prefix_content = None
@@ -222,4 +224,3 @@ class CosyVoiceReferenceConditioning:
                 raise ValueError(f"Frame-wise conditioning resource {name!r} requires lengths.")
             streams[name] = ConditioningStream(resource.values, resource.lengths)
         return streams
-
