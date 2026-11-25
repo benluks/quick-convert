@@ -5,11 +5,24 @@ import math
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+import soundfile as sf
+
 from quick_convert.utils.audio import probe_audio_duration
 
 
+def read_audio_duration(path: Path) -> float:
+    """Prefer libsndfile metadata; fall back to the first audio stream probe."""
+    try:
+        info = sf.info(str(path))
+        if info.frames > 0 and info.samplerate > 0:
+            return info.frames / info.samplerate
+    except (RuntimeError, OSError):
+        pass
+    return probe_audio_duration(path)
+
+
 def resolve_durations(rows, *, cache_path=None, duration_reader=None):
-    reader = duration_reader or probe_audio_duration
+    reader = duration_reader or read_audio_duration
     cache_path = Path(cache_path) if cache_path is not None else None
     cache = json.loads(cache_path.read_text()) if cache_path and cache_path.exists() else {}
     durations = {}
