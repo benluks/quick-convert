@@ -223,9 +223,7 @@ def test_lightning_multiprocess_ddp(tmp_path, budget):
 
 def test_hybrid_budget():
     lengths = list(range(1, 21)) * 8
-    sampler = LengthAwareBatchSampler(
-        lengths, 8, pool_size=32, max_batch_seconds=64, max_batch_attention_cost=400
-    )
+    sampler = LengthAwareBatchSampler(lengths, 8, pool_size=32, max_batch_seconds=64, max_batch_attention_cost=400)
     for epoch in range(3):
         sampler.set_epoch(epoch)
         batches = list(sampler)
