@@ -50,7 +50,7 @@ class WaveformGANObjective(nn.Module):
         if positions is None:
             hop = system.decoder.hop_size
             return [
-                (x[None, :n], y[None, :n * hop])
+                (x[None, :n], y[None, : n * hop])
                 for x, y, frames, samples in zip(features, batch.waveforms, lengths, batch.lengths, strict=True)
                 if (n := min(int(frames), int(samples) // hop)) > 0
             ]
