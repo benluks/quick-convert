@@ -136,7 +136,8 @@ trainer:
     sampling:
       _target_: quick_convert.data.sampling.LengthAwareSampling
       pool_size: 1024
-      max_batch_seconds: 128
+      max_batch_seconds: 512
+      max_batch_attention_cost: 8000
       duration_cache: /scratch/audio-durations.json
       seed: 42
 ```
@@ -145,10 +146,12 @@ Sampling policies implement `build(dataset, *, batch_size, shuffle, drop_last)`.
 They construct index batch samplers; the dataset loader owns collation and
 worker configuration. In Python, pass a policy instance as `sampling`.
 
-Omit max_batch_seconds for fixed-size batches. The budget bounds the
+Omit both budgets for fixed-size batches. `max_batch_seconds` bounds the
 number of examples times the longest audio duration in each batch.
-Alternatively, max_batch_cost with cost_power: 2 bounds squared duration
-cost. Durations are estimated from audio headers and segment boundaries,
+`max_batch_attention_cost` bounds the number of examples times the squared
+longest duration (seconds squared). Both constraints may be active together.
+The legacy `max_batch_cost` and `cost_power` options remain supported, but
+specifying two budgets for the same power is an error. Durations are estimated from audio headers and segment boundaries,
 not decoded audio or resource lengths. Fixed waveform padding is not supported. Under Lightning distributed training,
 whole batches are assigned round-robin to ranks. The final schedule repeats
 batches when necessary to give every rank equal steps. All ranks must build

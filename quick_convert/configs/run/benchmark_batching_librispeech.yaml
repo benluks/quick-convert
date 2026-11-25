@@ -91,3 +91,9 @@ pipeline:
       pool_size: 1024
       cost_power: 2
       max_batch_cost: 16000
+    hybrid512_8000:
+      kind: length_aware
+      batch_size: 64
+      pool_size: 1024
+      max_batch_seconds: 512
+      max_batch_attention_cost: 8000

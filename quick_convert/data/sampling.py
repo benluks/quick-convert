@@ -35,6 +35,8 @@ class LengthAwareBatchSampler(torch.utils.data.Sampler):
         batch_size,
         *,
         max_batch_cost=None,
+        max_batch_seconds=None,
+        max_batch_attention_cost=None,
         pool_size=1024,
         cost_power=1,
         shuffle=True,
@@ -48,13 +50,19 @@ class LengthAwareBatchSampler(torch.utils.data.Sampler):
             raise ValueError("Lengths must be finite and positive.")
         if batch_size < 1 or pool_size < batch_size or cost_power not in (1, 2):
             raise ValueError("Require 1 <= batch_size <= pool_size and cost_power in (1, 2).")
+        budgets = {1: max_batch_seconds, 2: max_batch_attention_cost}
         if max_batch_cost is not None:
-            if not math.isfinite(max_batch_cost) or max_batch_cost <= 0:
+            if budgets[cost_power] is not None:
+                raise ValueError("Duplicate budget for the same cost power.")
+            budgets[cost_power] = max_batch_cost
+        self.budgets = {power: budget for power, budget in budgets.items() if budget is not None}
+        for power, budget in self.budgets.items():
+            if not math.isfinite(budget) or budget <= 0:
                 raise ValueError("Batch cost must be finite and positive.")
-            if any(x**cost_power > max_batch_cost for x in self.lengths):
+            if any(x**power > budget for x in self.lengths):
                 raise ValueError("An individual sample exceeds the batch cost budget.")
-            if drop_last:
-                raise ValueError("drop_last is ambiguous with dynamic batching.")
+        if self.budgets and drop_last:
+            raise ValueError("drop_last is ambiguous with dynamic batching.")
         self.batch_size = batch_size
         self.max_batch_cost = max_batch_cost
         self.pool_size = pool_size
@@ -87,10 +95,10 @@ class LengthAwareBatchSampler(torch.utils.data.Sampler):
         longest = 0.0
         for idx in ordered:
             length = self.lengths[idx]
-            cost = (len(batch) + 1) * max(longest, length) ** self.cost_power
-            if batch and (
-                len(batch) == self.batch_size or (self.max_batch_cost is not None and cost > self.max_batch_cost)
-            ):
+            exceeds_budget = any(
+                (len(batch) + 1) * max(longest, length) ** power > budget for power, budget in self.budgets.items()
+            )
+            if batch and (len(batch) == self.batch_size or exceeds_budget):
                 batches.append(batch)
                 batch = []
                 longest = 0.0
@@ -148,15 +156,14 @@ class LengthAwareSampling:
         cost_power: int = 1,
         duration_cache: str | None = None,
         seed: int = 0,
+        max_batch_attention_cost: float | None = None,
     ):
-        if max_batch_seconds is not None:
-            if cost_power != 1 or max_batch_cost is not None:
-                raise ValueError("max_batch_seconds requires linear cost and no other budget.")
-            max_batch_cost = max_batch_seconds
         self.duration_cache = duration_cache
         self.options = dict(
             pool_size=pool_size,
             max_batch_cost=max_batch_cost,
+            max_batch_seconds=max_batch_seconds,
+            max_batch_attention_cost=max_batch_attention_cost,
             cost_power=cost_power,
             seed=seed,
         )

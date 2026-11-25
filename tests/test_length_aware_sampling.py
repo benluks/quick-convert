@@ -106,12 +106,14 @@ def test_composable_sampling_policy(tmp_path):
             "_target_": "quick_convert.data.sampling.LengthAwareSampling",
             "pool_size": 4,
             "max_batch_seconds": 1.0,
+            "max_batch_attention_cost": 0.2,
         }
     )
     loader = dataset.make_dataloader(batch_size=2, sampling=policy)
     assert isinstance(loader.batch_sampler, LengthAwareBatchSampler)
     assert sorted(i for batch in loader.batch_sampler for i in batch) == list(range(4))
     assert all(len(batch) <= 2 for batch in loader.batch_sampler)
+    assert loader.batch_sampler.budgets == {1: 1.0, 2: 0.2}
     with pytest.raises(ValueError, match="another sampler"):
         dataset.make_dataloader(sampling=policy, batch_sampler=loader.batch_sampler)
 
@@ -217,3 +219,32 @@ def test_lightning_multiprocess_ddp(tmp_path, budget):
         timeout=120,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_hybrid_budget():
+    lengths = list(range(1, 21)) * 8
+    sampler = LengthAwareBatchSampler(lengths, 8, pool_size=32, max_batch_seconds=64, max_batch_attention_cost=400)
+    for epoch in range(3):
+        sampler.set_epoch(epoch)
+        batches = list(sampler)
+        assert sorted(i for batch in batches for i in batch) == list(range(len(lengths)))
+        assert len(batches) == len(sampler)
+        for batch in batches:
+            longest = max(lengths[i] for i in batch)
+            assert len(batch) <= 8
+            assert len(batch) * longest <= 64
+            assert len(batch) * longest**2 <= 400
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"max_batch_seconds": 0},
+        {"max_batch_attention_cost": 399},
+        {"max_batch_seconds": 64, "max_batch_cost": 64},
+        {"max_batch_attention_cost": 400, "drop_last": True},
+    ],
+)
+def test_invalid_hybrid_budget(options):
+    with pytest.raises(ValueError):
+        LengthAwareBatchSampler([20], 8, **options)
