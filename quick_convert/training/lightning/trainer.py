@@ -102,7 +102,7 @@ class LightningTrainer(BaseTrainer):
         trainer_kwargs = self._trainer_kwargs_with_ddp(self.trainer_kwargs)
 
         if any(
-            options.get("length_aware") is not None
+            options.get("sampling") is not None
             for options in (self.train_dataloader_kwargs, self.val_dataloader_kwargs)
         ):
             devices = trainer_kwargs.get("devices", "auto")
@@ -116,7 +116,7 @@ class LightningTrainer(BaseTrainer):
                 or trainer_kwargs.get("num_nodes", 1) != 1
                 or "ddp" in str(trainer_kwargs.get("strategy", ""))
             ):
-                raise ValueError("Length-aware batching currently supports single-device training only.")
+                raise ValueError("Custom sampling policies currently support single-device training only.")
             trainer_kwargs["use_distributed_sampler"] = False
 
         # `ckpt_path` is a Trainer.fit() argument, not a Trainer() constructor
