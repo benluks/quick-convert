@@ -47,6 +47,13 @@ class WaveformGANObjective(nn.Module):
     def prepare_batch(self, system, batch, features, lengths, *, positions=None):
         if torch.any(batch.sample_rates != system.decoder.sample_rate):
             raise ValueError("Waveform sample rate must match decoder sample rate.")
+        if positions is None:
+            hop = system.decoder.hop_size
+            return [
+                (x[None, :n], y[None, :n * hop])
+                for x, y, frames, samples in zip(features, batch.waveforms, lengths, batch.lengths, strict=True)
+                if (n := min(int(frames), int(samples) // hop)) > 0
+            ]
         return aligned_crop(
             features,
             lengths,
@@ -59,5 +66,9 @@ class WaveformGANObjective(nn.Module):
         )
 
     def phase_loss(self, system, prepared, phase):
+        if isinstance(prepared, list):
+            if not prepared:
+                raise ValueError("No aligned validation audio.")
+            return torch.stack([self(real, system.decoder(features), phase) for features, real in prepared]).mean()
         features, real = prepared
         return self(real, system.decoder(features), phase)
