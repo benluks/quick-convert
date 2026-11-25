@@ -4,6 +4,7 @@ from collections.abc import Mapping
 
 
 _TARGETS = {
+    "quick_convert.components.ssl.W2VBertContentEncoder": "quick_convert.components.encoders.content.W2VBertContentEncoder",
     "quick_convert.pipelines.training.lightning_trainer.LightningTrainer": "quick_convert.training.lightning.trainer.LightningTrainer",
     "quick_convert.pipelines.training.sentencepiece_trainer.TokenizerTrainer": "quick_convert.training.tokenizer.TokenizerTrainer",
     "quick_convert.pipelines.training.modules.tokenizer.bpe.SentencePieceBPETrainer": "quick_convert.training.tokenizers.sentencepiece.SentencePieceBPETrainer",
