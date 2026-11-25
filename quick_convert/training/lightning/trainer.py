@@ -101,6 +101,19 @@ class LightningTrainer(BaseTrainer):
         self.module.setup_training(train_dataset)
         trainer_kwargs = self._trainer_kwargs_with_ddp(self.trainer_kwargs)
 
+        if any(options.get("length_aware") is not None for options in
+               (self.train_dataloader_kwargs, self.val_dataloader_kwargs)):
+            devices = trainer_kwargs.get("devices", "auto")
+            accelerator = trainer_kwargs.get("accelerator", "auto")
+            multi_device = devices not in (1, "1", [0])
+            if devices == "auto":
+                multi_device = accelerator != "cpu" and torch.cuda.device_count() > 1
+            if (self.ddp_cfg.get("enabled", False) or multi_device
+                    or trainer_kwargs.get("num_nodes", 1) != 1
+                    or "ddp" in str(trainer_kwargs.get("strategy", ""))):
+                raise ValueError("Length-aware batching currently supports single-device training only.")
+            trainer_kwargs["use_distributed_sampler"] = False
+
         # `ckpt_path` is a Trainer.fit() argument, not a Trainer() constructor
         # argument. Prefer `trainer.ckpt_path=/path/to/last.ckpt` to
         # resume a timed-out / crashed run from its last checkpoint; Lightning
