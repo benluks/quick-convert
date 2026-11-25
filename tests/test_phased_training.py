@@ -109,8 +109,12 @@ def test_hydra_gan_recipe_instantiates_phased_optimizers():
     assert all(isinstance(value, Optimization) for value in model.optimization.values())
     optimizers, schedulers = model.configure_optimizers()
     assert len(optimizers) == len(schedulers) == 2
-    for optimizer, scheduler in zip(optimizers, schedulers, strict=True):
+    for optimizer, scheduler_config in zip(optimizers, schedulers, strict=True):
         assert isinstance(optimizer, torch.optim.AdamW)
         assert optimizer.param_groups[0]["lr"] == pytest.approx(0.0002)
+        assert scheduler_config["interval"] == "epoch"
+        assert scheduler_config["frequency"] == 1
+        scheduler = scheduler_config["scheduler"]
         assert isinstance(scheduler, torch.optim.lr_scheduler.ExponentialLR)
+        assert scheduler.optimizer is optimizer
         assert scheduler.gamma == pytest.approx(0.999)
