@@ -234,3 +234,42 @@ def test_cached_content_preserves_online_representation_contract(tmp_path):
     legacy = system.get_resource(next(iter(cached_dataset.make_dataloader(batch_size=2))), "content")
     assert legacy.metadata is None
     torch.testing.assert_close(legacy.values, torch.ones(2, 3, 2))
+
+
+def test_precompute_budget_sampling_preserves_identity_and_resume(tmp_path):
+    from quick_convert.data.sampling import LengthAwareBatchSampler
+
+    class Sampling:
+        def build(self, dataset, *, batch_size, shuffle, drop_last):
+            lengths = [2 if row.utt_id == "first" else 1 for row in dataset.rows]
+            return LengthAwareBatchSampler(
+                lengths, batch_size, max_batch_seconds=2, shuffle=shuffle, drop_last=drop_last
+            )
+
+    class Extractor:
+        def extract_batch(self, batch):
+            return [torch.tensor([1 if sample.utt_id == "first" else 2]) for sample in batch]
+
+    dataset = make_dataset(tmp_path)
+    output_dir = tmp_path / "features"
+    pipeline = PrecomputeFeaturesPipeline(
+        dataset,
+        Extractor(),
+        output_dir,
+        batch_size=2,
+        skip_existing=True,
+        cache_key="budget-test",
+        sampling=Sampling(),
+    )
+    pipeline.run()
+    assert dataset.loaded == [1, 0]
+    manifest = (output_dir / "manifest.jsonl").read_text()
+    first = output_dir / "train" / "first.pt"
+    second = output_dir / "validation" / "second.pt"
+    assert torch.load(first, weights_only=True).item() == 1
+    assert torch.load(second, weights_only=True).item() == 2
+    first.unlink()
+    dataset.loaded.clear()
+    pipeline.run()
+    assert dataset.loaded == [0]
+    assert (output_dir / "manifest.jsonl").read_text() == manifest
