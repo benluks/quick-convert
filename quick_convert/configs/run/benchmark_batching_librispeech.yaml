@@ -36,8 +36,28 @@ pipeline:
       kind: length_aware
       batch_size: 32
       pool_size: 4096
-    dynamic:
+    dynamic128:
       kind: length_aware
       batch_size: 64
       pool_size: 1024
       max_batch_cost: 128
+    dynamic256:
+      kind: length_aware
+      batch_size: 64
+      pool_size: 1024
+      max_batch_cost: 256
+    dynamic384:
+      kind: length_aware
+      batch_size: 64
+      pool_size: 1024
+      max_batch_cost: 384
+    dynamic512:
+      kind: length_aware
+      batch_size: 64
+      pool_size: 1024
+      max_batch_cost: 512
+    dynamic768:
+      kind: length_aware
+      batch_size: 64
+      pool_size: 1024
+      max_batch_cost: 768
