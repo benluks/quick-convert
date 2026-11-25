@@ -173,3 +173,38 @@ class LengthAwareSampling:
             drop_last=drop_last,
             **self.options,
         )
+
+
+class DistributedBatchSampler(torch.utils.data.Sampler):
+    """Shard a deterministic global batch schedule without splitting batches."""
+
+    def __init__(self, batch_sampler, *, rank: int, world_size: int, drop_remainder: bool = False):
+        if world_size < 1 or not 0 <= rank < world_size:
+            raise ValueError("Invalid distributed rank or world size.")
+        self.batch_sampler = batch_sampler
+        self.rank = rank
+        self.world_size = world_size
+        self.drop_remainder = drop_remainder
+
+    @property
+    def sampler(self):
+        return self
+
+    def set_epoch(self, epoch):
+        sampler = getattr(self.batch_sampler, "sampler", self.batch_sampler)
+        advance = getattr(sampler, "set_epoch", None)
+        if advance is not None:
+            advance(epoch)
+
+    def __len__(self):
+        count = len(self.batch_sampler)
+        if self.drop_remainder:
+            return count // self.world_size
+        return (count + self.world_size - 1) // self.world_size
+
+    def __iter__(self):
+        batches = list(self.batch_sampler)
+        total = len(self) * self.world_size
+        if batches and total > len(batches):
+            batches = (batches * ((total + len(batches) - 1) // len(batches)))[:total]
+        return iter(batches[self.rank : total : self.world_size])
