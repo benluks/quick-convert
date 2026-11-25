@@ -92,7 +92,10 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
 
     @torch.inference_mode()
     def convert_batch(self, batch, *, target, **kwargs):
-        target = self.prepare_target(target)
+        if self.training:
+            raise RuntimeError("Call eval() before converting speech.")
+        if not isinstance(target, PreparedTarget) or target.representation == "ssl-source-v1":
+            target = self.prepare_target(target)
         if target.representation == "ssl-source-v1":
             overrides = [name for name, value in kwargs.items() if value is not None]
             if overrides:
@@ -101,6 +104,8 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
             if generation.audio is None:
                 raise RuntimeError("Conversion requires generated audio.")
             return generation.audio
+        if self.reference_conditioning is None:
+            raise ValueError("Decoder has no reference conditioning configured.")
         return self.reference_conditioning.convert_batch(self, batch, target=target, **kwargs)
 
     def decode_features(self, features, lengths, speaker_embedding=None, **kwargs):
