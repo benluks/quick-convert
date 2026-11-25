@@ -106,12 +106,14 @@ def test_composable_sampling_policy(tmp_path):
             "_target_": "quick_convert.data.sampling.LengthAwareSampling",
             "pool_size": 4,
             "max_batch_seconds": 1.0,
+            "max_batch_attention_cost": 0.2,
         }
     )
     loader = dataset.make_dataloader(batch_size=2, sampling=policy)
     assert isinstance(loader.batch_sampler, LengthAwareBatchSampler)
     assert sorted(i for batch in loader.batch_sampler for i in batch) == list(range(4))
     assert all(len(batch) <= 2 for batch in loader.batch_sampler)
+    assert loader.batch_sampler.budgets == {1: 1.0, 2: 0.2}
     with pytest.raises(ValueError, match="another sampler"):
         dataset.make_dataloader(sampling=policy, batch_sampler=loader.batch_sampler)
 
