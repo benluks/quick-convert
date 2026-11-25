@@ -61,3 +61,33 @@ pipeline:
       batch_size: 64
       pool_size: 1024
       max_batch_cost: 768
+    quadratic4000:
+      kind: length_aware
+      batch_size: 64
+      pool_size: 1024
+      cost_power: 2
+      max_batch_cost: 4000
+    quadratic6000:
+      kind: length_aware
+      batch_size: 64
+      pool_size: 1024
+      cost_power: 2
+      max_batch_cost: 6000
+    quadratic8000:
+      kind: length_aware
+      batch_size: 64
+      pool_size: 1024
+      cost_power: 2
+      max_batch_cost: 8000
+    quadratic12000:
+      kind: length_aware
+      batch_size: 64
+      pool_size: 1024
+      cost_power: 2
+      max_batch_cost: 12000
+    quadratic16000:
+      kind: length_aware
+      batch_size: 64
+      pool_size: 1024
+      cost_power: 2
+      max_batch_cost: 16000
