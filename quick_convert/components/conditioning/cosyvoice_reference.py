@@ -36,6 +36,7 @@ class CosyVoiceReferenceConditioning:
                 "Prepared stream reference requires prefix content. Prepare it again from ReferenceSpeech."
             )
 
+    @staticmethod
     @torch.inference_mode()
     def prepare_target(system, target: ReferenceSpeech | SourceVoice | PreparedTarget) -> PreparedTarget:
         """Prepare the saved decoder's native reference or named streams."""
@@ -147,6 +148,7 @@ class CosyVoiceReferenceConditioning:
             prompt_crossfade_seconds=target.prompt_builder.crossfade_seconds if prompt is not None else None,
         )
 
+    @staticmethod
     @torch.inference_mode()
     def convert_batch(
         system, batch: AudioBatch, *, target: PreparedTarget, inference_cfg_rate: float | None = None
@@ -170,9 +172,9 @@ class CosyVoiceReferenceConditioning:
             raise ValueError("Content features require valid lengths.")
         features, lengths, _ = system.encode_features(content.values, content.lengths, metadata=content.metadata)
         kwargs = target.conditioning.decoder_kwargs(len(batch), device=features.device, dtype=features.dtype)
-        generation = system.decoder(
-            feature=features,
-            length=lengths,
+        generation = system.decode_features(
+            features,
+            lengths,
             run_vocoder=True,
             **kwargs,
             **({"inference_cfg_rate": inference_cfg_rate} if inference_cfg_rate is not None else {}),
@@ -181,6 +183,7 @@ class CosyVoiceReferenceConditioning:
             raise RuntimeError("Conversion requires generated audio.")
         return generation.audio
 
+    @staticmethod
     def conditioning_streams(
         system, batch: AudioBatch, target_lengths: torch.Tensor | None = None
     ) -> dict[str, ConditioningStream]:
