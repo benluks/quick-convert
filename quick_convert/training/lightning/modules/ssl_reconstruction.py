@@ -296,7 +296,9 @@ class SSLReconstructionTrainingModule(BaseTrainingModule):
         self.log_dict(metrics, on_step=True, on_epoch=False, sync_dist=False)
 
     def log_validation_output(self, batch, output, batch_idx):
-        if self.supervision is not None or batch_idx != 0:
+        if batch_idx != 0:
+            return
+        if self.supervision is not None:
             return
 
         media = cosyvoice_validation_media(self.system, batch, output, reference_seconds=self.reference_seconds)
