@@ -154,3 +154,46 @@ def test_duration_metadata_fallback(tmp_path, monkeypatch):
     path.touch()
     monkeypatch.setattr(durations, "probe_audio_duration", lambda p: 2.5)
     assert durations.read_audio_duration(path) == 2.5
+
+
+@pytest.mark.parametrize("drop_remainder", [False, True])
+def test_distributed_batch_schedule(drop_remainder):
+    from quick_convert.data.sampling import DistributedBatchSampler
+
+    global_sampler = LengthAwareBatchSampler(list(range(1, 26)), 4, pool_size=8, seed=42)
+    wrappers = [
+        DistributedBatchSampler(global_sampler, rank=rank, world_size=3, drop_remainder=drop_remainder)
+        for rank in range(3)
+    ]
+    for epoch in range(3):
+        for wrapper in wrappers:
+            wrapper.set_epoch(epoch)
+        expected = list(global_sampler)
+        actual = [list(wrapper) for wrapper in wrappers]
+        assert all(len(batches) == len(wrappers[0]) for batches in actual)
+        reconstructed = [batch for step in zip(*actual, strict=True) for batch in step]
+        if drop_remainder:
+            assert reconstructed == expected[:6]
+        else:
+            assert reconstructed == expected + expected[:2]
+
+
+def test_lightning_distributed_loader_construction():
+    pytest.importorskip("lightning.pytorch")
+    from types import SimpleNamespace
+
+    from quick_convert.data import BaseDataset
+    from quick_convert.data.sampling import DistributedBatchSampler
+    from quick_convert.training.lightning.trainer import _SamplingDataModule
+
+    class Policy:
+        def build(self, dataset, *, batch_size, shuffle, drop_last):
+            return LengthAwareBatchSampler([1] * 8, batch_size, shuffle=shuffle, drop_last=drop_last)
+
+    dataset = BaseDataset(rows=[])
+    datamodule = _SamplingDataModule(dataset, dataset, {"sampling": Policy(), "batch_size": 2}, {})
+    datamodule.trainer = SimpleNamespace(world_size=2, global_rank=1)
+    loader = datamodule.train_dataloader()
+    assert isinstance(loader.batch_sampler, DistributedBatchSampler)
+    assert list(loader.batch_sampler) == [[2, 3], [6, 7]]
+    assert datamodule.val_dataloader().sampler.rank == 1
