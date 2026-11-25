@@ -1,7 +1,9 @@
 _target_: quick_convert.systems.conversion.ssl_reconstruction.SSLReconstructionConversionSystem
 online_encoders:
   content:
-    _target_: quick_convert.components.encoders.content.original_wavlm.OriginalWavLMContentEncoder
+    _target_: quick_convert.components.encoders.content.wavlm.WavLMContentEncoder
+    backend: original
+    layer: 6
     device: ${device}
 decoder:
   _target_: quick_convert.components.generators.waveform.knnvc_hifigan.KnnVCHifiGanDecoder.from_pretrained
