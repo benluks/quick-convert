@@ -10,9 +10,12 @@ from quick_convert.data.types import AudioBatch, AudioSample
 
 def test_lightning_training_throughput(tmp_path):
     lightning = pytest.importorskip("lightning.pytorch")
+    from quick_convert.training.lightning.modules.base import BaseTrainingModule
     from quick_convert.training.lightning.throughput import TrainingThroughput
 
     class Model(lightning.LightningModule):
+        transfer_batch_to_device = BaseTrainingModule.transfer_batch_to_device
+
         def __init__(self):
             super().__init__()
             self.weight = torch.nn.Parameter(torch.ones(()))
@@ -23,10 +26,7 @@ def test_lightning_training_throughput(tmp_path):
         def configure_optimizers(self):
             return torch.optim.SGD(self.parameters(), lr=0.01)
 
-    samples = [
-        AudioSample(utt_id=str(i), path=Path(str(i)), waveform=torch.ones(10), sample_rate=10)
-        for i in range(8)
-    ]
+    samples = [AudioSample(utt_id=str(i), path=Path(str(i)), waveform=torch.ones(10), sample_rate=10) for i in range(8)]
     callback = TrainingThroughput(warmup_batches=1)
     trainer = lightning.Trainer(
         accelerator="cpu",
