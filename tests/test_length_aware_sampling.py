@@ -26,15 +26,16 @@ def test_dynamic_budget(power):
     sampler = LengthAwareBatchSampler(lengths, 8, max_batch_cost=400, cost_power=power)
     batches = list(sampler)
     assert sorted(i for batch in batches for i in batch) == list(range(20))
-    assert all(len(b) <= 8 and len(b) * max(lengths[i] for i in b) ** power <= 400
-               for b in batches)
+    assert all(len(b) <= 8 and len(b) * max(lengths[i] for i in b) ** power <= 400 for b in batches)
 
 
 def test_duration_cache(tmp_path):
     path = tmp_path / "audio.flac"
     path.touch()
-    rows = [SimpleNamespace(path=path, start=None, end=None, utt_id="a"),
-            SimpleNamespace(path=path, start=2, end=5, utt_id="b")]
+    rows = [
+        SimpleNamespace(path=path, start=None, end=None, utt_id="a"),
+        SimpleNamespace(path=path, start=2, end=5, utt_id="b"),
+    ]
     calls = []
 
     def reader(p):
@@ -70,9 +71,14 @@ def test_lightning_advances_batch_sampler_epoch():
 
     model = Model()
     trainer = lightning.Trainer(
-        accelerator="cpu", devices=1, max_epochs=3, logger=False,
-        enable_checkpointing=False, enable_progress_bar=False,
-        enable_model_summary=False, use_distributed_sampler=False,
+        accelerator="cpu",
+        devices=1,
+        max_epochs=3,
+        logger=False,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+        use_distributed_sampler=False,
     )
     trainer.fit(model, train_dataloaders=DataLoader(list(range(64)), batch_sampler=sampler))
     for epoch in range(3):
