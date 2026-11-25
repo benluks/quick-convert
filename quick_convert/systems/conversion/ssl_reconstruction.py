@@ -94,9 +94,13 @@ class SSLReconstructionConversionSystem(OnlineResourceMixin, InferenceSystem):
     def convert_batch(self, batch, *, target, **kwargs):
         target = self.prepare_target(target)
         if target.representation == "ssl-source-v1":
-            if any(value is not None for value in kwargs.values()):
-                raise ValueError("SourceVoice does not accept inference overrides.")
-            return self(batch).generation.audio
+            overrides = [name for name, value in kwargs.items() if value is not None]
+            if overrides:
+                raise ValueError(f"SourceVoice does not accept inference overrides: {overrides}.")
+            generation = self(batch).generation
+            if generation.audio is None:
+                raise RuntimeError("Conversion requires generated audio.")
+            return generation.audio
         return self.reference_conditioning.convert_batch(self, batch, target=target, **kwargs)
 
     def decode_features(self, features, lengths, speaker_embedding=None, **kwargs):
