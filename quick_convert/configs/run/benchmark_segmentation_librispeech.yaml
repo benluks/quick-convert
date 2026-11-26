@@ -1,0 +1,33 @@
+# @package _global_
+defaults:
+  - /dataset: librispeech
+  - _self_
+
+root: ???
+split: train-clean-100
+dataset:
+  root: ${root}
+  splits: ["${split}"]
+  load: false
+
+pipeline:
+  _target_: quick_convert.pipelines.benchmarking.segmentation.SegmentationBenchmarkPipeline
+  dataset: ${dataset}
+  durations: [12, 6, 3, 1.5]
+  seeds: [0, 1, 2]
+  duration_cache: outputs/cache/librispeech_durations.json
+  output: outputs/benchmarks/segmentation/${split}.json
+  strategies:
+    random:
+      kind: random
+      batch_size: 32
+    fixed:
+      kind: length_aware
+      batch_size: 32
+      pool_size: 1024
+    hybrid:
+      kind: length_aware
+      batch_size: 64
+      pool_size: 1024
+      max_batch_seconds: 512
+      max_batch_attention_cost: 8000
