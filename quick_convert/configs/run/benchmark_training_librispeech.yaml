@@ -5,6 +5,7 @@ defaults:
   - /trainer: ssl_reconstruction
   - /system/conversion@system: w2vbert_dit_cosyvoice
   - /dataset@train_dataset: librispeech
+  - /segmentation@train_dataset.segmentation: null
   - /sampling@trainer.train_dataloader_kwargs: random
   - _self_
 
