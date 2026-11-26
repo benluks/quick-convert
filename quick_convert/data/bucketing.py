@@ -42,8 +42,7 @@ class BucketedBatchSampler(torch.utils.data.Sampler):
         self.sizes = []
         for i, boundary in enumerate(self.boundaries):
             limit = min(
-                [batch_size]
-                + [math.floor(budget / boundary**power) for power, budget in budgets if budget is not None]
+                [batch_size] + [math.floor(budget / boundary**power) for power, budget in budgets if budget is not None]
             )
             size = limit if batch_sizes is None else batch_sizes[i]
             if not isinstance(size, int) or not 1 <= size <= limit:
