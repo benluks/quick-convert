@@ -1,0 +1,10 @@
+batch_size: 320
+shuffle: true
+drop_last: false
+sampling:
+  _target_: quick_convert.data.bucketing.BucketedSampling
+  boundaries: [1.5, 3, 4.5, 6]
+  batch_sizes: [320, 160, 112, 80]
+  max_batch_seconds: 512
+  max_batch_attention_cost: 8000
+  seed: ${seed}

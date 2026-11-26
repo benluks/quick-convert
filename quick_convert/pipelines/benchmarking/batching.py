@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 
+from quick_convert.data.bucketing import BucketedBatchSampler
 from quick_convert.data.durations import resolve_durations
 from quick_convert.data.sampling import LengthAwareBatchSampler, batching_statistics
 
@@ -36,6 +37,7 @@ class BatchingBenchmarkPipeline:
             for name, options in self.strategies.items():
                 options = dict(options)
                 kind = options.pop("kind")
+                bucket_sampler = None
                 if kind == "random":
                     batch_size = options.pop("batch_size")
                     if batch_size < 1 or options:
@@ -44,17 +46,29 @@ class BatchingBenchmarkPipeline:
                     batches = [indices[i : i + batch_size] for i in range(0, len(indices), batch_size)]
                 elif kind == "length_aware":
                     batches = list(LengthAwareBatchSampler(lengths, seed=seed, **options))
+                elif kind == "bucketed":
+                    bucket_sampler = BucketedBatchSampler(lengths, seed=seed, **options)
+                    batches = list(bucket_sampler)
                 else:
                     raise ValueError(f"Unknown batching strategy: {kind}")
                 if sorted(i for batch in batches for i in batch) != list(range(len(lengths))):
                     raise ValueError(f"Strategy {name} does not cover every example exactly once.")
                 stats = batching_statistics(lengths, batches)
-                linear_costs = [len(batch) * max(lengths[i] for i in batch) for batch in batches]
-                quadratic_costs = [len(batch) * max(lengths[i] for i in batch) ** 2 for batch in batches]
+                padded_lengths = [
+                    bucket_sampler.padded_duration(batch) if bucket_sampler else max(lengths[i] for i in batch)
+                    for batch in batches
+                ]
+                linear_costs = [len(batch) * t for batch, t in zip(batches, padded_lengths, strict=True)]
+                quadratic_costs = [len(batch) * t**2 for batch, t in zip(batches, padded_lengths, strict=True)]
+                stats.update(
+                    padded_volume=sum(linear_costs),
+                    attention_cost=sum(quadratic_costs),
+                    padding_fraction=1 - stats["valid_volume"] / sum(linear_costs),
+                )
                 stats.update(
                     name=name,
                     distinct_batch_shapes=len(
-                        {(len(batch), round(max(lengths[i] for i in batch) * 16000)) for batch in batches}
+                        {(len(batch), round(t * 16000)) for batch, t in zip(batches, padded_lengths, strict=True)}
                     ),
                     seed=seed,
                     min_batch_size=min(map(len, batches)),
