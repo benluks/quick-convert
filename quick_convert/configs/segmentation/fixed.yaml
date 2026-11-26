@@ -1,0 +1,4 @@
+_target_: quick_convert.data.segmentation.FixedDurationSegmentation
+duration: 6.0
+drop_remainder: false
+duration_cache: null
