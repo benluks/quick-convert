@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 
 import torch
+from omegaconf import OmegaConf
 
 from quick_convert.data.bucketing import BucketedBatchSampler
 from quick_convert.data.durations import resolve_durations
@@ -20,7 +21,7 @@ def cost_percentiles(values):
 class BatchingBenchmarkPipeline:
     def __init__(self, dataset, strategies, seeds=(0,), duration_cache=None, output=None):
         self.dataset = dataset
-        self.strategies = strategies
+        self.strategies = OmegaConf.to_container(OmegaConf.create(strategies), resolve=True)
         self.seeds = seeds
         self.duration_cache = duration_cache
         self.output = output
