@@ -13,6 +13,7 @@ from quick_convert.utils.paths import TemplateFormatter
 from ..utils.audio import get_supported_formats
 from .resources import BaseResourceProvider, ResourceCollection, ResourceRef, load_resource
 from .sampling import DistributedBatchSampler, SamplingPolicy
+from .segmentation import SegmentationPolicy
 from .types import AudioBatch, AudioSample, MetadataBatch, MetadataSample
 
 
@@ -78,6 +79,7 @@ class BaseDataset(Dataset):
         # length to extend collated audio files to beyond the maximum sample length. This is used in
         # cudnn benchmark where all batches must have the same shape. Expressed in number of samples after resampling
         max_length: int | None = None,
+        segmentation: SegmentationPolicy | None = None,
         **kwargs,
     ):
         sources = [
@@ -110,8 +112,11 @@ class BaseDataset(Dataset):
         self.load = self._normalize_load(load)
         self.max_length = max_length
 
+        if segmentation is not None and self.resource_providers:
+            raise ValueError("Segmentation with resource providers requires explicit resource slicing.")
+
         if rows is not None:
-            self.rows = rows
+            self.rows = segmentation.build(list(rows)) if segmentation is not None else rows
             return
 
         elif paths is not None:
@@ -162,6 +167,8 @@ class BaseDataset(Dataset):
 
         self.sort_key = sort_key
         self.rows = sorted(rows, key=lambda row: TemplateFormatter.format_str(sort_key, row=row))
+        if segmentation is not None:
+            self.rows = segmentation.build(self.rows)
 
     @classmethod
     def _normalize_and_validate_format(cls, file_format: str | Iterable[str] | None) -> set[str] | None:
@@ -246,6 +253,7 @@ class BaseDataset(Dataset):
             resources=sample.resources,
             start=sample.start,
             end=sample.end,
+            parent_utt_id=sample.parent_utt_id,
         ).load_audio(target_sr=self.target_sr, mono=self.convert_to_mono)
 
     def _collate_dicts(self, batch: list[AudioSample], property="resources") -> dict[str, list[Any]]:
