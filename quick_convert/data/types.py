@@ -56,6 +56,7 @@ class MetadataSample:
     resources: ResourceCollection = field(default_factory=ResourceCollection)
     start: float | None = field(default=None, kw_only=True)
     end: float | None = field(default=None, kw_only=True)
+    parent_utt_id: str | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,7 @@ class MetadataBatch:
     resource_refs: list[ResourceCollection] | None = None
     starts: list[float | None] | None = field(default=None, kw_only=True)
     ends: list[float | None] | None = field(default=None, kw_only=True)
+    parent_utt_ids: list[str | None] | None = field(default=None, kw_only=True)
 
     def __len__(self) -> int:
         return len(self.paths)
@@ -108,6 +110,7 @@ class MetadataBatch:
             split=self.splits[idx],
             start=self.starts[idx] if self.starts is not None else None,
             end=self.ends[idx] if self.ends is not None else None,
+            parent_utt_id=self.parent_utt_ids[idx] if self.parent_utt_ids is not None else None,
             resources=self._sample_resources(idx),
         )
 
@@ -173,6 +176,7 @@ class AudioBatch(MetadataBatch):
             "splits": [s.split for s in samples],
             "starts": [s.start for s in samples],
             "ends": [s.end for s in samples],
+            "parent_utt_ids": [s.parent_utt_id for s in samples],
             "resources": resources,
             "resource_refs": resource_refs,
         }
@@ -257,6 +261,7 @@ class AudioBatch(MetadataBatch):
             split=self.splits[idx],
             start=self.starts[idx] if self.starts is not None else None,
             end=self.ends[idx] if self.ends is not None else None,
+            parent_utt_id=self.parent_utt_ids[idx] if self.parent_utt_ids is not None else None,
             waveform=waveform,
             sample_rate=self.sample_rates[idx] if self.sample_rates is not None else None,
             resources=self._sample_resources(idx),

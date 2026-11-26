@@ -53,6 +53,9 @@ class BatchingBenchmarkPipeline:
                 quadratic_costs = [len(batch) * max(lengths[i] for i in batch) ** 2 for batch in batches]
                 stats.update(
                     name=name,
+                    distinct_batch_shapes=len(
+                        {(len(batch), round(max(lengths[i] for i in batch) * 16000)) for batch in batches}
+                    ),
                     seed=seed,
                     min_batch_size=min(map(len, batches)),
                     max_batch_size=max(map(len, batches)),
