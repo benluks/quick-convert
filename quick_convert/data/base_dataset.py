@@ -279,10 +279,14 @@ class BaseDataset(Dataset):
         **kwargs,
     ) -> DataLoader:
         """Build a PyTorch dataloader using this dataset's collation contract."""
+        collate_fn = self.collate_fn
         if sampling is not None:
             if batch_sampler is not None or kwargs.get("sampler") is not None:
                 raise ValueError("sampling cannot be combined with another sampler.")
             batch_sampler = sampling.build(self, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last)
+            build_collate = getattr(sampling, "build_collate_fn", None)
+            if build_collate is not None:
+                collate_fn = build_collate(self)
         if distributed is not None:
             rank, world_size = distributed
             if batch_sampler is not None:
@@ -300,7 +304,7 @@ class BaseDataset(Dataset):
                 batch_sampler=batch_sampler,
                 num_workers=num_workers,
                 pin_memory=pin_memory,
-                collate_fn=self.collate_fn,
+                collate_fn=collate_fn,
                 **kwargs,
             )
         return DataLoader(
@@ -310,6 +314,6 @@ class BaseDataset(Dataset):
             num_workers=num_workers,
             pin_memory=pin_memory,
             drop_last=drop_last,
-            collate_fn=self.collate_fn,
+            collate_fn=collate_fn,
             **kwargs,
         )
