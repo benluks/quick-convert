@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from os import PathLike
 from pathlib import Path
+from threading import get_ident
 
 import torch
 import torch.nn.functional as F
@@ -29,11 +30,13 @@ class WavLMContentEncoder(ContentEncoder):
         max_length: int | None = None,
         do_normalize: bool = False,
         use_original_checkpoint: bool = False,
+        apply_final_layer_norm: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(device=device)
 
         self.use_original_checkpoint = use_original_checkpoint
+        self.apply_final_layer_norm = apply_final_layer_norm
         self.model_name = model_name
         self._sample_rate = sample_rate
         self.layer = layer
@@ -60,6 +63,12 @@ class WavLMContentEncoder(ContentEncoder):
             load_microsoft_wavlm_large(model, local_files_only=local_files_only)
         else:
             model = AutoModel.from_pretrained(model_name, local_files_only=local_files_only, **kwargs)
+        if not apply_final_layer_norm and (
+            not getattr(model.config, "do_stable_layer_norm", False) or layer != model.config.num_hidden_layers
+        ):
+            raise ValueError(
+                "Disabling WavLM's final layer norm requires selecting the final layer of a pre-norm model."
+            )
         self.model = model.to(self.device)
         self.model.eval()
 
@@ -199,6 +208,20 @@ class WavLMContentEncoder(ContentEncoder):
             return_attention_mask=not self.use_original_checkpoint,
         ).to(self.device)
 
+        if not self.apply_final_layer_norm:
+            # The stable encoder applies this norm after the final transformer block.
+            # Capture its input without changing model parameters or checkpoint keys.
+            before_norm = []
+            caller = get_ident()
+
+            def capture(_module, args):
+                if get_ident() == caller:
+                    before_norm.append(args[0])
+
+            with self.model.encoder.layer_norm.register_forward_pre_hook(capture):
+                self.model(**inputs, return_dict=True)
+            return before_norm[0]
+
         outputs = self.model(
             **inputs,
             output_hidden_states=True,
@@ -243,6 +266,9 @@ class WavLMContentEncoder(ContentEncoder):
                 self.downsample_factor,
             )
 
+        model_name = f"{self.model_name}:original" if self.use_original_checkpoint else self.model_name
+        if not self.apply_final_layer_norm:
+            model_name += ":pre-final-norm"
         return ContentFeatures(
             values=selected,
             lengths=output_lengths,
@@ -250,7 +276,7 @@ class WavLMContentEncoder(ContentEncoder):
             representation_type="continuous",
             temporal_granularity="frame",
             backend="transformers",
-            model_name=f"{self.model_name}:original" if self.use_original_checkpoint else self.model_name,
+            model_name=model_name,
             layer=self.layer,
             frame_hz=self.frame_hz,
         )

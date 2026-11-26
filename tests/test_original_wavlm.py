@@ -65,3 +65,43 @@ def test_original_wavlm_checkpoint_maps_and_requires_encoder_weights(monkeypatch
     del checkpoint["model"]["post_extract_proj.bias"]
     with pytest.raises(RuntimeError, match="Missing key"):
         load_microsoft_wavlm_large(model, local_files_only=False)
+
+
+@pytest.mark.parametrize("apply_norm", [True, False])
+def test_final_wavlm_layer_can_return_pre_norm_features(monkeypatch, apply_norm):
+    class Model(nn.Module):
+        config = SimpleNamespace(conv_stride=[1], conv_kernel=[1], do_stable_layer_norm=True, num_hidden_layers=24)
+
+        def __init__(self):
+            super().__init__()
+            self.encoder = nn.Module()
+            self.encoder.layer_norm = nn.LayerNorm(2)
+
+        def forward(self, *, input_values, return_dict, output_hidden_states=False):
+            features = input_values.unsqueeze(-1) * torch.tensor([1.0, 2.0])
+            last = self.encoder.layer_norm(features)
+            return SimpleNamespace(hidden_states=(None,) * 24 + (last,))
+
+    class Inputs(dict):
+        def to(self, device):
+            return self
+
+    monkeypatch.setitem(
+        sys.modules,
+        "transformers",
+        SimpleNamespace(
+            AutoFeatureExtractor=SimpleNamespace(
+                from_pretrained=lambda *args, **kwargs: (
+                    lambda waveforms, **kwargs: Inputs(input_values=torch.tensor(waveforms[0])[None])
+                )
+            ),
+            AutoModel=SimpleNamespace(from_pretrained=lambda *args, **kwargs: Model()),
+        ),
+    )
+    encoder = wavlm.WavLMContentEncoder(layer=24, device="cpu", apply_final_layer_norm=apply_norm)
+    raw = torch.tensor([[[2.0, 4.0], [3.0, 6.0]]])
+    expected = encoder.model.encoder.layer_norm(raw) if apply_norm else raw
+    result = encoder.encode_waveforms(torch.tensor([[2.0, 3.0]]))
+    torch.testing.assert_close(result.values, expected)
+    assert result.model_name.endswith(":pre-final-norm") is (not apply_norm)
+    assert not encoder.model.encoder.layer_norm._forward_pre_hooks

@@ -137,6 +137,14 @@ Precomputed batch resources take precedence and remain detached, so omit cached
 content resources when fine-tuning the online content encoder. Encoder parameters
 are registered on the system and included by the training module's optimizer.
 
+For `WavLMContentEncoder`, `apply_final_layer_norm` defaults to `true` and
+preserves the Transformers hidden states. Set it to `false` when selecting
+the final layer of a pre-norm WavLM model to return the final transformer
+block output. For WavLM-Large this is layer 24. The feature metadata
+identifies the pre-norm representation so it can be distinguished in caches.
+This option controls layer extraction. Checkpoint selection and waveform
+padding are separate settings.
+
 ### Fitted transformations and checkpoint resume
 
 `FitPipeline(dataset, transform, out_path, resources=None)` fits and persists plain
