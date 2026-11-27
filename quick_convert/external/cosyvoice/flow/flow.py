@@ -441,14 +441,17 @@ class CausalMaskedDiffWithDiT(torch.nn.Module):
             token_len = batch["speech_token_len"].to(device)
         feat = batch["speech_feat"].to(device)
         feat_len = batch["speech_feat_len"].to(device)
-        embedding = batch["embedding"].to(device)
+        embedding = batch["embedding"]
+        if embedding is not None:
+            embedding = embedding.to(device)
 
         # NOTE unified training, static_chunk_size > 0 or = 0
         streaming = True if random.random() < 0.5 else False
 
         # xvec projection
-        embedding = F.normalize(embedding, dim=1)
-        embedding = self.spk_embed_affine_layer(embedding)
+        if embedding is not None:
+            embedding = F.normalize(embedding, dim=1)
+            embedding = self.spk_embed_affine_layer(embedding)
 
         # concat text and prompt_text
         mask = (~make_pad_mask(token_len)).float().unsqueeze(-1).to(device)
@@ -497,12 +500,13 @@ class CausalMaskedDiffWithDiT(torch.nn.Module):
     ):
         # assert token.shape[0] == 1
         # xvec projection
-        embedding = F.normalize(embedding, dim=1)
-        embedding = self.spk_embed_affine_layer(embedding)
+        if embedding is not None:
+            embedding = F.normalize(embedding, dim=1)
+            embedding = self.spk_embed_affine_layer(embedding)
 
         # concat text and prompt_text
         token, token_len = torch.concat([prompt_token, token], dim=1), prompt_token_len + token_len
-        mask = (~make_pad_mask(token_len)).unsqueeze(-1).to(embedding)
+        mask = (~make_pad_mask(token_len)).unsqueeze(-1).to(device=token.device, dtype=prompt_feat.dtype)
         if self.vocab_size is not None:
             token = self.input_embedding(torch.clamp(token, min=0))
 
