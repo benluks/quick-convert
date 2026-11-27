@@ -160,9 +160,7 @@ class CosyVoiceSpectrogramGenerator(nn.Module):
     @property
     def requires_speaker_embedding(self) -> bool:
         """Whether this composition consumes a global speaker vector."""
-        if getattr(self, "stream_conditioning", None) is None:
-            return True
-        estimator = self.flow.decoder.estimator
+        estimator = getattr(getattr(self.flow, "decoder", None), "estimator", None)
         embedding = getattr(estimator, "input_embed", estimator)
         return getattr(embedding, "spk_dim", 1) > 0
 

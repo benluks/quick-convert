@@ -330,3 +330,50 @@ def test_cfg_solver_uses_override_without_mutating_default():
         result = cfm.solve_euler(**args, inference_cfg_rate=rate)
         torch.testing.assert_close(result, torch.full_like(result, 2 + (0.7 if rate is None else rate)))
         assert cfm.inference_cfg_rate == 0.7
+
+
+def test_native_dit_without_speaker_or_streams():
+    flow_module = pytest.importorskip("quick_convert.external.cosyvoice.flow.flow")
+    cfm_module = pytest.importorskip("quick_convert.external.cosyvoice.flow.flow_matching")
+    from omegaconf import DictConfig
+
+    from quick_convert.external.cosyvoice.transformer.upsample_encoder import PreLookaheadLayer
+
+    estimator = Estimator()
+    estimator.spk_dim = 0
+    cfm = cfm_module.CausalConditionalCFM(
+        in_channels=240,
+        spk_emb_dim=80,
+        estimator=estimator,
+        cfm_params=DictConfig(
+            dict(sigma_min=1e-6, solver="euler", t_scheduler="cosine", training_cfg_rate=0.2, inference_cfg_rate=0.7)
+        ),
+    )
+    flow = flow_module.CausalMaskedDiffWithDiT(
+        input_size=80,
+        output_size=80,
+        spk_embed_dim=2,
+        vocab_size=None,
+        input_frame_rate=50,
+        token_mel_ratio=1,
+        pre_lookahead_layer=PreLookaheadLayer(80, 16, 3),
+        decoder=cfm,
+    )
+    module = CosyVoiceSpectrogramGenerator(
+        flow,
+        feature_dim=4,
+        device="cpu",
+        mel_config=MelSpectrogramConfig(16000, 1280, 320, 1280, 80, 0, 8000),
+    )
+    assert not module.requires_speaker_embedding
+    features = torch.randn(2, 4, 4, requires_grad=True)
+    lengths = torch.tensor([4, 3])
+    loss = module.compute_loss(features, lengths, torch.randn(2, 1280), lengths * 320, 16000).loss
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert features.grad is not None
+    assert estimator.inputs["spks"] is None
+    module.eval()
+    generated = module(features.detach(), lengths, run_vocoder=False)
+    assert generated.mel.shape == (2, 80, 4)
+    assert estimator.inputs["spks"] is None

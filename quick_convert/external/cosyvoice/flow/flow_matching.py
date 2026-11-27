@@ -96,13 +96,14 @@ class ConditionalCFM(BASECFM):
         # added for batched inference
         b = x.size(0)
         # Do not use concat, it may cause memory format changed and trt infer with wrong results!
-        # NOTE when flow run in amp mode, x.dtype is float32, which cause nan in trt fp16 inference, so set dtype=spks.dtype
-        x_in = torch.zeros([2 * b, x.size(1), x.size(2)], device=x.device, dtype=spks.dtype)
-        mask_in = torch.zeros([2 * b, 1, x.size(2)], device=x.device, dtype=spks.dtype)
-        mu_in = torch.zeros([2 * b, mu.size(1), x.size(2)], device=x.device, dtype=spks.dtype)
-        t_in = torch.zeros([2 * b], device=x.device, dtype=spks.dtype)
-        spks_in = torch.zeros([2 * b, spks.size(1)], device=x.device, dtype=spks.dtype)
-        cond_in = torch.zeros([2 * b, cond.size(1), x.size(2)], device=x.device, dtype=spks.dtype)
+        # NOTE when flow run in amp mode, x.dtype is float32, which cause nan in trt fp16 inference, so set dtype=dtype
+        dtype = mu.dtype if spks is None else spks.dtype
+        x_in = torch.zeros([2 * b, x.size(1), x.size(2)], device=x.device, dtype=dtype)
+        mask_in = torch.zeros([2 * b, 1, x.size(2)], device=x.device, dtype=dtype)
+        mu_in = torch.zeros([2 * b, mu.size(1), x.size(2)], device=x.device, dtype=dtype)
+        t_in = torch.zeros([2 * b], device=x.device, dtype=dtype)
+        spks_in = None if spks is None else torch.zeros([2 * b, spks.size(1)], device=x.device, dtype=dtype)
+        cond_in = torch.zeros([2 * b, cond.size(1), x.size(2)], device=x.device, dtype=dtype)
         for step in range(1, len(t_span)):
             # Classifier-Free Guidance inference introduced in VoiceBox
             x_in[:b] = x
@@ -114,8 +115,9 @@ class ConditionalCFM(BASECFM):
             mu_in[:b] = mu
             mu_in[b:] = 0
 
-            spks_in[:b] = spks
-            spks_in[b:] = 0
+            if spks_in is not None:
+                spks_in[:b] = spks
+                spks_in[b:] = 0
 
             cond_in[:b] = cond
             cond_in[b:] = 0
@@ -196,7 +198,8 @@ class ConditionalCFM(BASECFM):
         if self.training_cfg_rate > 0:
             cfg_mask = torch.rand(b, device=x1.device) > self.training_cfg_rate
             mu = mu * cfg_mask.view(-1, 1, 1)
-            spks = spks * cfg_mask.view(-1, 1)
+            if spks is not None:
+                spks = spks * cfg_mask.view(-1, 1)
             cond = cond * cfg_mask.view(-1, 1, 1)
 
         pred = self.estimator(y, mask, mu, t.squeeze(), spks, cond, streaming=streaming)
