@@ -11,7 +11,7 @@ def test_calibration_continues_after_oom(tmp_path):
         if directory.name == "3s_b64":
             return {"status": "oom", "returncode": 1}
         assert json.loads((output / "results.json").read_text())[0]["status"] == "oom"
-        assert "trainer.trainer_kwargs.batch_size=128" in command
+        assert "trainer.train_dataloader_kwargs.batch_size=128" in command
         return {"status": "completed", "metrics": [{"audio_seconds_per_second": 300}]}
 
     results = calibrate(output, [3], [192, 384], [], run_trial_fn=trial)
