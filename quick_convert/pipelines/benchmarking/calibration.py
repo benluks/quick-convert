@@ -2,6 +2,8 @@
 
 import argparse
 import json
+import math
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -22,16 +24,22 @@ def run_trial(command, directory):
 
 
 def calibrate(output, durations, budgets, overrides, *, warmup=10, measured=20, run_trial_fn=run_trial):
+    if any(not math.isfinite(x) or x <= 0 for x in [*durations, *budgets]):
+        raise ValueError("Durations and budgets must be finite and positive.")
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
     results = []
     for duration in durations:
         for budget in budgets:
-            size = max(1, int(budget / duration))
+            size = int(budget / duration)
+            if size < 1:
+                continue
             name = f"{duration:g}s_b{size}"
             directory = output / name
+            if directory.exists():
+                continue
             command = [
-                "quick-convert",
+                shutil.which("quick-convert") or "quick-convert",
                 "benchmark_training_librispeech",
                 *overrides,
                 "sampling@trainer.train_dataloader_kwargs=random",
